@@ -29,7 +29,7 @@ to maintain this focus, there are a few things meikipop is **not**:
 ## installation
 
 1.  **prerequisites:**
-    *   Python 3.8+
+    *   Python 3.10+
 
 2.  **download the latest release that includes a prebuilt dictionary:**
     * https://github.com/rtr46/meikipop/releases
