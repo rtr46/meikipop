@@ -59,7 +59,9 @@ changes are saved to `config.ini` in the same folder as the application.
 ## building your own dictionary
 
 if you want to build your own dictionary follow the instructions here to generate *.json files for your dictionary: [Nazeka](https://github.com/wareya/nazeka)
+
 put those *.json files into the data folder and run
+
 ```bash
 python build_dictionary.py
 ```
