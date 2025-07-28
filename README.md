@@ -31,14 +31,12 @@ to maintain this focus, there are a few things meikipop is **not**:
 1.  **prerequisites:**
     *   Python 3.8+
 
-2.  **clone the repository and install dependencies:**
+2.  **download the latest release that includes a prebuilt dictionary:**
+    * https://github.com/rtr46/meikipop/releases
+
+3.  **install python dependencies and run:**
     ```bash
-    git clone https://github.com/your-github-username/meikipop.git # or download this repo as zip: https://github.com/rtr46/meikipop/archive/refs/heads/main.zip
-    cd meikipop
     pip install -r requirements.txt
-    ```
-3.  **run:**
-    ```bash
     python main.py
     ```
 
@@ -57,6 +55,14 @@ to maintain this focus, there are a few things meikipop is **not**:
 you can fully customize meikipop's behavior and appearance. right-click the tray icon and choose "settings" to open the configuration gui.
 
 changes are saved to `config.ini` in the same folder as the application.
+
+## building your own dictionary
+
+if you want to build your own dictionary follow the instructions here to generate *.json files for your dictionary: [Nazeka](https://github.com/wareya/nazeka)
+put those *.json files into the data folder and run
+```bash
+python build_dictionary.py
+```
 
 ## license
 
