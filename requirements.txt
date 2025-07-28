@@ -1,6 +1,6 @@
-PyQt6
-pynput
-mss
-requests
-Pillow
-betterproto
+PyQt6>=6.9.1
+pynput>=1.7.8
+mss>=10.0.0
+requests>=2.32.4
+Pillow>=11.2.1
+betterproto>=2.0.0b7
