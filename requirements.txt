@@ -1,0 +1,6 @@
+PyQt6
+pynput
+mss
+requests
+Pillow
+betterproto
