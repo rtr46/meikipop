@@ -28,10 +28,11 @@ to maintain this focus, there are a few things meikipop is **not**:
 
 ## installation
 
-### windows - packaged exe
+### windows: meikipop.exe
 
+this is the easiest way to run meikipop on windows and recommended for most windows user: https://github.com/rtr46/meikipop/releases
 
-### windows + linux - bundled source + dict
+### windows + linux: bundled source + dict
 
 1.  **prerequisites:**
     *   Python 3.10+
@@ -63,10 +64,11 @@ changes are saved to `config.ini` in the same folder as the application.
 
 ## building your own dictionary (optional)
 
-you find bundled archives that contain a dictionary in the releases. if you want to build your own, you can do this:
-    ```bash
-    python -m scripts.build_dictionary
-    ```
+you can find a bundled archive that contains meikipop src + a prebuilt dictionary in the releases. if you really want to build your own dictionary however, you can do that:
+
+```bash
+python -m scripts.build_dictionary
+```
 
 for more details, you can look here: [Nazeka](https://github.com/wareya/nazeka)
 
