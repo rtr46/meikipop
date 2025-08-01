@@ -28,6 +28,11 @@ to maintain this focus, there are a few things meikipop is **not**:
 
 ## installation
 
+### windows - packaged exe
+
+
+### windows + linux - bundled source + dict
+
 1.  **prerequisites:**
     *   Python 3.10+
 
@@ -37,15 +42,15 @@ to maintain this focus, there are a few things meikipop is **not**:
 3.  **install python dependencies and run:**
     ```bash
     pip install -r requirements.txt
-    python main.py
+    python -m src.main # alternatively run the meiki.bat or meiki.sh
     ```
 
 ## how to use
 
-1.  run the application (`python main.py`). an icon will appear in your system tray.
+1.  run the application (`python -m src.main`). an icon will appear in your system tray.
 2.  the first time you run the app in `region` mode, you will be prompted to select an area of your screen to scan (the scanned area will be send to google ocr).
 3.  move your mouse over any japanese text on your screen.
-4.  **press and hold the hotkey** (**shift** by default). a popup with dictionary entries will appear.
+4.  **press and hold the hotkey** (**shift** by default). a popup with dictionary entries will appear. depending on your internet connection this may take a while the first time...
 5.  keep holding the key and move your mouse to look up any additional words.
 6.  release the hotkey to hide the popup.
 7.  **right-click the system tray icon** to open the settings, reselect the scan region, change to full screen mode or quit the application.
@@ -56,15 +61,14 @@ you can fully customize meikipop's behavior and appearance. right-click the tray
 
 changes are saved to `config.ini` in the same folder as the application.
 
-## building your own dictionary
+## building your own dictionary (optional)
 
-if you want to build your own dictionary follow the instructions here to generate *.json files for your dictionary: [Nazeka](https://github.com/wareya/nazeka)
+you find bundled archives that contain a dictionary in the releases. if you want to build your own, you can do this:
+    ```bash
+    python -m scripts.build_dictionary
+    ```
 
-put those *.json files into the data folder and run
-
-```bash
-python build_dictionary.py
-```
+for more details, you can look here: [Nazeka](https://github.com/wareya/nazeka)
 
 ## license
 
