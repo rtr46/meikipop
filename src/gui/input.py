@@ -3,7 +3,9 @@ import logging
 import sys
 import threading
 import time
+
 from pynput import mouse
+
 from src.config.config import config, IS_LINUX
 
 if IS_LINUX:
@@ -79,48 +81,51 @@ class InputLoop(threading.Thread):
         self.hotkey_str = config.hotkey.lower()
         self.keyboard_controller = LinuxX11KeyboardController(self.hotkey_str) if IS_LINUX else WindowsKeyboardController(self.hotkey_str)
 
-        self.stop_thread = False
+        self.started_auto_mode = False
 
     def run(self):
-        if self.stop_thread:
-            return
 
-        # print("Input thread started.")
+        logger.debug("Input thread started.")
         last_mouse_pos = (0, 0)
         hotkey_was_pressed = False
 
         while self.shared_state.running:
-            current_mouse_pos = self.mouse_controller.position
-
             try:
-                hotkey_is_pressed = self.keyboard_controller.is_hotkey_pressed()
-            except Exception:
-                hotkey_is_pressed = False
-
-            if self.shared_state.lock.acquire(blocking=False):
+                current_mouse_pos = self.mouse_controller.position
                 try:
-                    if hotkey_is_pressed and not hotkey_was_pressed:
-                        logger.info(f"Input: Hotkey '{config.hotkey}' pressed. Triggering screenshot.")
-                        self.shared_state.trigger_screenshot = True
-                        self.shared_state.cv_screenshot.notify()
-                    elif hotkey_is_pressed and current_mouse_pos != last_mouse_pos:
-                        self.shared_state.mouse_pos = current_mouse_pos
-                        self.shared_state.trigger_hit_detection = True
-                        self.shared_state.cv_hit_detector.notify()
-                finally:
-                    self.shared_state.lock.release()
+                    hotkey_is_pressed = self.keyboard_controller.is_hotkey_pressed()
+                except Exception:
+                    hotkey_is_pressed = False
 
-            if hotkey_was_pressed and not hotkey_is_pressed:
-                logger.info(f"Input: Hotkey '{config.hotkey}' released.")
+                # trigger screenshots + ocr in manual mode
+                if hotkey_is_pressed and not hotkey_was_pressed and not config.auto_scan_mode:
+                    logger.info(f"Input: Hotkey '{config.hotkey}' pressed. Triggering screenshot.")
+                    self.shared_state.screenshot_trigger_event.set()
 
-            last_mouse_pos = current_mouse_pos
-            hotkey_was_pressed = hotkey_is_pressed
-            self.shared_state.hotkey_is_pressed = hotkey_is_pressed
-            self.shared_state.mouse_pos = current_mouse_pos
+                # trigger initial screenshots + ocr in auto mode
+                if not self.started_auto_mode and config.auto_scan_mode:
+                    self.shared_state.screenshot_trigger_event.set()
+                self.started_auto_mode = config.auto_scan_mode
 
-            time.sleep(0.01)
+                # trigger hit_scans + lookups
+                mouse_has_moved = current_mouse_pos != last_mouse_pos
+                is_hotkeyless_auto_scan = config.auto_scan_mode and config.auto_scan_mode_lookups_without_hotkey
+                if (hotkey_is_pressed or is_hotkeyless_auto_scan) and mouse_has_moved:
+                    self.shared_state.mouse_pos = current_mouse_pos
+                    self.shared_state.hit_scan_queue.put((False, None))
 
-        # print("Input thread stopped.")
+                if hotkey_was_pressed and not hotkey_is_pressed:
+                    logger.info(f"Input: Hotkey '{config.hotkey}' released.")
+
+                last_mouse_pos = current_mouse_pos
+                hotkey_was_pressed = hotkey_is_pressed
+                self.shared_state.hotkey_is_pressed = hotkey_is_pressed
+                self.shared_state.mouse_pos = current_mouse_pos
+            except:
+                logger.exception("An unexpected error occurred in the input loop. Continuing...")
+            finally:
+                time.sleep(0.01)
+        logger.debug("Input thread stopped.")
 
     @staticmethod
     def get_mouse_pos():

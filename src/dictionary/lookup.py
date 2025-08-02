@@ -1,14 +1,14 @@
 # src/dictionary/lookup.py
 import logging
-import threading
 import re
+import threading
 from collections import OrderedDict
 from dataclasses import dataclass
 from typing import Set, Dict, Tuple, List
 
+from src.config.config import config, MAX_DICT_ENTRIES
 from src.dictionary.deconjugator import Deconjugator, Form
 from src.dictionary.dictionary import Dictionary
-from src.config.config import config, MAX_DICT_ENTRIES
 
 KANJI_REGEX = re.compile(r'[\u4e00-\u9faf]')
 
@@ -34,30 +34,30 @@ class Lookup(threading.Thread):
         self.CACHE_SIZE = 500
 
     def run(self):
+        logger.debug("Lookup thread started.")
         while self.shared_state.running:
-            if self.shared_state.lock.acquire(blocking=False):
-                try:
-                    self.shared_state.cv_lookup.wait_for(lambda: self.shared_state.trigger_lookup)
-                    if not self.shared_state.running: break
+            try:
+                hit_result = self.shared_state.lookup_queue.get()
+                if not self.shared_state.running: break
+                logger.debug("Lookup: Triggered")
 
-                    if not self._is_lookup_necessary():
-                        continue
+                # skip lookup if hit_result didnt change # todo seems however lookup triggers popup to show if hidden
+                if hit_result == self.last_hit_result and self.popup_window.isVisible():
+                    continue
+                self.last_hit_result = hit_result
+                if not self.last_hit_result:
+                    self.shared_state.lookup_result = None  # todo see below
+                    continue
 
-                    result = self.lookup()
-                    self.shared_state.lookup_result = result
-                    self.popup_window.set_latest_data(result)
+                lookup_result = self.lookup(self.last_hit_result)
+                self.shared_state.lookup_result = lookup_result  # todo why is shared_state.lookup_result needed here?
+                self.popup_window.set_latest_data(lookup_result)
+            except:
+                logger.exception("An unexpected error occurred in the lookup loop. Continuing...")
+        logger.debug("Lookup thread stopped.")
 
-                    self.last_hit_result = self.shared_state.hit_result
-                    self.shared_state.trigger_lookup = False
-
-                finally:
-                    self.last_hit_result = self.shared_state.hit_result
-                    self.shared_state.trigger_lookup = False
-                    self.shared_state.lock.release()
-
-
-    def lookup(self):
-        truncated_lookup = self.shared_state.hit_result[3][:config.max_lookup_length] # todo 3 == lookup_string
+    def lookup(self, hit_result):
+        truncated_lookup = hit_result[3][:config.max_lookup_length]  # todo 3 == lookup_string
         if truncated_lookup in self.lookup_cache:
             self.lookup_cache.move_to_end(truncated_lookup)
             return self.lookup_cache[truncated_lookup]
@@ -232,12 +232,3 @@ class Lookup(threading.Thread):
         priority += bonus
         priority -= len(form.process) * 5
         return priority
-
-    def _is_lookup_necessary(self):
-        hit_result = self.shared_state.hit_result
-        if hit_result == None:
-            self.shared_state.lookup_result = None
-            return False
-        elif hit_result == self.last_hit_result and self.popup_window.isVisible():
-            return False
-        return True

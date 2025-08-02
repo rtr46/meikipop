@@ -1,0 +1,25 @@
+# Python cache
+__pycache__/
+*.pyc
+
+# Environment folders
+venv/
+.venv/
+env/
+.env
+
+# Build artifacts
+dist/
+build/
+*.spec
+
+# IDE folders
+.vscode/
+.idea/
+
+# Local project/user files
+data/
+config.ini
+jmdict_enhanced.pkl
+dist/
+build/
