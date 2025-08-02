@@ -1,9 +1,10 @@
 # src/gui/settings_dialog.py
-from PyQt6.QtWidgets import (QWidget, QDialog, QFormLayout, QComboBox,
-                             QSpinBox, QCheckBox, QPushButton, QColorDialog, QVBoxLayout, QHBoxLayout,
-                             QGroupBox, QMessageBox, QDialogButtonBox, QLabel, QSlider)
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QColor, QIcon
+from PyQt6.QtWidgets import (QWidget, QDialog, QFormLayout, QComboBox,
+                             QSpinBox, QCheckBox, QPushButton, QColorDialog, QVBoxLayout, QHBoxLayout,
+                             QGroupBox, QMessageBox, QDialogButtonBox, QLabel, QSlider, QLineEdit)
+
 from src.config.config import config, APP_NAME
 
 THEMES = {
@@ -44,9 +45,15 @@ class SettingsDialog(QDialog):
         general_layout.addRow("Quality Mode:", self.quality_combo)
         self.max_lookup_spin = QSpinBox(); self.max_lookup_spin.setRange(5, 100); self.max_lookup_spin.setValue(config.max_lookup_length)
         general_layout.addRow("Max Lookup Length:", self.max_lookup_spin)
+        self.auto_scan_check = QCheckBox()
+        self.auto_scan_check.setChecked(config.auto_scan_mode)
+        general_layout.addRow("Auto Scan Mode:", self.auto_scan_check)
+        self.auto_scan_no_hotkey_check = QCheckBox()
+        self.auto_scan_no_hotkey_check.setChecked(config.auto_scan_mode_lookups_without_hotkey)
+        general_layout.addRow("Lookups without Hotkey (in Auto Scan):", self.auto_scan_no_hotkey_check)
         general_group.setLayout(general_layout)
         layout.addWidget(general_group)
-        theme_group = QGroupBox("Theme")
+        theme_group = QGroupBox("Popup")
         theme_layout = QFormLayout()
         self.theme_combo = QComboBox()
         self.theme_combo.addItems(THEMES.keys())
@@ -77,6 +84,16 @@ class SettingsDialog(QDialog):
         theme_layout.addRow(QLabel("Customize Layout:"))
         self.popup_width_spin = QSpinBox(); self.popup_width_spin.setRange(300, 2000); self.popup_width_spin.setValue(config.popup_width)
         theme_layout.addRow("  Popup Width:", self.popup_width_spin)
+        self.font_family_edit = QLineEdit(config.font_family)
+        theme_layout.addRow("  Font Family:", self.font_family_edit)
+        self.font_size_header_spin = QSpinBox();
+        self.font_size_header_spin.setRange(8, 72)
+        self.font_size_header_spin.setValue(config.font_size_header)
+        theme_layout.addRow("  Font Size (Header):", self.font_size_header_spin)
+        self.font_size_def_spin = QSpinBox()
+        self.font_size_def_spin.setRange(8, 72)
+        self.font_size_def_spin.setValue(config.font_size_definitions)
+        theme_layout.addRow("  Font Size (Definitions):", self.font_size_def_spin)
         self.compact_check = QCheckBox(); self.compact_check.setChecked(config.compact_mode)
         theme_layout.addRow("  Compact Mode:", self.compact_check)
         self.hide_deconj_check = QCheckBox(); self.hide_deconj_check.setChecked(config.hide_deconjugation)
@@ -125,11 +142,16 @@ class SettingsDialog(QDialog):
         config.hotkey = self.hotkey_combo.currentText()
         config.quality_mode = self.quality_combo.currentText()
         config.max_lookup_length = self.max_lookup_spin.value()
+        config.auto_scan_mode = self.auto_scan_check.isChecked()
+        config.auto_scan_mode_lookups_without_hotkey = self.auto_scan_no_hotkey_check.isChecked()
         config.popup_width = self.popup_width_spin.value()
         config.compact_mode = self.compact_check.isChecked()
         config.hide_deconjugation = self.hide_deconj_check.isChecked()
         config.theme_name = self.theme_combo.currentText()
         config.background_opacity = self.opacity_slider.value()
+        config.font_family = self.font_family_edit.text()
+        config.font_size_header = self.font_size_header_spin.value()
+        config.font_size_definitions = self.font_size_def_spin.value()
         config.save()
         QMessageBox.information(self, "Settings Saved", "Settings have been saved.\nPlease restart the application for all changes to take effect.")
         self.accept()

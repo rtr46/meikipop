@@ -6,7 +6,7 @@ import sys
 logger = logging.getLogger(__name__) # <--- Get the logger
 
 APP_NAME = "meikipop"
-APP_VERSION = "v.0.0.3"
+APP_VERSION = "v.0.0.4"
 MAX_DICT_ENTRIES = 10
 IS_LINUX = sys.platform.startswith('linux')
 
@@ -31,7 +31,9 @@ class Config:
                 'hotkey': 'shift',
                 'scan_region': 'region',
                 'max_lookup_length': '25',
-                'quality_mode': 'fast'
+                'quality_mode': 'balanced',
+                'auto_scan_mode': 'false',
+                'auto_scan_mode_lookups_without_hotkey': 'true'
             },
             'Theme': {
                 'theme_name': 'Nazeka',
@@ -67,6 +69,9 @@ class Config:
         self.scan_region = config.get('Settings', 'scan_region')
         self.max_lookup_length = config.getint('Settings', 'max_lookup_length')
         self.quality_mode = config.get('Settings', 'quality_mode')
+        self.auto_scan_mode = config.getboolean('Settings', 'auto_scan_mode')
+        self.auto_scan_mode_lookups_without_hotkey = config.getboolean('Settings',
+                                                                       'auto_scan_mode_lookups_without_hotkey')
         self.theme_name = config.get('Theme', 'theme_name')
         self.font_family = config.get('Theme', 'font_family')
         self.font_size_definitions = config.getint('Theme', 'font_size_definitions')
@@ -89,7 +94,9 @@ class Config:
             'hotkey': self.hotkey,
             'scan_region': self.scan_region,
             'max_lookup_length': str(self.max_lookup_length),
-            'quality_mode': self.quality_mode
+            'quality_mode': self.quality_mode,
+            'auto_scan_mode': str(self.auto_scan_mode).lower(),
+            'auto_scan_mode_lookups_without_hotkey': str(self.auto_scan_mode_lookups_without_hotkey).lower()
         }
         config['Theme'] = {
             'theme_name': self.theme_name,

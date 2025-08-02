@@ -1,8 +1,11 @@
 # src/ocr/ocr.py
+import logging
 import threading
 
+from src.config.config import config
 from src.ocr.glens import GoogleLensOcr
 
+logger = logging.getLogger(__name__)  # Get the logger
 
 class OcrProcessor(threading.Thread):
     def __init__(self, shared_state):
@@ -11,20 +14,24 @@ class OcrProcessor(threading.Thread):
         self.glens = GoogleLensOcr()
 
     def run(self):
-        #print("OCR thread started.")
+        logger.debug("OCR thread started.")
         while self.shared_state.running:
-            with self.shared_state.lock: # todo here and at screenmanager it is blocking
-                self.shared_state.cv_ocr.wait_for(lambda: self.shared_state.trigger_ocr)
+            try:
+                screenshot = self.shared_state.ocr_queue.get()
                 if not self.shared_state.running: break
 
-                #print("OCR: Triggered!")
-                self.ocr()
+                logger.debug("OCR: Triggered!")
+                ocr_result = self.ocr(screenshot)
+                # todo keep last ocr result?
 
                 # Reset trigger and notify next thread
-                self.shared_state.trigger_ocr = False
-                self.shared_state.trigger_hit_detection = True
-                self.shared_state.cv_hit_detector.notify()
-        #print("OCR thread stopped.")
+                self.shared_state.hit_scan_queue.put((True, ocr_result))
+            except:
+                logger.exception("An unexpected error occurred in the ocr loop. Continuing...")
+            finally:
+                if config.auto_scan_mode:
+                    self.shared_state.screenshot_trigger_event.set()
+        logger.debug("OCR thread stopped.")
 
-    def ocr(self):
-        self.shared_state.ocr_results = self.glens.scan_and_process(self.shared_state.screenshot_data)
+    def ocr(self, screenshot):
+        return self.glens.scan_and_process(screenshot)

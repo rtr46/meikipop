@@ -1,15 +1,14 @@
 # src/gui/popup.py
+import threading
 from typing import List
 
 from PyQt6.QtCore import QTimer, QPoint
-from PyQt6.QtGui import QCursor, QGuiApplication
-from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel, QFrame, QLayout
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QColor
+from PyQt6.QtGui import QCursor, QGuiApplication
+from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel, QFrame, QLayout
+
 from src.config.config import config
-
-import threading
-
 from src.dictionary.lookup import DictionaryEntry
 
 MAX_DICT_ENTRIES = 10 # todo use same constant for lookup results
@@ -21,6 +20,7 @@ class Popup(QWidget):
         self._data_lock = threading.Lock()
         self.shared_state = shared_state
 
+        self.is_visible = False
         # The timer now checks our custom buffer instead of a queue
         self.timer = QTimer(self)
         self.timer.timeout.connect(self.process_latest_data_loop)
@@ -101,7 +101,7 @@ class Popup(QWidget):
 
         # Add the styled frame to the main popup layout
         main_layout.addWidget(self.frame)
-        self.show()
+        self.show_popup()
 
     def set_latest_data(self, data):
         """This public method is thread-safe and is called by the Lookup worker."""
@@ -113,8 +113,10 @@ class Popup(QWidget):
         mouse_pos = QCursor.pos()
         self.move_to(mouse_pos.x(), mouse_pos.y())
 
-        if not self.shared_state.hotkey_is_pressed or not self.shared_state.lookup_result:
-            self.hide()
+        is_hotkeyless_auto_scan = config.auto_scan_mode and config.auto_scan_mode_lookups_without_hotkey
+        if (
+                not is_hotkeyless_auto_scan and not self.shared_state.hotkey_is_pressed) or not self.shared_state.lookup_result:  # todo why is shared_state.lookup_result needed here?
+            self.hide_popup()
         # else:
         #     print(f"self.shared_state.lookup_result is {self.shared_state.lookup_result}")
 
@@ -130,7 +132,7 @@ class Popup(QWidget):
 
     def display_entry(self, entries: List[DictionaryEntry]):
         if not entries:
-            self.hide()
+            self.hide_popup()
             if self.no_results_label:
                 self.no_results_label.setVisible(True)
             # Hide all entry containers and separators
@@ -181,7 +183,7 @@ class Popup(QWidget):
                 container.setVisible(False)
                 if i > 0:
                     separator.setVisible(False)
-        self.show()
+        self.show_popup()
 
 
 
@@ -239,3 +241,17 @@ class Popup(QWidget):
             final_y = screen_geometry.top()
 
         self.move(final_x, final_y)
+
+    def hide_popup(self):
+        if not self.is_visible:
+            return
+        self.hide()
+        self.shared_state.screen_lock.release()
+        self.is_visible = False
+
+    def show_popup(self):
+        if self.is_visible:
+            return
+        self.shared_state.screen_lock.acquire()
+        self.show()
+        self.is_visible = True

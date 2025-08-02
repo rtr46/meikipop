@@ -17,34 +17,44 @@ class ScreenManager(threading.Thread):
         super().__init__(daemon=True, name="ScreenManager")
         self.shared_state = shared_state
         self.monitor = None
+        self.last_screenshot = None
         if config.scan_region == "region":
             self.set_scan_region()
         else:
             self.set_scan_screen(1)
 
     def run(self):
-        # print("Screenshot thread started.")
+        logger.debug("Screenshot thread started.")
         while self.shared_state.running:
-            with self.shared_state.lock:
-                self.shared_state.cv_screenshot.wait_for(lambda: self.shared_state.trigger_screenshot)
+            try:
+                self.shared_state.screenshot_trigger_event.wait()
+                self.shared_state.screenshot_trigger_event.clear()
                 if not self.shared_state.running: break
+                logger.debug("Screenshot: Triggered!")
 
-                #print("Screenshot: Triggered!")
-                start_time = time.perf_counter()
-                self.take_screenshot()
+                with self.shared_state.screen_lock:
+                    start_time = time.perf_counter()
+                    screenshot = self.take_screenshot()
                 processing_duration = time.perf_counter() - start_time
-                logger.debug(f"Screenshot {self.shared_state.screenshot_data.size} complete in {processing_duration:.2f}s")
+                logger.debug(f"Screenshot {screenshot.size} complete in {processing_duration:.2f}s")
 
-                # Reset trigger and notify next thread
-                self.shared_state.trigger_screenshot = False
-                self.shared_state.trigger_ocr = True
-                self.shared_state.cv_ocr.notify()
-        # print("Screenshot thread stopped.")
+                if self.last_screenshot and self.last_screenshot == screenshot:
+                    logger.debug(f"Screen content didnt change... skipping ocr")
+                    self._sleep_and_handle_loop_exit(0.1)
+                    continue
+
+                self.last_screenshot = screenshot
+                self.shared_state.screenshot_data = screenshot  # todo remove eventually... currently needed by hit_scan
+                self.shared_state.ocr_queue.put(screenshot)
+            except:
+                logger.exception("An unexpected error occurred in the screenshot loop. Continuing...")
+                self._sleep_and_handle_loop_exit(1)
+        logger.debug("Screenshot thread stopped.")
 
     def take_screenshot(self):
         with mss.mss() as sct:
             sct_img = sct.grab(self.monitor)
-            self.shared_state.screenshot_data = Image.frombytes("RGB", sct_img.size, sct_img.bgra, "raw", "BGRX")
+            return Image.frombytes("RGB", sct_img.size, sct_img.bgra, "raw", "BGRX")
 
     def set_scan_region(self):
         scan_rect = RegionSelector.get_region()
@@ -57,6 +67,13 @@ class ScreenManager(threading.Thread):
         with mss.mss() as sct:
             self.monitor = sct.monitors[screen_index]
         self.shared_state.mouse_offset = (self.monitor["left"], self.monitor["top"])
+
+    def _sleep_and_handle_loop_exit(self, interval):
+        if config.auto_scan_mode:
+            time.sleep(interval)
+            self.shared_state.screenshot_trigger_event.set()
+        else:
+            self.shared_state.hit_scan_queue.put((False, None))
 
     @staticmethod
     def get_screens():

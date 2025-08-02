@@ -1,10 +1,12 @@
 # src/gui/tray.py
 import os
-from PyQt6.QtWidgets import QSystemTrayIcon, QMenu, QApplication
-from PyQt6.QtGui import QIcon, QAction
 
-from src.config.config import APP_NAME
+from PyQt6.QtGui import QIcon
+from PyQt6.QtWidgets import QSystemTrayIcon, QMenu, QApplication
+
+from src.config.config import APP_NAME, config
 from src.gui.settings_dialog import SettingsDialog
+
 
 class TrayIcon(QSystemTrayIcon):
     def __init__(self, screen_manager, parent=None):
@@ -25,6 +27,15 @@ class TrayIcon(QSystemTrayIcon):
         
         # Settings Action
         self.menu.addAction("Settings").triggered.connect(self.show_settings)
+
+        self.menu.addSeparator()
+
+        # Scan Mode Selection
+        def set_auto_mode(arg):
+            config.auto_scan_mode = arg
+
+        self.menu.addAction("Set manual scan mode").triggered.connect(lambda: set_auto_mode(False))
+        self.menu.addAction("Set auto scan mode").triggered.connect(lambda: set_auto_mode(True))
 
         self.menu.addSeparator()
 
