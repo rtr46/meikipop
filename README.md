@@ -1,6 +1,8 @@
 # meikipop - universal japanese ocr popup dictionary
 
-instantly look up japanese words anywhere on your screen. meikipop uses optical character recognition (ocr) to read text from websites, games, scanned manga, or even hard-coded video subtitles, giving you effortless dictionary lookups with the press of a key.
+instantly look up japanese words anywhere on your screen. meikipop uses optical character recognition (ocr) to read text from websites, games, scanned manga, or even hard-coded video subtitles, giving you effortless dictionary lookups with the press of a key (or even without)!
+
+https://github.com/user-attachments/assets/a1834197-3059-438c-a2dc-716e8ec9078f
 
 https://github.com/user-attachments/assets/ad0fa0ce-0f5f-4d1d-a99b-22e67e5fb80b
 
@@ -55,6 +57,7 @@ this is the easiest way to run meikipop on windows and recommended for most wind
 5.  keep holding the key and move your mouse to look up any additional words.
 6.  release the hotkey to hide the popup.
 7.  **right-click the system tray icon** to open the settings, reselect the scan region, change to full screen mode or quit the application.
+8.  make sure you try the **auto scan mode**. it continuously scans your screen to provide you with dictionary entries as fast as possible and without the need to press a hotkey.
 
 ## configuration
 
@@ -75,3 +78,4 @@ for more details, you can look here: [Nazeka](https://github.com/wareya/nazeka)
 ## license
 
 meikipop is licensed under the GNU General Public License v3.0. see the `LICENSE` file for the full license text.
+
