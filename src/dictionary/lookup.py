@@ -11,10 +11,19 @@ from src.dictionary.deconjugator import Deconjugator, Form
 from src.dictionary.dictionary import Dictionary
 
 KANJI_REGEX = re.compile(r'[\u4e00-\u9faf]')
+JAPANESE_SEPARATORS = {"、", "。", "「", "」", "｛", "｝", "（", "）", "【", "】", "『", "』", "〈", "〉", "《", "》", "：", "・", "／",
+                       "…", "︙", "‥", "︰", "＋", "＝", "－", "÷", "？", "！", "．", "～", "―", "!", "?"}
+
 
 @dataclass
 class DictionaryEntry:
-    id: int; written_form: str; reading: str; definitions: list; deconjugation_process: tuple; priority: float = 0.0
+    id: int
+    written_form: str
+    reading: str
+    definitions: list
+    deconjugation_process: tuple
+    priority: float = 0.0
+
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +36,7 @@ class Lookup(threading.Thread):
 
         self.dictionary = Dictionary()
         if not self.dictionary.load_dictionary('jmdict_enhanced.pkl'):
-             raise RuntimeError("Failed to load dictionary.")
+            raise RuntimeError("Failed to load dictionary.")
         self.deconjugator = Deconjugator(self.dictionary.deconjugator_rules)
         self.lookup_cache = OrderedDict()
 
@@ -57,21 +66,42 @@ class Lookup(threading.Thread):
         logger.debug("Lookup thread stopped.")
 
     def lookup(self, hit_result):
-        truncated_lookup = hit_result[3][:config.max_lookup_length]  # todo 3 == lookup_string
+        if not hit_result or not hit_result[3]:  # todo 3 == lookup_string
+            return []
+        logger.debug(f"Looking up: {hit_result[3]}")
+
+        lookup_string = hit_result[3]
+
+        cleaned_lookup_string = lookup_string.strip()
+        for i, char in enumerate(cleaned_lookup_string):
+            if char in JAPANESE_SEPARATORS:
+                cleaned_lookup_string = cleaned_lookup_string[:i]
+                break
+
+        truncated_lookup = cleaned_lookup_string[:config.max_lookup_length]
+
         if truncated_lookup in self.lookup_cache:
             self.lookup_cache.move_to_end(truncated_lookup)
             return self.lookup_cache[truncated_lookup]
 
         all_found_entries: Dict[int, Tuple[dict, Form, int]] = {}
-        original_lookup_is_kana = self._is_kana_only(truncated_lookup)
+        found_primary_match = False
+
+        logger.trace(f"--- STARTING LOOKUP FOR: '{truncated_lookup}' ---")
 
         for i in range(len(truncated_lookup), 0, -1):
             prefix = truncated_lookup[:i]
             if not prefix: continue
 
-            is_first_prefix = (i == len(truncated_lookup))
+            logger.trace(f"  [Lookup] Checking prefix: '{prefix}'")
             deconjugated_forms = self.deconjugator.deconjugate(prefix)
             deconjugated_forms.add(Form(text=prefix))
+
+            if len(deconjugated_forms) > 1:
+                deconjugated_forms_text = {f.text for f in deconjugated_forms}
+                logger.trace(f"    [Decon] for '{prefix}' returned: {deconjugated_forms_text}")
+
+            current_prefix_results = []
 
             for form in deconjugated_forms:
                 entry_indices = []
@@ -80,31 +110,64 @@ class Lookup(threading.Thread):
                 else:
                     entry_indices = self.dictionary.lookup_kan.get(form.text, [])
 
-                if not is_first_prefix and original_lookup_is_kana:
+                # After getting potential entries, filter them based on Part of Speech tags
+                validated_indices = []
+                for index in entry_indices:
+                    entry = self.dictionary.entries[index]
+
+                    # If the form has no tags, it's a direct match, always valid.
+                    if not form.tags:
+                        validated_indices.append(index)
+                        continue
+
+                    # If the form has tags, the entry must contain that tag as a part of speech.
+                    required_pos = form.tags[-1]
+                    all_pos_for_entry = {pos for sense in entry['senses'] for pos in sense['pos']}
+                    if required_pos in all_pos_for_entry:
+                        validated_indices.append(index)
+                    else:
+                        logger.trace(
+                            f"      - Pruning Entry ID {entry['id']} ('{entry['kebs'][0] if entry['kebs'] else entry['rebs'][0]}'). Deconj required POS '{required_pos}', but entry only has {all_pos_for_entry}")
+
+                entry_indices = validated_indices
+
+                # strict_alternatives logic
+                if found_primary_match and self._is_kana_only(prefix):
                     filtered_indices = []
+                    logger.trace(f"    [Filter ACTIVE] for prefix '{prefix}'")
                     for index in entry_indices:
                         entry = self.dictionary.entries[index]
                         misc_tags = self._get_misc_tags(entry)
-                        if not entry['kebs'] or 'uk' in misc_tags:
+
+                        passes_filter = not entry['kebs'] or 'uk' in misc_tags or 'ek' in misc_tags
+                        written_form_for_log = entry['kebs'][0] if entry['kebs'] else entry['rebs'][0]
+                        logger.trace(f"      - Checking Entry ID {entry['id']} ('{written_form_for_log}')")
+                        logger.trace(f"        - Has Kanji ('kebs'): {bool(entry['kebs'])}")
+                        logger.trace(f"        - Misc Tags: {misc_tags}")
+                        logger.trace(f"        - Filter Result: {'PASS' if passes_filter else 'BLOCK'}")
+
+                        if passes_filter:
                             filtered_indices.append(index)
                     entry_indices = filtered_indices
 
                 for index in set(entry_indices):
-                    entry = self.dictionary.entries[index]
-                    if form.tags and entry['senses']:
-                        last_tag = form.tags[-1]
-                        if not any(last_tag in s['pos'] for s in entry['senses']):
-                            continue
+                    current_prefix_results.append((self.dictionary.entries[index], form, len(prefix)))
+
+            if current_prefix_results:
+                if not found_primary_match:
+                    logger.trace(f"  [Lookup] Found primary match with prefix: '{prefix}'")
+                    found_primary_match = True
+
+                for entry, form, match_len in current_prefix_results:
                     if entry['id'] not in all_found_entries:
-                        all_found_entries[entry['id']] = (entry, form, len(prefix))
+                        all_found_entries[entry['id']] = (entry, form, match_len)
 
         results = self._format_and_sort_results(list(all_found_entries.values()), truncated_lookup)
 
         self.lookup_cache[truncated_lookup] = results[:MAX_DICT_ENTRIES]
         if len(self.lookup_cache) > self.CACHE_SIZE:
             self.lookup_cache.popitem(last=False)
-        if results:
-            logger.info("Found %d entries for '%s...'", len(results), truncated_lookup[:15])
+
         return results[:MAX_DICT_ENTRIES]
 
     def _is_kana_only(self, text: str) -> bool:
@@ -204,6 +267,11 @@ class Lookup(threading.Thread):
         priority = float(entry_data['id']) / -10000000.0
         priority += match_len * 1000
 
+        is_kana_only_entry = not entry_data['kebs']
+        is_exact_match = len(form.process) == 0
+        if is_original_lookup_kana and is_kana_only_entry and is_exact_match:
+            priority += 100
+
         misc_tags = self._get_misc_tags(entry_data)
         if is_original_lookup_kana:
             if self._prefers_kana(misc_tags): priority += 10
@@ -230,5 +298,5 @@ class Lookup(threading.Thread):
             bonus *= relevance_ratio
 
         priority += bonus
-        priority -= len(form.process) * 5
+        priority -= len(form.process)
         return priority

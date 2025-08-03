@@ -6,7 +6,7 @@ import sys
 logger = logging.getLogger(__name__) # <--- Get the logger
 
 APP_NAME = "meikipop"
-APP_VERSION = "v.0.0.4"
+APP_VERSION = "v.0.0.5"
 MAX_DICT_ENTRIES = 10
 IS_LINUX = sys.platform.startswith('linux')
 
