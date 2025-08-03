@@ -50,27 +50,21 @@ class Lookup(threading.Thread):
                 if not self.shared_state.running: break
                 logger.debug("Lookup: Triggered")
 
-                # skip lookup if hit_result didnt change # todo seems however lookup triggers popup to show if hidden
-                if hit_result == self.last_hit_result and self.popup_window.isVisible():
+                # skip lookup if hit_result didnt change
+                if hit_result == self.last_hit_result:
                     continue
                 self.last_hit_result = hit_result
-                if not self.last_hit_result:
-                    self.shared_state.lookup_result = None  # todo see below
-                    continue
 
-                lookup_result = self.lookup(self.last_hit_result)
-                self.shared_state.lookup_result = lookup_result  # todo why is shared_state.lookup_result needed here?
+                lookup_result = self.lookup(self.last_hit_result) if self.last_hit_result else None
                 self.popup_window.set_latest_data(lookup_result)
             except:
                 logger.exception("An unexpected error occurred in the lookup loop. Continuing...")
         logger.debug("Lookup thread stopped.")
 
-    def lookup(self, hit_result):
-        if not hit_result or not hit_result[3]:  # todo 3 == lookup_string
+    def lookup(self, lookup_string):
+        if not lookup_string:
             return []
-        logger.debug(f"Looking up: {hit_result[3]}")
-
-        lookup_string = hit_result[3]
+        logger.debug(f"Looking up: {lookup_string}")
 
         cleaned_lookup_string = lookup_string.strip()
         for i, char in enumerate(cleaned_lookup_string):

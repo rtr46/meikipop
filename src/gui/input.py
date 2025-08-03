@@ -108,10 +108,7 @@ class InputLoop(threading.Thread):
                 self.started_auto_mode = config.auto_scan_mode
 
                 # trigger hit_scans + lookups
-                mouse_has_moved = current_mouse_pos != last_mouse_pos
-                is_hotkeyless_auto_scan = config.auto_scan_mode and config.auto_scan_mode_lookups_without_hotkey
-                if (hotkey_is_pressed or is_hotkeyless_auto_scan) and mouse_has_moved:
-                    self.shared_state.mouse_pos = current_mouse_pos
+                if current_mouse_pos != last_mouse_pos:
                     self.shared_state.hit_scan_queue.put((False, None))
 
                 if hotkey_was_pressed and not hotkey_is_pressed:
@@ -119,13 +116,16 @@ class InputLoop(threading.Thread):
 
                 last_mouse_pos = current_mouse_pos
                 hotkey_was_pressed = hotkey_is_pressed
-                self.shared_state.hotkey_is_pressed = hotkey_is_pressed
-                self.shared_state.mouse_pos = current_mouse_pos
+                self.hotkey_is_pressed = hotkey_is_pressed
             except:
                 logger.exception("An unexpected error occurred in the input loop. Continuing...")
             finally:
                 time.sleep(0.01)
         logger.debug("Input thread stopped.")
+
+    def is_virtual_hotkey_down(self):
+        return self.keyboard_controller.is_hotkey_pressed() or (
+                    config.auto_scan_mode and config.auto_scan_mode_lookups_without_hotkey)
 
     @staticmethod
     def get_mouse_pos():

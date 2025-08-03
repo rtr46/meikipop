@@ -41,13 +41,6 @@ class SharedState:
         # screen lock - used by screen manager and popup
         self.screen_lock = threading.Lock()
         
-        # Data passed between threads
-        # todo get rid of some of these
-        self.mouse_pos = (0, 0)
-        self.screenshot_data = None
-        self.lookup_result = None
-        self.hotkey_is_pressed = False
-        
 def main():
     setup_logging()
     shared_state = SharedState()
@@ -58,15 +51,15 @@ def main():
     app = QApplication(sys.argv)
     app.setQuitOnLastWindowClosed(False)
 
-    popup_window = Popup(shared_state)
-
+    input_loop = InputLoop(shared_state)
+    popup_window = Popup(shared_state, input_loop)
     screen_manager = ScreenManager(shared_state)
     tray_icon = TrayIcon(screen_manager)
     threads = [
-        InputLoop(shared_state),
+        input_loop,
         screen_manager,
         OcrProcessor(shared_state),
-        HitScanner(shared_state),
+        HitScanner(shared_state, input_loop, screen_manager),
         Lookup(shared_state, popup_window)
     ]
 

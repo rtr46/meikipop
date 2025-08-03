@@ -8,9 +8,11 @@ logger = logging.getLogger(__name__)  # Get the logger
 
 
 class HitScanner(threading.Thread):
-    def __init__(self, shared_state):
+    def __init__(self, shared_state, input_loop, screen_manager):
         super().__init__(daemon=True, name="HitScanner")
         self.shared_state = shared_state
+        self.input_loop = input_loop
+        self.screen_manager = screen_manager
         self.last_ocr_result = None
 
     def run(self):
@@ -23,10 +25,8 @@ class HitScanner(threading.Thread):
 
                 if is_ocr_result_updated:
                     self.last_ocr_result = new_ocr_result
-                if not self.last_ocr_result:
-                    continue
 
-                hit_scan_result = self.hit_scan(self.last_ocr_result)
+                hit_scan_result = self.hit_scan(self.last_ocr_result) if self.last_ocr_result else None
 
                 # Trigger the lookup
                 self.shared_state.lookup_queue.put(hit_scan_result)
@@ -35,10 +35,8 @@ class HitScanner(threading.Thread):
         logger.debug("HitScanner thread stopped.")
 
     def hit_scan(self, paragraphs):
-
-        img_w, img_h = self.shared_state.screenshot_data.size
-        mouse_x, mouse_y = self.shared_state.mouse_pos
-        mouse_off_x, mouse_off_y = self.shared_state.mouse_offset
+        mouse_x, mouse_y = self.input_loop.get_mouse_pos()
+        mouse_off_x, mouse_off_y, img_w, img_h = self.screen_manager.get_scan_geometry()
         relative_x = mouse_x - mouse_off_x
         relative_y = mouse_y - mouse_off_y
         norm_x, norm_y = relative_x / img_w, relative_y / img_h
@@ -64,6 +62,7 @@ class HitScanner(threading.Thread):
             return (left <= px <= right) and (top <= py <= bottom)
 
         hit_scan_result = None
+        lookup_string = None
         for para in paragraphs:
             if not is_in_box((norm_x, norm_y), para.bounding_box):
                 continue
@@ -113,7 +112,8 @@ class HitScanner(threading.Thread):
 
             character = full_text[final_char_index]
             lookup_string = full_text[final_char_index:]
-            hit_scan_result = (full_text, final_char_index, character, lookup_string)
+            hit_scan_result = (full_text, final_char_index, character,
+                               lookup_string)  # this may be interesting for debugging, but only lookup_string is really relevant
             break
 
         if hit_scan_result:
@@ -123,4 +123,4 @@ class HitScanner(threading.Thread):
         # else:
         #     config.user_log("hit scan unsuccessful")
 
-        return hit_scan_result
+        return lookup_string

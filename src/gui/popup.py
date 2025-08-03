@@ -1,4 +1,5 @@
 # src/gui/popup.py
+import logging
 import threading
 from typing import List
 
@@ -8,17 +9,20 @@ from PyQt6.QtGui import QColor
 from PyQt6.QtGui import QCursor, QGuiApplication
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel, QFrame, QLayout
 
-from src.config.config import config
+from src.config.config import config, MAX_DICT_ENTRIES
 from src.dictionary.lookup import DictionaryEntry
 
-MAX_DICT_ENTRIES = 10 # todo use same constant for lookup results
+logger = logging.getLogger(__name__)
 
 class Popup(QWidget):
-    def __init__(self, shared_state):
+    def __init__(self, shared_state, input_loop):
         super().__init__()
         self._latest_data = None
+        self._last_latest_data = None
+        self._last_mouse_pos = None
         self._data_lock = threading.Lock()
         self.shared_state = shared_state
+        self.input_loop = input_loop
 
         self.is_visible = False
         # The timer now checks our custom buffer instead of a queue
@@ -94,7 +98,6 @@ class Popup(QWidget):
                 content_layout.addWidget(line)
                 self.separators.append(line)
 
-
         # Add the content layout (holding labels, containers, separators) to the frame's layout
         self.frame_layout.addLayout(content_layout)
         self.content_layout = content_layout # Keep reference
@@ -104,35 +107,32 @@ class Popup(QWidget):
         self.show_popup()
 
     def set_latest_data(self, data):
-        """This public method is thread-safe and is called by the Lookup worker."""
         with self._data_lock:
             self._latest_data = data
 
-    def process_latest_data_loop(self):
-        """This method runs in the GUI thread and consumes the latest data."""
-        mouse_pos = QCursor.pos()
-        self.move_to(mouse_pos.x(), mouse_pos.y())
-
-        is_hotkeyless_auto_scan = config.auto_scan_mode and config.auto_scan_mode_lookups_without_hotkey
-        if (
-                not is_hotkeyless_auto_scan and not self.shared_state.hotkey_is_pressed) or not self.shared_state.lookup_result:  # todo why is shared_state.lookup_result needed here?
-            self.hide_popup()
-        # else:
-        #     print(f"self.shared_state.lookup_result is {self.shared_state.lookup_result}")
-
-        data_to_display = None
-        # Atomically get the data and clear the slot so we don't process it again
+    def get_latest_data(self):
         with self._data_lock:
-            if self._latest_data:
-                data_to_display = self._latest_data
-                self._latest_data = None
-        
-        if data_to_display:
-            self.display_entry(data_to_display)
+            return self._latest_data
 
-    def display_entry(self, entries: List[DictionaryEntry]):
-        if not entries:
+    def process_latest_data_loop(self):
+        latest_data = self.get_latest_data()
+        if latest_data and latest_data != self._last_latest_data:
+            self.update_popup_content(latest_data)
+        self._last_latest_data = latest_data
+
+        if self._latest_data and self.input_loop.is_virtual_hotkey_down():
+            self.show_popup()
+        else:
             self.hide_popup()
+
+        # todo fix bug where popup gets initially drawn in the wrong position and then flip causing flicker, see below
+        mouse_pos = QCursor.pos()
+        # if self._last_mouse_pos != mouse_pos:
+        self.move_to(mouse_pos.x(), mouse_pos.y())
+        # self._last_mouse_pos = mouse_pos
+
+    def update_popup_content(self, entries: List[DictionaryEntry]):
+        if not entries:
             if self.no_results_label:
                 self.no_results_label.setVisible(True)
             # Hide all entry containers and separators
@@ -183,8 +183,12 @@ class Popup(QWidget):
                 container.setVisible(False)
                 if i > 0:
                     separator.setVisible(False)
-        self.show_popup()
 
+        # todo fix bug where popup gets initially drawn in the wrong position and then flip causing flicker
+        #  this seems to fix it but why and how to do it more cleanly?
+        # self.frame.adjustSize()
+        # self.adjustSize()
+        logger.info("finished updating popup content")
 
 
     def _create_empty_entry_container(self) -> QWidget:
@@ -212,8 +216,6 @@ class Popup(QWidget):
         return container
 
     def move_to(self, x, y):
-        self.last_mouse_pos = (x, y)
-
         cursor_point = QPoint(x, y)
         screen = QGuiApplication.screenAt(cursor_point)
 
@@ -243,15 +245,21 @@ class Popup(QWidget):
         self.move(final_x, final_y)
 
     def hide_popup(self):
+        logger.debug(f"hide_popup triggered while visibility:{self.is_visible}")
         if not self.is_visible:
             return
         self.hide()
+        logger.debug("hide_popup releasing lock...")
         self.shared_state.screen_lock.release()
+        logger.debug("...successfully released lock by hide_popup")
         self.is_visible = False
 
     def show_popup(self):
+        logger.debug(f"show_popup triggered while visibility:{self.is_visible}")
         if self.is_visible:
             return
+        logger.debug("show_popup acquiring lock...")
         self.shared_state.screen_lock.acquire()
+        logger.debug("...successfully acquired lock by show_popup")
         self.show()
         self.is_visible = True
