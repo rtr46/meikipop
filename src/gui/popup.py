@@ -245,7 +245,7 @@ class Popup(QWidget):
         self.move(final_x, final_y)
 
     def hide_popup(self):
-        logger.debug(f"hide_popup triggered while visibility:{self.is_visible}")
+        # logger.debug(f"hide_popup triggered while visibility:{self.is_visible}")
         if not self.is_visible:
             return
         self.hide()
@@ -255,7 +255,7 @@ class Popup(QWidget):
         self.is_visible = False
 
     def show_popup(self):
-        logger.debug(f"show_popup triggered while visibility:{self.is_visible}")
+        # logger.debug(f"show_popup triggered while visibility:{self.is_visible}")
         if self.is_visible:
             return
         logger.debug("show_popup acquiring lock...")

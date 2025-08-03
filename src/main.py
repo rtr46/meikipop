@@ -53,17 +53,15 @@ def main():
 
     input_loop = InputLoop(shared_state)
     popup_window = Popup(shared_state, input_loop)
-    screen_manager = ScreenManager(shared_state)
-    tray_icon = TrayIcon(screen_manager)
-    threads = [
-        input_loop,
-        screen_manager,
-        OcrProcessor(shared_state),
-        HitScanner(shared_state, input_loop, screen_manager),
-        Lookup(shared_state, popup_window)
-    ]
 
-    for t in threads:
+    Lookup(shared_state, popup_window).start()  # start lookup thread early so dict gets loaded in parallel
+    screen_manager = ScreenManager(shared_state)  # trigger region selection
+
+    ocr_processor = OcrProcessor(shared_state)
+    hit_scanner = HitScanner(shared_state, input_loop, screen_manager)
+    tray_icon = TrayIcon(screen_manager)
+
+    for t in [hit_scanner, ocr_processor, screen_manager, input_loop]:
         t.start()
         
     signal.signal(signal.SIGINT, signal.SIG_DFL)

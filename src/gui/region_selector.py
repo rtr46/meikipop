@@ -1,26 +1,19 @@
 # src/gui/region_selector.py
 import logging
 
+from PyQt6.QtCore import Qt, QPoint, QRect, QTimer
+from PyQt6.QtGui import QColor, QPainter, QPen, QMouseEvent, QKeyEvent, QGuiApplication, QCursor
 from PyQt6.QtWidgets import QDialog
-from PyQt6.QtCore import Qt, QPoint, QRect
-from PyQt6.QtGui import QColor, QPainter, QPen, QMouseEvent, QKeyEvent, QGuiApplication
 
 from src.gui.input import InputLoop
 
-logger = logging.getLogger(__name__) # Get the logger
+logger = logging.getLogger(__name__)
 
 class RegionSelector(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
 
-        #Create a widget that spans the entire virtual desktop (all monitors)
-        screens = QGuiApplication.screens()
-        virtual_desktop_rect = QRect()
-        for screen in screens:
-            screen_geometry = screen.geometry()
-            screen_geometry.setSize( screen.size() * screen.devicePixelRatio())
-            virtual_desktop_rect = virtual_desktop_rect.united(screen_geometry)
-        self.setGeometry(virtual_desktop_rect)
+        self.setGeometry(self.get_current_screen(QCursor.pos()).geometry())
 
         # Window setup for a seamless overlay
         self.setWindowFlags(
@@ -37,15 +30,22 @@ class RegionSelector(QDialog):
 
         # Points for the final result (in physical coordinates)
         self.begin_physical = None
-        self.selection_rect = None  # This will store the final QRect in physical coordinates
+        self.selection_rect = None
+
+        self.has_selection_started = False
+
+        self.update_timer = QTimer(self)
+        self.update_timer.setInterval(16)
+        self.update_timer.timeout.connect(self.update_selection_rect)
+        self.update_timer.start()
 
     def paintEvent(self, event):
         painter = QPainter(self)
         painter.fillRect(self.rect(), QColor(0, 0, 0, 100))
 
-        if not self.begin_logical.isNull() and not self.end_logical.isNull():
-            # Use logical coordinates for drawing on the widget
-            rect_logical = QRect(self.begin_logical, self.end_logical).normalized()
+        if self.has_selection_started and not self.begin_logical.isNull() and not self.end_logical.isNull():
+            rect_logical = QRect(self.begin_logical - self.geometry().topLeft(),
+                                 self.end_logical - self.geometry().topLeft()).normalized()
 
             # Clear the selected area
             painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_Clear)
@@ -59,24 +59,29 @@ class RegionSelector(QDialog):
             painter.drawRect(border_rect)
 
     def mousePressEvent(self, event: QMouseEvent):
-        # Store Qt's logical position for drawing the overlay
-        self.begin_logical = event.position().toPoint()
-        if not self.begin_logical:
-            self.begin_logical = QPoint(1,1)
+        self.begin_logical = QCursor.pos()
         self.end_logical = self.begin_logical
 
         # Store the physical position for the final result
         px, py = InputLoop.get_mouse_pos()
         self.begin_physical = QPoint(px, py)
 
+        self.has_selection_started = True
         self.update()
 
-    def mouseMoveEvent(self, event: QMouseEvent):
-        # Update the logical position for drawing continuously
-        self.end_logical = event.position().toPoint()
+    def update_selection_rect(self):
+        mouse_pos = QCursor.pos()
+        if not self.has_selection_started:
+            self.setGeometry(self.get_current_screen(mouse_pos).geometry())
+            self.update()
+            return
+
+        self.end_logical = mouse_pos
         self.update()
 
     def mouseReleaseEvent(self, event: QMouseEvent):
+        self.update_timer.stop()
+
         # Get the final physical position
         px, py = InputLoop.get_mouse_pos()
         end_physical = QPoint(px, py)
@@ -87,8 +92,17 @@ class RegionSelector(QDialog):
 
     def keyPressEvent(self, event: QKeyEvent):
         if event.key() == Qt.Key.Key_Escape:
+            if self.update_timer.isActive():
+                self.update_timer.stop()
             self.selection_rect = None
             self.reject()
+
+    @staticmethod
+    def get_current_screen(point):
+        for screen in QGuiApplication.screens():
+            if screen.geometry().contains(point):
+                return screen
+        return None
 
     @staticmethod
     def get_region():
