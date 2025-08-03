@@ -32,9 +32,12 @@ class ScreenManager(threading.Thread):
                 if not self.shared_state.running: break
                 logger.debug("Screenshot: Triggered!")
 
+                logger.debug("screenmanager acquiring lock...")
                 with self.shared_state.screen_lock:
+                    logger.debug("...successfully acquired lock by screenmanager")
                     start_time = time.perf_counter()
                     screenshot = self.take_screenshot()
+                logger.debug("...successfully released lock by screenmanager")
                 processing_duration = time.perf_counter() - start_time
                 logger.debug(f"Screenshot {screenshot.size} complete in {processing_duration:.2f}s")
 
@@ -44,7 +47,6 @@ class ScreenManager(threading.Thread):
                     continue
 
                 self.last_screenshot = screenshot
-                self.shared_state.screenshot_data = screenshot  # todo remove eventually... currently needed by hit_scan
                 self.shared_state.ocr_queue.put(screenshot)
             except:
                 logger.exception("An unexpected error occurred in the screenshot loop. Continuing...")
@@ -60,13 +62,14 @@ class ScreenManager(threading.Thread):
         scan_rect = RegionSelector.get_region()
         logger.info(f"Set scan area to region {scan_rect}")
         self.monitor = {"top": scan_rect.y(), "left": scan_rect.x(), "width": scan_rect.width(), "height": scan_rect.height()}
-        self.shared_state.mouse_offset = (self.monitor["left"], self.monitor["top"])
 
     def set_scan_screen(self, screen_index):
         logger.info(f"Set scan area to screen {screen_index}")
         with mss.mss() as sct:
             self.monitor = sct.monitors[screen_index]
-        self.shared_state.mouse_offset = (self.monitor["left"], self.monitor["top"])
+
+    def get_scan_geometry(self):
+        return self.monitor["left"], self.monitor["top"], self.monitor["width"], self.monitor["height"]
 
     def _sleep_and_handle_loop_exit(self, interval):
         if config.auto_scan_mode:

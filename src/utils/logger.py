@@ -17,7 +17,7 @@ logging.Logger.trace = trace
 
 def setup_logging():
     log_formatter = logging.Formatter(
-        f"%(asctime)s - [%(levelname)-7s] - [{APP_NAME}] - %(message)s",
+        f"%(asctime)s - [%(levelname)-5s] - [{APP_NAME}] - %(message)s",
         datefmt='%H:%M:%S'
     )
 
