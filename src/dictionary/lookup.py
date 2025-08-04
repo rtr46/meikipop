@@ -37,14 +37,14 @@ class Lookup(threading.Thread):
         self.dictionary = Dictionary()
         self.lookup_cache = OrderedDict()
 
+        if not self.dictionary.load_dictionary('jmdict_enhanced.pkl'):
+            raise RuntimeError("Failed to load dictionary.")
+        self.deconjugator = Deconjugator(self.dictionary.deconjugator_rules)
+
         self.CACHE_SIZE = 500
 
     def run(self):
         logger.debug("Lookup thread started.")
-        # avoid long startup times by initializing the dictionary in parallel
-        if not self.dictionary.load_dictionary('jmdict_enhanced.pkl'):
-            raise RuntimeError("Failed to load dictionary.")
-        self.deconjugator = Deconjugator(self.dictionary.deconjugator_rules)
         while self.shared_state.running:
             try:
                 hit_result = self.shared_state.lookup_queue.get()
@@ -65,7 +65,7 @@ class Lookup(threading.Thread):
     def lookup(self, lookup_string):
         if not lookup_string:
             return []
-        logger.debug(f"Looking up: {lookup_string}")
+        logger.info(f"Looking up: {lookup_string}")  # keep at info level so people know whats up
 
         cleaned_lookup_string = lookup_string.strip()
         for i, char in enumerate(cleaned_lookup_string):

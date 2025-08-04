@@ -1,13 +1,12 @@
 # src/gui/popup.py
 import logging
 import threading
-from typing import List
+from typing import List, Optional
 
-from PyQt6.QtCore import QTimer, QPoint
+from PyQt6.QtCore import QTimer, QPoint, QSize
 from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QColor
-from PyQt6.QtGui import QCursor, QGuiApplication
-from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel, QFrame, QLayout
+from PyQt6.QtGui import QColor, QCursor, QFont, QFontMetrics, QFontInfo
+from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel, QFrame, QApplication
 
 from src.config.config import config, MAX_DICT_ENTRIES
 from src.dictionary.lookup import DictionaryEntry
@@ -19,35 +18,49 @@ class Popup(QWidget):
         super().__init__()
         self._latest_data = None
         self._last_latest_data = None
-        self._last_mouse_pos = None
         self._data_lock = threading.Lock()
         self.shared_state = shared_state
         self.input_loop = input_loop
 
         self.is_visible = False
-        # The timer now checks our custom buffer instead of a queue
         self.timer = QTimer(self)
         self.timer.timeout.connect(self.process_latest_data_loop)
         self.timer.start(10)
 
-        # layout and styling
+        self.probe_label = QLabel()
+        self.probe_label.setWordWrap(True)
+        self.probe_label.setTextFormat(Qt.TextFormat.RichText)
+
+        self.is_calibrated = False
+        self.header_chars_per_line = 50
+        self.def_chars_per_line = 50
+
         self.setWindowFlags(
             Qt.WindowType.FramelessWindowHint |
             Qt.WindowType.WindowStaysOnTopHint |
             Qt.WindowType.Tool
         )
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
+        self.setStyleSheet("background: transparent;")
 
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(0, 0, 0, 0)
 
-        main_layout.setSizeConstraint(QLayout.SizeConstraint.SetFixedSize)
-
         self.frame = QFrame()
-        self.frame_layout = QVBoxLayout(self.frame)
-        self.frame_layout.setContentsMargins(0, 0, 0, 0)
+        self._apply_frame_stylesheet()
+        main_layout.addWidget(self.frame)
 
-        self.frame.setFixedWidth(config.popup_width)
+        self.content_layout = QVBoxLayout(self.frame)
+        self.content_layout.setContentsMargins(10, 10, 10, 10)
+
+        self.display_label = QLabel()
+        self.display_label.setWordWrap(True)
+        self.display_label.setTextFormat(Qt.TextFormat.RichText)
+        self.content_layout.addWidget(self.display_label)
+
+        self.hide()
+
+    def _apply_frame_stylesheet(self):
         bg_color = QColor(config.color_background)
         r, g, b = bg_color.red(), bg_color.green(), bg_color.blue()
         a = config.background_opacity
@@ -60,51 +73,69 @@ class Popup(QWidget):
             }}
             QLabel {{
                 background-color: transparent;
-                color: {config.color_foreground};
                 border: none;
                 font-family: "{config.font_family}";
             }}
+            hr {{
+                border: none;
+                height: 1px;
+            }}
         """)
 
-        # --- Pre-populate with Entry Containers ---
-        self.entry_containers = []
-        self.separators = []
-        self.no_results_label = None
+    def _calibrate_empirically(self):
+        logger.debug("--- Calibrating Font Metrics Empirically (One-Time) ---")
 
-        content_layout = QVBoxLayout()
-        content_layout.setContentsMargins(10, 10, 10, 10)
-        content_layout.setSpacing(2)
+        # Log font info
+        actual_font = self.display_label.font()
+        font_info = QFontInfo(actual_font)
+        logger.debug(f"[FONT DEBUG] Requested font family: '{config.font_family}' (or default)")
+        logger.debug(f"[FONT DEBUG]   -> Actual resolved font family: '{font_info.family()}'")
+        logger.debug(f"[FONT DEBUG]   -> Actual style name: '{font_info.styleName()}'")
+        logger.debug(f"[FONT DEBUG]   -> Actual point size: {font_info.pointSize()}")
+        logger.debug(f"[FONT DEBUG]   -> Actual pixel size: {font_info.pixelSize()}")
+        logger.debug(f"[FONT DEBUG]   -> Is it bold? {font_info.bold()}")
 
-        self.no_results_label = QLabel("No results found.")
-        self.no_results_label.setStyleSheet(f"font-size: {config.font_size_definitions}px;")
-        self.no_results_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.no_results_label.setVisible(False) # Start hidden
-        content_layout.addWidget(self.no_results_label)
+        margins = self.content_layout.contentsMargins()
+        border_width = 1
+        horizontal_padding = margins.left() + margins.right() + (border_width * 2)
 
-        # Create and add the fixed number of entry containers
-        for i in range(MAX_DICT_ENTRIES):
-            container = self._create_empty_entry_container()
-            container.setVisible(False) # Start hidden
-            self.entry_containers.append(container)
-            content_layout.addWidget(container)
+        screen = QApplication.primaryScreen()
+        self.max_content_width = (int(screen.geometry().width() * 0.4)) - horizontal_padding
 
-            # Add Separator Line (between potential entries)
-            if i < MAX_DICT_ENTRIES - 1:
-                line = QFrame()
-                line.setFrameShape(QFrame.Shape.HLine)
-                line.setFrameShadow(QFrame.Shadow.Sunken)
-                line.setStyleSheet(f"border: 1px solid {config.color_separator_line};")
-                line.setVisible(False) # Start hidden, controlled by update_content
-                content_layout.addWidget(line)
-                self.separators.append(line)
+        header_font = QFont(config.font_family)
+        header_font.setPixelSize(config.font_size_header)
+        header_metrics = QFontMetrics(header_font)
+        self.header_chars_per_line = self._find_chars_for_width(header_metrics, "Header")
 
-        # Add the content layout (holding labels, containers, separators) to the frame's layout
-        self.frame_layout.addLayout(content_layout)
-        self.content_layout = content_layout # Keep reference
+        def_font = QFont(config.font_family)
+        def_font.setPixelSize(config.font_size_definitions)
+        def_metrics = QFontMetrics(def_font)
+        self.def_chars_per_line = self._find_chars_for_width(def_metrics, "Definition")
 
-        # Add the styled frame to the main popup layout
-        main_layout.addWidget(self.frame)
-        self.show_popup()
+        logger.debug(f"[CALIBRATE] Max content width: {self.max_content_width}px")
+        logger.debug(f"[CALIBRATE] Empirically found {self.header_chars_per_line} header chars/line")
+        logger.debug(f"[CALIBRATE] Empirically found {self.def_chars_per_line} definition chars/line")
+        self.is_calibrated = True
+
+    def _find_chars_for_width(self, metrics: QFontMetrics, name: str) -> int:
+        low = 1
+        high = 500
+        best_fit = 1
+
+        while low <= high:
+            mid = (low + high) // 2
+            if mid == 0: break
+
+            test_string = 'x' * mid
+            current_width = metrics.horizontalAdvance(test_string)
+
+            if current_width <= self.max_content_width:
+                best_fit = mid
+                low = mid + 1
+            else:
+                high = mid - 1
+
+        return best_fit if best_fit > 0 else 50
 
     def set_latest_data(self, data):
         with self._data_lock:
@@ -115,9 +146,15 @@ class Popup(QWidget):
             return self._latest_data
 
     def process_latest_data_loop(self):
+        if not self.is_calibrated:
+            self._calibrate_empirically()
+
         latest_data = self.get_latest_data()
         if latest_data and latest_data != self._last_latest_data:
-            self.update_popup_content(latest_data)
+            # update popup content
+            full_html, new_size = self._calculate_content_and_size_char_count(latest_data)
+            self.display_label.setText(full_html)
+            self.setFixedSize(new_size)
         self._last_latest_data = latest_data
 
         if self._latest_data and self.input_loop.is_virtual_hotkey_down():
@@ -125,122 +162,84 @@ class Popup(QWidget):
         else:
             self.hide_popup()
 
-        # todo fix bug where popup gets initially drawn in the wrong position and then flip causing flicker, see below
         mouse_pos = QCursor.pos()
-        # if self._last_mouse_pos != mouse_pos:
         self.move_to(mouse_pos.x(), mouse_pos.y())
-        # self._last_mouse_pos = mouse_pos
 
-    def update_popup_content(self, entries: List[DictionaryEntry]):
+    def _calculate_content_and_size_char_count(self, entries: Optional[List[DictionaryEntry]]) -> tuple[
+        Optional[str], Optional[QSize]]:
+        if not self.is_calibrated: return None, None
+
         if not entries:
-            if self.no_results_label:
-                self.no_results_label.setVisible(True)
-            # Hide all entry containers and separators
-            for container in self.entry_containers:
-                container.setVisible(False)
-            for separator in self.separators:
-                separator.setVisible(False)
-            return
+            return None, None
 
-        num_entries_to_show = min(len(entries), MAX_DICT_ENTRIES)
-        if self.no_results_label:
-            self.no_results_label.setVisible(False)
+        all_html_parts = []
+        max_ratio = 0.0
 
-        for i in range(MAX_DICT_ENTRIES):
-            container = self.entry_containers[i]
+        for i, entry in enumerate(entries[:min(len(entries), MAX_DICT_ENTRIES)]):
             if i > 0:
-                separator = self.separators[i - 1]
-            if i < num_entries_to_show:
-                # --- Update and Show ---
-                entry = entries[i]
+                all_html_parts.append('<hr style="margin-top: 5px; margin-bottom: 2px;">')
 
-                # 1a. Update Header
-                header_html = f'<span style="color: {config.color_highlight_word}; font-size:{config.font_size_header}px;">{entry.written_form}</span>'
-                if entry.reading:
-                    header_html += f' <span style="color: {config.color_highlight_reading}; font-size:{config.font_size_header - 2}px;">{entry.reading}</span>'
-                if entry.deconjugation_process and not config.hide_deconjugation:
-                    deconj_str = " ← ".join(p for p in entry.deconjugation_process if p)
-                    if deconj_str:
-                        header_html += f' <span style="color:{config.color_foreground}; font-size:{config.font_size_definitions - 2}px; opacity:0.8;">({deconj_str})</span>'
-                container.header_label.setText(header_html)
-                container.header_label.setVisible(True)
+            header_text = entry.written_form
+            if entry.reading: header_text += f" [{entry.reading}]"
+            header_ratio = len(header_text) / self.header_chars_per_line
+            max_ratio = max(max_ratio, header_ratio)
 
-                # 1b. Update Definitions
-                sense_html_parts = []
-                for idx, gloss_list in enumerate(entry.definitions):
-                    sense_text = "; ".join(gloss_list)
-                    sense_html_parts.append(f'({idx + 1}) {sense_text}')
-                separator_mode = "; " if config.compact_mode else "<br>"
-                definitions_html = separator_mode.join(sense_html_parts)
-                definitions_html_final = f'<div style="font-size:{config.font_size_definitions}px;">{definitions_html}</div>'
-                container.definitions_label.setText(definitions_html_final)
-                container.definitions_label.setVisible(True)
+            def_text_parts = []
+            for idx, gloss_list in enumerate(entry.definitions):
+                def_text_parts.append(f"({idx + 1}) {'; '.join(gloss_list)}")
+            separator = "; " if config.compact_mode else "<br>"
+            full_def_text = separator.join(def_text_parts)
+            def_ratio = len(full_def_text) / self.def_chars_per_line
+            max_ratio = max(max_ratio, def_ratio)
 
-                container.setVisible(True)
-                if i > 0:
-                    separator.setVisible(True)
-            else:
-                container.setVisible(False)
-                if i > 0:
-                    separator.setVisible(False)
+            header_html = f'<span style="color: {config.color_highlight_word}; font-size:{config.font_size_header}px;">{entry.written_form}</span>'
+            if entry.reading: header_html += f' <span style="color: {config.color_highlight_reading}; font-size:{config.font_size_header - 2}px;">[{entry.reading}]</span>'
+            if entry.deconjugation_process and not config.hide_deconjugation:
+                deconj_str = " ← ".join(p for p in entry.deconjugation_process if p)
+                if deconj_str: header_html += f' <span style="color:{config.color_foreground}; font-size:{config.font_size_definitions - 2}px; opacity:0.8;">({deconj_str})</span>'
+            definitions_html_final = f'<div style="font-size:{config.font_size_definitions}px;">{full_def_text}</div>'
+            all_html_parts.append(f"{header_html}{definitions_html_final}")
 
-        # todo fix bug where popup gets initially drawn in the wrong position and then flip causing flicker
-        #  this seems to fix it but why and how to do it more cleanly?
-        # self.frame.adjustSize()
-        # self.adjustSize()
-        logger.info("finished updating popup content")
+        optimal_content_width = self.max_content_width * min(1.0, max_ratio)
+        optimal_content_width = max(optimal_content_width, 200)
 
+        full_html = "".join(all_html_parts)
+        self.probe_label.setText(full_html)
 
-    def _create_empty_entry_container(self) -> QWidget:
-        container = QWidget()
-        container_layout = QVBoxLayout(container)
-        container_layout.setContentsMargins(0, 0, 0, 0)
-        container_layout.setSpacing(0)
+        final_height = self.probe_label.heightForWidth(int(optimal_content_width))
 
-        # Create header label (empty initially)
-        header_label = QLabel("")
-        header_label.setTextFormat(Qt.TextFormat.RichText)
-        container_layout.addWidget(header_label)
+        margins = self.content_layout.contentsMargins()
+        border_width = 1
+        horizontal_padding = margins.left() + margins.right() + (border_width * 2)
+        vertical_padding = margins.top() + margins.bottom() + (border_width * 2)
 
-        # Create definitions label (empty initially)
-        definitions_label = QLabel("")
-        definitions_label.setWordWrap(True)
-        definitions_label.setTextFormat(Qt.TextFormat.RichText)
-        definitions_label.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
-        container_layout.addWidget(definitions_label)
-
-        # Store references to the labels as attributes of the container for easy access
-        container.header_label = header_label
-        container.definitions_label = definitions_label
-
-        return container
+        final_size = QSize(int(optimal_content_width) + horizontal_padding, final_height + vertical_padding)
+        return full_html, final_size
 
     def move_to(self, x, y):
         cursor_point = QPoint(x, y)
-        screen = QGuiApplication.screenAt(cursor_point)
-
-        # Fallback to the primary screen if the cursor is somehow not on any screen
-        if not screen:
-            screen = QGuiApplication.primaryScreen()
-
-        screen_geometry = screen.geometry()
-
-        popup_width = self.width()
-        popup_height = self.height()
+        screen = QApplication.screenAt(cursor_point) or QApplication.primaryScreen()
+        screen_geo = screen.geometry()
+        popup_size = self.size()
         offset = 15
 
-        final_x = x + offset
-        final_y = y + offset
+        # Determine preferred position based on cursor's screen quadrant.
+        final_x = x + offset if x < screen_geo.center().x() else x - popup_size.width() - offset
+        final_y = y + offset if y < screen_geo.center().y() else y - popup_size.height() - offset
 
-        if final_x + popup_width > screen_geometry.right():
-            final_x = x - popup_width - offset
-        if final_y + popup_height > screen_geometry.bottom():
-            final_y = y - popup_height - offset
+        if final_x + popup_size.width() > screen_geo.right():
+            final_x = x - popup_size.width() - offset
+        elif final_x < screen_geo.left():
+            final_x = x + offset
 
-        if final_x < screen_geometry.left():
-            final_x = screen_geometry.left()
-        if final_y < screen_geometry.top():
-            final_y = screen_geometry.top()
+        if final_y + popup_size.height() > screen_geo.bottom():
+            final_y = y - popup_size.height() - offset
+        elif final_y < screen_geo.top():
+            final_y = y + offset
+
+        # Final clamp to ensure the popup is always fully visible, which handles
+        final_x = max(screen_geo.left(), min(final_x, screen_geo.right() - popup_size.width()))
+        final_y = max(screen_geo.top(), min(final_y, screen_geo.bottom() - popup_size.height()))
 
         self.move(final_x, final_y)
 
