@@ -6,7 +6,7 @@ import sys
 logger = logging.getLogger(__name__) # <--- Get the logger
 
 APP_NAME = "meikipop"
-APP_VERSION = "v.0.0.6-pre"
+APP_VERSION = "v.0.0.6"
 MAX_DICT_ENTRIES = 10
 IS_LINUX = sys.platform.startswith('linux')
 
@@ -42,12 +42,10 @@ class Config:
                 'font_size_header': '18',
                 'compact_mode': 'true',
                 'hide_deconjugation': 'true',
-                'popup_width': '900',
                 'color_background': '#2E2E2E',
                 'color_foreground': '#F0F0F0',
                 'color_highlight_word': '#88D8FF',
                 'color_highlight_reading': '#90EE90',
-                'color_separator_line': '#444444',
                 'background_opacity': '245'
             }
         }
@@ -78,12 +76,10 @@ class Config:
         self.font_size_header = config.getint('Theme', 'font_size_header')
         self.compact_mode = config.getboolean('Theme', 'compact_mode')
         self.hide_deconjugation = config.getboolean('Theme', 'hide_deconjugation')
-        self.popup_width = config.getint('Theme', 'popup_width')
         self.color_background = config.get('Theme', 'color_background')
         self.color_foreground = config.get('Theme', 'color_foreground')
         self.color_highlight_word = config.get('Theme', 'color_highlight_word')
         self.color_highlight_reading = config.get('Theme', 'color_highlight_reading')
-        self.color_separator_line = config.get('Theme', 'color_separator_line')
         self.background_opacity = config.getint('Theme', 'background_opacity')
 
         # todo command line args parsing
@@ -105,12 +101,10 @@ class Config:
             'font_size_header': str(self.font_size_header),
             'compact_mode': str(self.compact_mode).lower(),
             'hide_deconjugation': str(self.hide_deconjugation).lower(),
-            'popup_width': str(self.popup_width),
             'color_background': self.color_background,
             'color_foreground': self.color_foreground,
             'color_highlight_word': self.color_highlight_word,
             'color_highlight_reading': self.color_highlight_reading,
-            'color_separator_line': self.color_separator_line,
             'background_opacity': str(self.background_opacity)
         }
         with open('config.ini', 'w', encoding='utf-8') as configfile:

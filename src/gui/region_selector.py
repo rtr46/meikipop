@@ -60,6 +60,8 @@ class RegionSelector(QDialog):
 
     def mousePressEvent(self, event: QMouseEvent):
         self.begin_logical = QCursor.pos()
+        if not self.begin_logical:  # when user selects upper left corner aka (0,0) aka None, the paint method won't work
+            self.begin_logical = QPoint(1, 1)
         self.end_logical = self.begin_logical
 
         # Store the physical position for the final result

@@ -11,22 +11,22 @@ THEMES = {
     "Nazeka": {
         "color_background": "#2E2E2E", "color_foreground": "#F0F0F0",
         "color_highlight_word": "#88D8FF", "color_highlight_reading": "#90EE90",
-        "color_separator_line": "#444444", "background_opacity": 245,
+        "background_opacity": 245,
     },
     "Celestial Indigo": {
         "color_background": "#281E50", "color_foreground": "#EAEFF5",
         "color_highlight_word": "#D4C58A", "color_highlight_reading": "#B5A2D4",
-        "color_separator_line": "#444444", "background_opacity": 245,
+        "background_opacity": 245,
     },
     "Neutral Slate": {
         "color_background": "#5D5C5B", "color_foreground": "#EFEBE8",
         "color_highlight_word": "#A3B8A3", "color_highlight_reading": "#A3B8A3",
-        "color_separator_line": "#444444", "background_opacity": 245,
+        "background_opacity": 245,
     },
     "Academic": {
         "color_background": "#FDFBF7", "color_foreground": "#212121",
         "color_highlight_word": "#8C2121", "color_highlight_reading": "#005A9C",
-        "color_separator_line": "#D3D3D3", "background_opacity": 245,
+        "background_opacity": 245,
     },
     "Custom": {}
 }
@@ -75,15 +75,14 @@ class SettingsDialog(QDialog):
         theme_layout.addRow("Background Opacity:", self.opacity_slider_container)
         theme_layout.addRow(QLabel("Customize Colors:"))
         self.color_widgets = {}
-        color_settings_map = {"Background": "color_background", "Foreground": "color_foreground", "Highlight Word": "color_highlight_word", "Highlight Reading": "color_highlight_reading", "Separator": "color_separator_line"}
+        color_settings_map = {"Background": "color_background", "Foreground": "color_foreground",
+                              "Highlight Word": "color_highlight_word", "Highlight Reading": "color_highlight_reading"}
         for name, key in color_settings_map.items():
             btn = QPushButton(getattr(config, key))
             btn.clicked.connect(lambda _, k=key, b=btn: self.pick_color(k, b))
             self.color_widgets[key] = btn
             theme_layout.addRow(f"  {name}:", btn)
         theme_layout.addRow(QLabel("Customize Layout:"))
-        self.popup_width_spin = QSpinBox(); self.popup_width_spin.setRange(300, 2000); self.popup_width_spin.setValue(config.popup_width)
-        theme_layout.addRow("  Popup Width:", self.popup_width_spin)
         self.font_family_edit = QLineEdit(config.font_family)
         theme_layout.addRow("  Font Family:", self.font_family_edit)
         self.font_size_header_spin = QSpinBox();
@@ -144,7 +143,6 @@ class SettingsDialog(QDialog):
         config.max_lookup_length = self.max_lookup_spin.value()
         config.auto_scan_mode = self.auto_scan_check.isChecked()
         config.auto_scan_mode_lookups_without_hotkey = self.auto_scan_no_hotkey_check.isChecked()
-        config.popup_width = self.popup_width_spin.value()
         config.compact_mode = self.compact_check.isChecked()
         config.hide_deconjugation = self.hide_deconj_check.isChecked()
         config.theme_name = self.theme_combo.currentText()
