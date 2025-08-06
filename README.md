@@ -16,6 +16,8 @@ https://github.com/user-attachments/assets/ad0fa0ce-0f5f-4d1d-a99b-22e67e5fb80b
 *   **simple & intuitive:** just point your mouse and press a hotkey. that's it.
 *   **highly customizable:** change the hotkey, theme, colors, and layout to create your perfect reading experience.
 *   **region or fullscreen:** scan your entire screen or select a specific region (like a game window or manga page) to improve performance.
+* **pluggable ocr backend:** comes with a great default OCR, but allows advanced users to integrate their own OCR
+  engines.
 
 ## philosophy & limitations
 
@@ -64,6 +66,18 @@ this is the easiest way to run meikipop on windows and recommended for most wind
 you can fully customize meikipop's behavior and appearance. right-click the tray icon and choose "settings" to open the configuration gui.
 
 changes are saved to `config.ini` in the same folder as the application.
+
+## extending with a custom ocr provider
+
+meikipop's architecture allows you to replace the default ocr engine with one of your own. this is an advanced feature
+for users who may want to use a local, offline ocr model or a different online service.
+
+the application will automatically detect any valid ocr provider placed in the `src/ocr/providers` directory. to get
+started, you can copy the `dummy` provider and use it as a template.
+
+for a complete guide, see: [how to create a custom ocr provider](docs/CUSTOM_OCR_PROVIDER.md)**
+
+**note that this feature is not available in the bundled windows executable for now**
 
 ## building your own dictionary (optional)
 
