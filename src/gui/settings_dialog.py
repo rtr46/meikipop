@@ -6,6 +6,7 @@ from PyQt6.QtWidgets import (QWidget, QDialog, QFormLayout, QComboBox,
                              QGroupBox, QMessageBox, QDialogButtonBox, QLabel, QSlider, QLineEdit)
 
 from src.config.config import config, APP_NAME
+from src.ocr.ocr import OcrProcessor
 
 THEMES = {
     "Nazeka": {
@@ -32,8 +33,9 @@ THEMES = {
 }
 
 class SettingsDialog(QDialog):
-    def __init__(self, parent=None):
+    def __init__(self, ocr_processor: OcrProcessor, parent=None):
         super().__init__(parent)
+        self.ocr_processor = ocr_processor
         self.setWindowTitle(f"{APP_NAME} Settings")
         self.setWindowIcon(QIcon("icon.ico"))
         layout = QVBoxLayout(self)
@@ -41,6 +43,10 @@ class SettingsDialog(QDialog):
         general_layout = QFormLayout()
         self.hotkey_combo = QComboBox(); self.hotkey_combo.addItems(['shift', 'ctrl', 'alt']); self.hotkey_combo.setCurrentText(config.hotkey)
         general_layout.addRow("Hotkey:", self.hotkey_combo)
+        self.ocr_provider_combo = QComboBox()
+        self.ocr_provider_combo.addItems(self.ocr_processor.available_providers.keys())
+        self.ocr_provider_combo.setCurrentText(config.ocr_provider)
+        general_layout.addRow("OCR Provider:", self.ocr_provider_combo)
         self.quality_combo = QComboBox(); self.quality_combo.addItems(['fast', 'balanced', 'quality']); self.quality_combo.setCurrentText(config.quality_mode)
         general_layout.addRow("Quality Mode:", self.quality_combo)
         self.max_lookup_spin = QSpinBox(); self.max_lookup_spin.setRange(5, 100); self.max_lookup_spin.setValue(config.max_lookup_length)
@@ -138,6 +144,10 @@ class SettingsDialog(QDialog):
 
 
     def save_and_accept(self):
+        selected_provider = self.ocr_provider_combo.currentText()
+        if selected_provider != config.ocr_provider:
+            self.ocr_processor.switch_provider(selected_provider)
+        config.ocr_provider = selected_provider
         config.hotkey = self.hotkey_combo.currentText()
         config.quality_mode = self.quality_combo.currentText()
         config.max_lookup_length = self.max_lookup_spin.value()

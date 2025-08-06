@@ -3,10 +3,10 @@ import configparser
 import logging
 import sys
 
-logger = logging.getLogger(__name__) # <--- Get the logger
+logger = logging.getLogger(__name__)
 
 APP_NAME = "meikipop"
-APP_VERSION = "v.0.0.6"
+APP_VERSION = "v.0.0.7"
 MAX_DICT_ENTRIES = 10
 IS_LINUX = sys.platform.startswith('linux')
 
@@ -32,6 +32,7 @@ class Config:
                 'scan_region': 'region',
                 'max_lookup_length': '25',
                 'quality_mode': 'balanced',
+                'ocr_provider': 'Google Lens',
                 'auto_scan_mode': 'false',
                 'auto_scan_mode_lookups_without_hotkey': 'true'
             },
@@ -67,6 +68,7 @@ class Config:
         self.scan_region = config.get('Settings', 'scan_region')
         self.max_lookup_length = config.getint('Settings', 'max_lookup_length')
         self.quality_mode = config.get('Settings', 'quality_mode')
+        self.ocr_provider = config.get('Settings', 'ocr_provider')
         self.auto_scan_mode = config.getboolean('Settings', 'auto_scan_mode')
         self.auto_scan_mode_lookups_without_hotkey = config.getboolean('Settings',
                                                                        'auto_scan_mode_lookups_without_hotkey')
@@ -91,6 +93,7 @@ class Config:
             'scan_region': self.scan_region,
             'max_lookup_length': str(self.max_lookup_length),
             'quality_mode': self.quality_mode,
+            'ocr_provider': self.ocr_provider,
             'auto_scan_mode': str(self.auto_scan_mode).lower(),
             'auto_scan_mode_lookups_without_hotkey': str(self.auto_scan_mode_lookups_without_hotkey).lower()
         }

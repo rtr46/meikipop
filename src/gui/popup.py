@@ -187,10 +187,17 @@ class Popup(QWidget):
             def_text_parts = []
             for idx, gloss_list in enumerate(entry.definitions):
                 def_text_parts.append(f"({idx + 1}) {'; '.join(gloss_list)}")
-            separator = "; " if config.compact_mode else "<br>"
-            full_def_text = separator.join(def_text_parts)
-            def_ratio = len(full_def_text) / self.def_chars_per_line
-            max_ratio = max(max_ratio, def_ratio)
+            if config.compact_mode:
+                separator = "; "
+                full_def_text = separator.join(def_text_parts)
+                def_ratio = len(full_def_text) / self.def_chars_per_line
+                max_ratio = max(max_ratio, def_ratio)
+            else:
+                separator = "<br>"
+                full_def_text = separator.join(def_text_parts)
+                for def_text in def_text_parts:
+                    def_ratio = len(def_text) / self.def_chars_per_line
+                    max_ratio = max(max_ratio, def_ratio)
 
             header_html = f'<span style="color: {config.color_highlight_word}; font-size:{config.font_size_header}px;">{entry.written_form}</span>'
             if entry.reading: header_html += f' <span style="color: {config.color_highlight_reading}; font-size:{config.font_size_header - 2}px;">[{entry.reading}]</span>'

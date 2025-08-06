@@ -1,8 +1,9 @@
 # src/ocr/hit_scan.py
 import logging
 import threading
+from typing import List
 
-from src.ocr.lens_betterproto import WritingDirection
+from src.ocr.interface import Paragraph
 
 logger = logging.getLogger(__name__)  # Get the logger
 
@@ -34,7 +35,7 @@ class HitScanner(threading.Thread):
                 logger.exception("An unexpected error occurred in the hit scan loop. Continuing...")
         logger.debug("HitScanner thread stopped.")
 
-    def hit_scan(self, paragraphs):
+    def hit_scan(self, paragraphs: List[Paragraph]):
         mouse_x, mouse_y = self.input_loop.get_mouse_pos()
         mouse_off_x, mouse_off_y, img_w, img_h = self.screen_manager.get_scan_geometry()
         relative_x = mouse_x - mouse_off_x
@@ -64,11 +65,11 @@ class HitScanner(threading.Thread):
         hit_scan_result = None
         lookup_string = None
         for para in paragraphs:
-            if not is_in_box((norm_x, norm_y), para.bounding_box):
+            if not is_in_box((norm_x, norm_y), para.box):
                 continue
 
             target_word = None
-            is_vertical = para.writing_direction == WritingDirection.TOP_TO_BOTTOM
+            is_vertical = para.is_vertical or para.box.height > para.box.width
             words = list(para.words)
 
             for i, word in enumerate(words):
