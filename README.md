@@ -75,7 +75,7 @@ for users who may want to use a local, offline ocr model or a different online s
 the application will automatically detect any valid ocr provider placed in the `src/ocr/providers` directory. to get
 started, you can copy the `dummy` provider and use it as a template.
 
-for a complete guide, see: [how to create a custom ocr provider](docs/CUSTOM_OCR_PROVIDER.md)**
+for a complete guide, see: [how to create a custom ocr provider](docs/CUSTOM_OCR_PROVIDER.md)
 
 **note that this feature is not available in the bundled windows executable for now**
 
@@ -92,4 +92,5 @@ for more details, you can look here: [Nazeka](https://github.com/wareya/nazeka)
 ## license
 
 meikipop is licensed under the GNU General Public License v3.0. see the `LICENSE` file for the full license text.
+
 
