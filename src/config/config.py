@@ -49,7 +49,8 @@ class Config:
                 'color_foreground': '#F0F0F0',
                 'color_highlight_word': '#88D8FF',
                 'color_highlight_reading': '#90EE90',
-                'background_opacity': '245'
+                'background_opacity': '245',
+                'popup_position_mode': 'flip_vertically'
             }
         }
         config.read_dict(defaults)
@@ -87,6 +88,7 @@ class Config:
         self.color_highlight_word = config.get('Theme', 'color_highlight_word')
         self.color_highlight_reading = config.get('Theme', 'color_highlight_reading')
         self.background_opacity = config.getint('Theme', 'background_opacity')
+        self.popup_position_mode = config.get('Theme', 'popup_position_mode')
 
         self.is_enabled = True
 
@@ -116,7 +118,8 @@ class Config:
             'color_foreground': self.color_foreground,
             'color_highlight_word': self.color_highlight_word,
             'color_highlight_reading': self.color_highlight_reading,
-            'background_opacity': str(self.background_opacity)
+            'background_opacity': str(self.background_opacity),
+            'popup_position_mode': self.popup_position_mode
         }
         with open('config.ini', 'w', encoding='utf-8') as configfile:
             config.write(configfile)

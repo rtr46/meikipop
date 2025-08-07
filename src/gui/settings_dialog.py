@@ -101,6 +101,20 @@ class SettingsDialog(QDialog):
             self.color_widgets[key] = btn
             theme_layout.addRow(f"  {name}:", btn)
         theme_layout.addRow(QLabel("Customize Layout:"))
+        self.popup_position_combo = QComboBox()
+        self.popup_position_combo.addItems(["Flip Both", "Flip Vertically", "Flip Horizontally", "Visual Novel Mode"])
+        self.popup_mode_map = {
+            "Flip Both": "flip_both",
+            "Flip Vertically": "flip_vertically",
+            "Flip Horizontally": "flip_horizontally",
+            "Visual Novel Mode": "visual_novel_mode"
+        }
+        # Find the friendly name for the current config value to set the combo box
+        current_friendly_name = next(
+            (k for k, v in self.popup_mode_map.items() if v == config.popup_position_mode), "Flip Vertically"
+        )
+        self.popup_position_combo.setCurrentText(current_friendly_name)
+        theme_layout.addRow("  Popup Position Mode:", self.popup_position_combo)
         self.font_family_edit = QLineEdit(config.font_family)
         theme_layout.addRow("  Font Family:", self.font_family_edit)
         self.font_size_header_spin = QSpinBox();
@@ -175,6 +189,8 @@ class SettingsDialog(QDialog):
         config.show_deconjugation = self.show_deconj_check.isChecked()
         config.show_pos = self.show_pos_check.isChecked()
         config.show_tags = self.show_tags_check.isChecked()
+        selected_friendly_name = self.popup_position_combo.currentText()
+        config.popup_position_mode = self.popup_mode_map.get(selected_friendly_name, "flip_vertically")
         config.theme_name = self.theme_combo.currentText()
         config.background_opacity = self.opacity_slider.value()
         config.font_family = self.font_family_edit.text()
