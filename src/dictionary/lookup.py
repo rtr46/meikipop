@@ -242,7 +242,7 @@ class Lookup(threading.Thread):
                 merged_entries[merge_key] = {
                     "id": entry_data['id'],
                     "written_form": written_form,
-                    "reading": reading_to_display, "senses": entry_data['senses'],
+                    "reading": reading_to_display, "senses": list(entry_data['senses']),
                     "tags": self._get_misc_tags(entry_data),
                     "deconjugation_process": form.process,
                     "priority": priority
