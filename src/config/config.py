@@ -42,7 +42,9 @@ class Config:
                 'font_size_definitions': '14',
                 'font_size_header': '18',
                 'compact_mode': 'true',
-                'hide_deconjugation': 'true',
+                'show_deconjugation': 'false',
+                'show_pos': 'false',
+                'show_tags': 'false',
                 'color_background': '#2E2E2E',
                 'color_foreground': '#F0F0F0',
                 'color_highlight_word': '#88D8FF',
@@ -77,12 +79,16 @@ class Config:
         self.font_size_definitions = config.getint('Theme', 'font_size_definitions')
         self.font_size_header = config.getint('Theme', 'font_size_header')
         self.compact_mode = config.getboolean('Theme', 'compact_mode')
-        self.hide_deconjugation = config.getboolean('Theme', 'hide_deconjugation')
+        self.show_deconjugation = config.getboolean('Theme', 'show_deconjugation')
+        self.show_pos = config.getboolean('Theme', 'show_pos')
+        self.show_tags = config.getboolean('Theme', 'show_tags')
         self.color_background = config.get('Theme', 'color_background')
         self.color_foreground = config.get('Theme', 'color_foreground')
         self.color_highlight_word = config.get('Theme', 'color_highlight_word')
         self.color_highlight_reading = config.get('Theme', 'color_highlight_reading')
         self.background_opacity = config.getint('Theme', 'background_opacity')
+
+        self.is_enabled = True
 
         # todo command line args parsing
 
@@ -103,7 +109,9 @@ class Config:
             'font_size_definitions': str(self.font_size_definitions),
             'font_size_header': str(self.font_size_header),
             'compact_mode': str(self.compact_mode).lower(),
-            'hide_deconjugation': str(self.hide_deconjugation).lower(),
+            'show_deconjugation': str(self.show_deconjugation).lower(),
+            'show_pos': str(self.show_pos).lower(),
+            'show_tags': str(self.show_tags).lower(),
             'color_background': self.color_background,
             'color_foreground': self.color_foreground,
             'color_highlight_word': self.color_highlight_word,

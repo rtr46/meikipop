@@ -90,6 +90,9 @@ class InputLoop(threading.Thread):
         hotkey_was_pressed = False
 
         while self.shared_state.running:
+            if not config.is_enabled:
+                time.sleep(0.1)
+                continue
             try:
                 current_mouse_pos = self.mouse_controller.position
                 try:
@@ -126,6 +129,12 @@ class InputLoop(threading.Thread):
     def is_virtual_hotkey_down(self):
         return self.keyboard_controller.is_hotkey_pressed() or (
                     config.auto_scan_mode and config.auto_scan_mode_lookups_without_hotkey)
+
+    def reapply_settings(self):
+        logger.debug(f"InputLoop: Re-applying settings. New hotkey: '{config.hotkey}'.")
+        self.hotkey_str = config.hotkey.lower()
+        self.keyboard_controller = LinuxX11KeyboardController(
+            self.hotkey_str) if IS_LINUX else WindowsKeyboardController(self.hotkey_str)
 
     @staticmethod
     def get_mouse_pos():

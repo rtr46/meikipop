@@ -20,7 +20,8 @@ class DictionaryEntry:
     id: int
     written_form: str
     reading: str
-    definitions: list
+    senses: list
+    tags: Set[str]
     deconjugation_process: tuple
     priority: float = 0.0
 
@@ -241,17 +242,19 @@ class Lookup(threading.Thread):
                 merged_entries[merge_key] = {
                     "id": entry_data['id'],
                     "written_form": written_form,
-                    "reading": reading_to_display,
-                    "definitions": [s['glosses'] for s in entry_data['senses']],
+                    "reading": reading_to_display, "senses": entry_data['senses'],
+                    "tags": self._get_misc_tags(entry_data),
                     "deconjugation_process": form.process,
                     "priority": priority
                 }
             else:
-                if priority > merged_entries[merge_key]['priority']:
-                    merged_entries[merge_key]['definitions'].extend([s['glosses'] for s in entry_data['senses']])
-                    merged_entries[merge_key]['priority'] = priority
-                    merged_entries[merge_key]['id'] = entry_data['id']
-                    merged_entries[merge_key]['deconjugation_process'] = form.process
+                current_entry = merged_entries[merge_key]
+                current_entry['senses'].extend(entry_data['senses'])
+                current_entry['tags'].update(self._get_misc_tags(entry_data))
+                if priority > current_entry['priority']:
+                    current_entry['priority'] = priority
+                    current_entry['id'] = entry_data['id']
+                    current_entry['deconjugation_process'] = form.process
 
         final_results = [DictionaryEntry(**val) for val in merged_entries.values()]
         final_results.sort(key=lambda x: x.priority, reverse=True)
