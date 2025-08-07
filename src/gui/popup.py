@@ -179,32 +179,53 @@ class Popup(QWidget):
             if i > 0:
                 all_html_parts.append('<hr style="margin-top: 5px; margin-bottom: 2px;">')
 
-            header_text = entry.written_form
-            if entry.reading: header_text += f" [{entry.reading}]"
-            header_ratio = len(header_text) / self.header_chars_per_line
+            header_text_calc = entry.written_form
+            if entry.reading: header_text_calc += f" [{entry.reading}]"
+            if config.show_tags and entry.tags:
+                header_text_calc += f' [{", ".join(sorted(list(entry.tags)))}]'
+            header_ratio = len(header_text_calc) / self.header_chars_per_line
             max_ratio = max(max_ratio, header_ratio)
 
-            def_text_parts = []
-            for idx, gloss_list in enumerate(entry.definitions):
-                def_text_parts.append(f"({idx + 1}) {'; '.join(gloss_list)}")
+            # --- HTML construction ---
+            header_html = f'<span style="color: {config.color_highlight_word}; font-size:{config.font_size_header}px;">{entry.written_form}</span>'
+            if entry.reading: header_html += f' <span style="color: {config.color_highlight_reading}; font-size:{config.font_size_header - 2}px;">[{entry.reading}]</span>'
+            if config.show_tags and entry.tags:
+                tags_str = ", ".join(sorted(list(entry.tags)))
+                header_html += f' <span style="color:{config.color_foreground}; font-size:{config.font_size_definitions - 2}px; opacity:0.7;">[{tags_str}]</span>'
+            if entry.deconjugation_process and config.show_deconjugation:
+                deconj_str = " ← ".join(p for p in entry.deconjugation_process if p)
+                if deconj_str:
+                    header_html += f' <span style="color:{config.color_foreground}; font-size:{config.font_size_definitions - 2}px; opacity:0.8;">({deconj_str})</span>'
+            def_text_parts_calc = []
+            def_text_parts_html = []
+            for idx, sense in enumerate(entry.senses):
+                glosses_str = '; '.join(sense.get('glosses', []))
+                pos_list = sense.get('pos', [])
+                sense_calc = f"({idx + 1})"
+                sense_html = f"<b>({idx + 1})</b> "
+                if config.show_pos and pos_list:
+                    pos_str = f' ({", ".join(pos_list)})'
+                    sense_calc += pos_str
+                    sense_html += f'<span style="color:{config.color_foreground}; opacity:0.7;"><i>{pos_str}</i></span> '
+                sense_calc += glosses_str
+                sense_html += glosses_str
+                def_text_parts_calc.append(sense_calc)
+                def_text_parts_html.append(sense_html)
+
+
             if config.compact_mode:
                 separator = "; "
-                full_def_text = separator.join(def_text_parts)
-                def_ratio = len(full_def_text) / self.def_chars_per_line
+                full_def_text_html = separator.join(def_text_parts_html)
+                def_ratio = len(separator.join(def_text_parts_calc)) / self.def_chars_per_line
                 max_ratio = max(max_ratio, def_ratio)
             else:
                 separator = "<br>"
-                full_def_text = separator.join(def_text_parts)
-                for def_text in def_text_parts:
-                    def_ratio = len(def_text) / self.def_chars_per_line
+                full_def_text_html = separator.join(def_text_parts_html)
+                for def_text_calc in def_text_parts_calc:
+                    def_ratio = len(def_text_calc) / self.def_chars_per_line
                     max_ratio = max(max_ratio, def_ratio)
 
-            header_html = f'<span style="color: {config.color_highlight_word}; font-size:{config.font_size_header}px;">{entry.written_form}</span>'
-            if entry.reading: header_html += f' <span style="color: {config.color_highlight_reading}; font-size:{config.font_size_header - 2}px;">[{entry.reading}]</span>'
-            if entry.deconjugation_process and not config.hide_deconjugation:
-                deconj_str = " ← ".join(p for p in entry.deconjugation_process if p)
-                if deconj_str: header_html += f' <span style="color:{config.color_foreground}; font-size:{config.font_size_definitions - 2}px; opacity:0.8;">({deconj_str})</span>'
-            definitions_html_final = f'<div style="font-size:{config.font_size_definitions}px;">{full_def_text}</div>'
+            definitions_html_final = f'<div style="font-size:{config.font_size_definitions}px;">{full_def_text_html}</div>'
             all_html_parts.append(f"{header_html}{definitions_html_final}")
 
         optimal_content_width = self.max_content_width * min(1.0, max_ratio)
@@ -269,3 +290,10 @@ class Popup(QWidget):
         logger.debug("...successfully acquired lock by show_popup")
         self.show()
         self.is_visible = True
+
+    def reapply_settings(self):
+        logger.debug("Popup: Re-applying settings and triggering font recalibration.")
+        self._apply_frame_stylesheet()
+        # By setting is_calibrated to False, the main loop will automatically
+        # run _calibrate_empirically() again with the new font settings.
+        self.is_calibrated = False

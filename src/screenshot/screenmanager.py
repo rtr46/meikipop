@@ -21,12 +21,21 @@ class ScreenManager(threading.Thread):
         if config.scan_region == "region":
             self.set_scan_region()
         else:
-            self.set_scan_screen(1)
+            try:
+                screen_idx = int(config.scan_region)
+                self.set_scan_screen(screen_idx)
+            except (ValueError, IndexError):
+                logger.warning(f"Invalid screen '{config.scan_region}' in config, defaulting to screen 1.")
+                self.set_scan_screen(1)
 
     def run(self):
         logger.debug("Screenshot thread started.")
         while self.shared_state.running:
             try:
+                if config.auto_scan_mode and not config.is_enabled:
+                    logger.debug(f"paused while auto mode")
+                    self._sleep_and_handle_loop_exit(1)
+                    continue
                 self.shared_state.screenshot_trigger_event.wait()
                 self.shared_state.screenshot_trigger_event.clear()
                 if not self.shared_state.running: break
@@ -60,15 +69,27 @@ class ScreenManager(threading.Thread):
 
     def set_scan_region(self):
         scan_rect = RegionSelector.get_region()
-        logger.info(f"Set scan area to region {scan_rect}")
-        self.monitor = {"top": scan_rect.y(), "left": scan_rect.x(), "width": scan_rect.width(), "height": scan_rect.height()}
+        if scan_rect:
+            logger.info(f"Set scan area to region {scan_rect}")
+            self.monitor = {"top": scan_rect.y(), "left": scan_rect.x(), "width": scan_rect.width(),
+                            "height": scan_rect.height()}
+            return True
+        else:
+            logger.info("Region selection cancelled.")
+            return False
 
     def set_scan_screen(self, screen_index):
         logger.info(f"Set scan area to screen {screen_index}")
         with mss.mss() as sct:
-            self.monitor = sct.monitors[screen_index]
+            if screen_index < len(sct.monitors):
+                logger.info(f"Set scan area to screen {screen_index}")
+                self.monitor = sct.monitors[screen_index]
+            else:
+                logger.error(f"Cannot set scan screen: index {screen_index} is out of bounds.")
 
     def get_scan_geometry(self):
+        if not self.monitor:
+            return 0, 0, 0, 0
         return self.monitor["left"], self.monitor["top"], self.monitor["width"], self.monitor["height"]
 
     def _sleep_and_handle_loop_exit(self, interval):

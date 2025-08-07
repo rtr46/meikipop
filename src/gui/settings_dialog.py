@@ -3,9 +3,11 @@ from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QColor, QIcon
 from PyQt6.QtWidgets import (QWidget, QDialog, QFormLayout, QComboBox,
                              QSpinBox, QCheckBox, QPushButton, QColorDialog, QVBoxLayout, QHBoxLayout,
-                             QGroupBox, QMessageBox, QDialogButtonBox, QLabel, QSlider, QLineEdit)
+                             QGroupBox, QDialogButtonBox, QLabel, QSlider, QLineEdit)
 
 from src.config.config import config, APP_NAME
+from src.gui.input import InputLoop
+from src.gui.popup import Popup
 from src.ocr.ocr import OcrProcessor
 
 THEMES = {
@@ -32,24 +34,34 @@ THEMES = {
     "Custom": {}
 }
 
+
 class SettingsDialog(QDialog):
-    def __init__(self, ocr_processor: OcrProcessor, parent=None):
+    def __init__(self, ocr_processor: OcrProcessor, popup_window: Popup, input_loop: InputLoop, parent=None):
         super().__init__(parent)
         self.ocr_processor = ocr_processor
+        self.popup_window = popup_window
+        self.input_loop = input_loop
+
         self.setWindowTitle(f"{APP_NAME} Settings")
         self.setWindowIcon(QIcon("icon.ico"))
         layout = QVBoxLayout(self)
         general_group = QGroupBox("General")
         general_layout = QFormLayout()
-        self.hotkey_combo = QComboBox(); self.hotkey_combo.addItems(['shift', 'ctrl', 'alt']); self.hotkey_combo.setCurrentText(config.hotkey)
+        self.hotkey_combo = QComboBox()
+        self.hotkey_combo.addItems(['shift', 'ctrl', 'alt'])
+        self.hotkey_combo.setCurrentText(config.hotkey)
         general_layout.addRow("Hotkey:", self.hotkey_combo)
         self.ocr_provider_combo = QComboBox()
         self.ocr_provider_combo.addItems(self.ocr_processor.available_providers.keys())
         self.ocr_provider_combo.setCurrentText(config.ocr_provider)
         general_layout.addRow("OCR Provider:", self.ocr_provider_combo)
-        self.quality_combo = QComboBox(); self.quality_combo.addItems(['fast', 'balanced', 'quality']); self.quality_combo.setCurrentText(config.quality_mode)
+        self.quality_combo = QComboBox()
+        self.quality_combo.addItems(['fast', 'balanced', 'quality'])
+        self.quality_combo.setCurrentText(config.quality_mode)
         general_layout.addRow("Quality Mode:", self.quality_combo)
-        self.max_lookup_spin = QSpinBox(); self.max_lookup_spin.setRange(5, 100); self.max_lookup_spin.setValue(config.max_lookup_length)
+        self.max_lookup_spin = QSpinBox()
+        self.max_lookup_spin.setRange(5, 100)
+        self.max_lookup_spin.setValue(config.max_lookup_length)
         general_layout.addRow("Max Lookup Length:", self.max_lookup_spin)
         self.auto_scan_check = QCheckBox()
         self.auto_scan_check.setChecked(config.auto_scan_mode)
@@ -99,10 +111,18 @@ class SettingsDialog(QDialog):
         self.font_size_def_spin.setRange(8, 72)
         self.font_size_def_spin.setValue(config.font_size_definitions)
         theme_layout.addRow("  Font Size (Definitions):", self.font_size_def_spin)
-        self.compact_check = QCheckBox(); self.compact_check.setChecked(config.compact_mode)
+        self.compact_check = QCheckBox()
+        self.compact_check.setChecked(config.compact_mode)
         theme_layout.addRow("  Compact Mode:", self.compact_check)
-        self.hide_deconj_check = QCheckBox(); self.hide_deconj_check.setChecked(config.hide_deconjugation)
-        theme_layout.addRow("  Hide Deconjugation:", self.hide_deconj_check)
+        self.show_deconj_check = QCheckBox()
+        self.show_deconj_check.setChecked(config.show_deconjugation)
+        theme_layout.addRow("  Show Deconjugation:", self.show_deconj_check)
+        self.show_pos_check = QCheckBox()
+        self.show_pos_check.setChecked(config.show_pos)
+        theme_layout.addRow("  Show Part of Speech:", self.show_pos_check)
+        self.show_tags_check = QCheckBox()
+        self.show_tags_check.setChecked(config.show_tags)
+        theme_layout.addRow("  Show Tags:", self.show_tags_check)
         theme_group.setLayout(theme_layout)
         layout.addWidget(theme_group)
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Save | QDialogButtonBox.StandardButton.Cancel)
@@ -110,12 +130,10 @@ class SettingsDialog(QDialog):
         buttons.rejected.connect(self.reject)
         layout.addWidget(buttons)
         self._update_color_buttons()
-        
 
     def _mark_as_custom(self):
         if self.theme_combo.currentText() != "Custom":
             self.theme_combo.setCurrentText("Custom")
-
 
     def _apply_theme(self, theme_name):
         if theme_name in THEMES and theme_name != "Custom":
@@ -125,7 +143,6 @@ class SettingsDialog(QDialog):
             self._update_color_buttons()
             self.opacity_slider.setValue(config.background_opacity)
 
-
     def _update_color_buttons(self):
         for key, btn in self.color_widgets.items():
             color_hex = getattr(config, key)
@@ -134,7 +151,6 @@ class SettingsDialog(QDialog):
             text_color = "#000000" if q_color.lightness() > 127 else "#FFFFFF"
             btn.setStyleSheet(f"background-color: {color_hex}; color: {text_color};")
 
-
     def pick_color(self, key, btn):
         color = QColorDialog.getColor(QColor(getattr(config, key)), self)
         if color.isValid():
@@ -142,24 +158,32 @@ class SettingsDialog(QDialog):
             self._update_color_buttons()
             self._mark_as_custom()
 
-
     def save_and_accept(self):
+        # Update OCR Provider
         selected_provider = self.ocr_provider_combo.currentText()
         if selected_provider != config.ocr_provider:
             self.ocr_processor.switch_provider(selected_provider)
         config.ocr_provider = selected_provider
+
+        # Update all other config values
         config.hotkey = self.hotkey_combo.currentText()
         config.quality_mode = self.quality_combo.currentText()
         config.max_lookup_length = self.max_lookup_spin.value()
         config.auto_scan_mode = self.auto_scan_check.isChecked()
         config.auto_scan_mode_lookups_without_hotkey = self.auto_scan_no_hotkey_check.isChecked()
         config.compact_mode = self.compact_check.isChecked()
-        config.hide_deconjugation = self.hide_deconj_check.isChecked()
+        config.show_deconjugation = self.show_deconj_check.isChecked()
+        config.show_pos = self.show_pos_check.isChecked()
+        config.show_tags = self.show_tags_check.isChecked()
         config.theme_name = self.theme_combo.currentText()
         config.background_opacity = self.opacity_slider.value()
         config.font_family = self.font_family_edit.text()
         config.font_size_header = self.font_size_header_spin.value()
         config.font_size_definitions = self.font_size_def_spin.value()
         config.save()
-        QMessageBox.information(self, "Settings Saved", "Settings have been saved.\nPlease restart the application for all changes to take effect.")
+
+        # Tell the live components to re-apply settings
+        self.input_loop.reapply_settings()
+        self.popup_window.reapply_settings()
+
         self.accept()
