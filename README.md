@@ -36,7 +36,11 @@ to maintain this focus, there are a few things meikipop is **not**:
 
 this is the easiest way to run meikipop on windows and recommended for most windows user: https://github.com/rtr46/meikipop/releases
 
-### windows + linux: bundled source + dict
+### windows + linux + macos: bundled source + dict
+
+0.  **required permissions (macOS only)**
+    * go to **System Preferences** > **Security & Privacy** > **Privacy**
+    * add/enable your Terminal app in **Input Monitoring**, **Screen Recording** and **Accessibility**
 
 1.  **prerequisites:**
     *   Python 3.10+
@@ -47,12 +51,12 @@ this is the easiest way to run meikipop on windows and recommended for most wind
 3.  **install python dependencies and run:**
     ```bash
     pip install -r requirements.txt
-    python -m src.main # alternatively run the meiki.bat or meiki.sh
+    python -m src.main # alternatively run meikipop.bat or meikipop.sh
     ```
 
 ## how to use
 
-1.  run the application (`python -m src.main`). an icon will appear in your system tray.
+1.  run the application (`python -m src.main`). an icon will appear in your system tray (currently not working on macOS).
 2.  the first time you run the app in `region` mode, you will be prompted to select an area of your screen to scan (the scanned area will be send to google ocr).
 3.  move your mouse over any japanese text on your screen.
 4.  **press and hold the hotkey** (**shift** by default). a popup with dictionary entries will appear. depending on your internet connection this may take a while the first time...
