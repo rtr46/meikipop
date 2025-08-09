@@ -4,7 +4,7 @@ mss>=10.0.0
 requests>=2.32.4
 Pillow>=11.2.1
 betterproto>=2.0.0b7
-keyboard~=0.13.5; sys_platform != 'linux'
+keyboard~=0.13.5; sys_platform == 'win32'
 pyobjc-framework-Quartz>=10.0; sys_platform == 'darwin'
 pyobjc-framework-Cocoa>=10.0; sys_platform == 'darwin'
 python-xlib~=0.33; sys_platform == 'linux'
