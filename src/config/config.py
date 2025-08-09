@@ -9,6 +9,8 @@ APP_NAME = "meikipop"
 APP_VERSION = "v.0.0.7"
 MAX_DICT_ENTRIES = 10
 IS_LINUX = sys.platform.startswith('linux')
+IS_WINDOWS = sys.platform.startswith('win')
+IS_MACOS = sys.platform.startswith('darwin')
 
 class Config:
     _instance = None

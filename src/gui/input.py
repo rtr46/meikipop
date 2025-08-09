@@ -6,12 +6,15 @@ import time
 
 from pynput import mouse
 
-from src.config.config import config, IS_LINUX
+from src.config.config import config, IS_LINUX, IS_MACOS
 
 if IS_LINUX:
     from Xlib import display as xlib_display
     from Xlib.error import XError
     from Xlib import XK
+elif IS_MACOS:
+    import Quartz
+    from AppKit import NSEvent
 else:
     import keyboard
 
@@ -72,6 +75,43 @@ class WindowsKeyboardController:
         except Exception:
             return False
 
+class MacOSKeyboardController:
+    def __init__(self, hotkey_str):
+        self.hotkey_str = hotkey_str.lower()
+        self._setup_keycodes()
+        
+    def _setup_keycodes(self):
+        # Map common hotkey strings to macOS key codes
+        key_mapping = {
+            'shift': [56, 60],  # Left and Right Shift
+            'ctrl': [59, 62],   # Left and Right Control
+            'alt': [58, 61],    # Left and Right Option/Alt
+            'cmd': [55, 54],    # Left and Right Command
+        }
+        self.keycodes_to_check = key_mapping.get(self.hotkey_str, [])
+        if not self.keycodes_to_check:
+            logger.critical(f"Unsupported hotkey '{self.hotkey_str}' for macOS. Use 'shift', 'ctrl', 'alt', or 'cmd'.")
+            sys.exit(1)
+            
+    def is_hotkey_pressed(self) -> bool:
+        try:
+            # Get current modifier flags
+            flags = NSEvent.modifierFlags()
+            
+            # Check if any of our target keys are pressed
+            if self.hotkey_str == 'shift':
+                return bool(flags & (1 << 17) or flags & (1 << 18))  # NSShiftKeyMask
+            elif self.hotkey_str == 'ctrl':
+                return bool(flags & (1 << 12))  # NSControlKeyMask
+            elif self.hotkey_str == 'alt':
+                return bool(flags & (1 << 19))  # NSAlternateKeyMask
+            elif self.hotkey_str == 'cmd':
+                return bool(flags & (1 << 20))  # NSCommandKeyMask
+            return False
+        except Exception as e:
+            logger.warning(f"Error checking hotkey state: {e}")
+            return False
+
 class InputLoop(threading.Thread):
     def __init__(self, shared_state):
         super().__init__(daemon=True, name="InputLoop")
@@ -79,7 +119,12 @@ class InputLoop(threading.Thread):
         self.mouse_controller = mouse.Controller()
 
         self.hotkey_str = config.hotkey.lower()
-        self.keyboard_controller = LinuxX11KeyboardController(self.hotkey_str) if IS_LINUX else WindowsKeyboardController(self.hotkey_str)
+        if IS_LINUX:
+            self.keyboard_controller = LinuxX11KeyboardController(self.hotkey_str)
+        elif IS_MACOS:
+            self.keyboard_controller = MacOSKeyboardController(self.hotkey_str)
+        else: # IS_WINDOWS
+            self.keyboard_controller = WindowsKeyboardController(self.hotkey_str)
 
         self.started_auto_mode = False
 
@@ -133,10 +178,16 @@ class InputLoop(threading.Thread):
     def reapply_settings(self):
         logger.debug(f"InputLoop: Re-applying settings. New hotkey: '{config.hotkey}'.")
         self.hotkey_str = config.hotkey.lower()
-        self.keyboard_controller = LinuxX11KeyboardController(
-            self.hotkey_str) if IS_LINUX else WindowsKeyboardController(self.hotkey_str)
+        if IS_LINUX:
+            self.keyboard_controller = LinuxX11KeyboardController(self.hotkey_str)
+        elif IS_MACOS:
+            self.keyboard_controller = MacOSKeyboardController(self.hotkey_str)
+        else: # IS_WINDOWS
+            self.keyboard_controller = WindowsKeyboardController(self.hotkey_str)
 
     @staticmethod
     def get_mouse_pos():
         with mouse.Controller() as mc:
-            return mc.position
+            pos = mc.position
+            # Convert floats to integers for QPoint compatibility
+            return (int(pos[0]), int(pos[1]))

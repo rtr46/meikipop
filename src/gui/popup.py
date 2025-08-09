@@ -8,7 +8,7 @@ from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QColor, QCursor, QFont, QFontMetrics, QFontInfo
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel, QFrame, QApplication
 
-from src.config.config import config, MAX_DICT_ENTRIES
+from src.config.config import config, MAX_DICT_ENTRIES, IS_MACOS
 from src.dictionary.lookup import DictionaryEntry
 
 logger = logging.getLogger(__name__)
@@ -342,6 +342,11 @@ class Popup(QWidget):
         self.shared_state.screen_lock.acquire()
         logger.debug("...successfully acquired lock by show_popup")
         self.show()
+        
+        # macOS-specific: ensure the popup is properly raised
+        if IS_MACOS:
+            self.raise_()
+        
         self.is_visible = True
 
     def reapply_settings(self):
