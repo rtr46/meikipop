@@ -39,12 +39,32 @@ this is the easiest way to run meikipop on windows and recommended for most wind
 ### windows + linux: bundled source + dict
 
 1.  **prerequisites:**
-    *   Python 3.10+
+    * python 3.10+
 
 2.  **download the latest release that includes a prebuilt dictionary:**
     * https://github.com/rtr46/meikipop/releases
 
 3.  **install python dependencies and run:**
+    ```bash
+    pip install -r requirements.txt
+    python -m src.main # alternatively run the meiki.bat or meiki.sh
+    ```
+
+### macos (beta): bundled source + dict
+
+note that meikipop is in beta for macos. it is lacking the tray and therefore the settings menu and a few options. you should be able to configure meikipop through the config.ini though. if you notice meikipop breaking with a new release, feel free to let us know via an issue and we will try to fix it. 
+
+1.  **prerequisites:**
+    * python 3.10+
+  
+2. **set required permissions**
+    * go to **System Preferences** > **Security & Privacy** > **Privacy**
+    * add/enable your terminal app in **Input Monitoring**, **Screen Recording** and **Accessibility**
+
+3.  **download the latest release that includes a prebuilt dictionary:**
+    * https://github.com/rtr46/meikipop/releases
+
+4.  **install python dependencies and run:**
     ```bash
     pip install -r requirements.txt
     python -m src.main # alternatively run the meiki.bat or meiki.sh
