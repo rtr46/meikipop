@@ -1,0 +1,11 @@
+# --- Files that MUST use Unix-style (LF) line endings in the repo ---
+*.py      text eol=lf
+*.md      text eol=lf
+*.txt     text eol=lf
+*.json    text eol=lf
+*.sh      text eol=lf
+.gitignore  text eol=lf
+
+# --- Files that MUST use Windows-style (CRLF) line endings in the repo ---
+*.bat     text eol=crlf
+*.spec     text eol=crlf
