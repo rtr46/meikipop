@@ -67,7 +67,7 @@ note that meikipop is in beta for macos. it is lacking the tray and therefore th
 4.  **install python dependencies and run:**
     ```bash
     pip install -r requirements.txt
-    python -m src.main # alternatively run the meiki.bat or meiki.sh
+    python -m src.main # alternatively run the meikipop.sh
     ```
 
 ## how to use
