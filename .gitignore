@@ -17,6 +17,10 @@ build/
 .vscode/
 .idea/
 
+# macOS system files
+.DS_Store
+**/.DS_Store
+
 # Local project/user files
 data/
 config.ini
