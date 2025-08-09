@@ -75,7 +75,7 @@ class WindowsKeyboardController:
         except Exception:
             return False
 
-class macOSKeyboardController:
+class MacOSKeyboardController:
     def __init__(self, hotkey_str):
         self.hotkey_str = hotkey_str.lower()
         self._setup_keycodes()
@@ -122,7 +122,7 @@ class InputLoop(threading.Thread):
         if IS_LINUX:
             self.keyboard_controller = LinuxX11KeyboardController(self.hotkey_str)
         elif IS_MACOS:
-            self.keyboard_controller = macOSKeyboardController(self.hotkey_str)
+            self.keyboard_controller = MacOSKeyboardController(self.hotkey_str)
         else: # IS_WINDOWS
             self.keyboard_controller = WindowsKeyboardController(self.hotkey_str)
 
@@ -181,7 +181,7 @@ class InputLoop(threading.Thread):
         if IS_LINUX:
             self.keyboard_controller = LinuxX11KeyboardController(self.hotkey_str)
         elif IS_MACOS:
-            self.keyboard_controller = macOSKeyboardController(self.hotkey_str)
+            self.keyboard_controller = MacOSKeyboardController(self.hotkey_str)
         else: # IS_WINDOWS
             self.keyboard_controller = WindowsKeyboardController(self.hotkey_str)
 
