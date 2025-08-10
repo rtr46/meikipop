@@ -52,7 +52,7 @@ this is the easiest way to run meikipop on windows and recommended for most wind
 
 ### macos (beta): bundled source + dict
 
-note that meikipop is in beta for macos. it is lacking the tray and therefore the settings menu and a few options. you should be able to configure meikipop through the config.ini though. if you notice meikipop breaking with a new release, feel free to let us know via an issue and we will try to fix it. 
+note that meikipop is in beta for macos. the tray and therefore the settings menu may or may not show up (you should still be able to configure meikipop through the config.ini). if you notice meikipop breaking with a new release, feel free to let us know via an issue and we will try to fix it. 
 
 1.  **prerequisites:**
     * python 3.10+
