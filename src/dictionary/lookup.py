@@ -245,7 +245,8 @@ class Lookup(threading.Thread):
                     "reading": reading_to_display, "senses": list(entry_data['senses']),
                     "tags": self._get_misc_tags(entry_data),
                     "deconjugation_process": form.process,
-                    "priority": priority
+                    "priority": priority,
+                    "match_len": match_len
                 }
             else:
                 current_entry = merged_entries[merge_key]
@@ -256,14 +257,18 @@ class Lookup(threading.Thread):
                     current_entry['id'] = entry_data['id']
                     current_entry['deconjugation_process'] = form.process
 
-        final_results = [DictionaryEntry(**val) for val in merged_entries.values()]
-        final_results.sort(key=lambda x: x.priority, reverse=True)
+        final_results_as_dicts = list(merged_entries.values())
+        final_results_as_dicts.sort(key=lambda x: (x['match_len'], x['priority']), reverse=True)
+        final_results = []
+        for val in final_results_as_dicts:
+            del val['match_len']
+            final_results.append(DictionaryEntry(**val))
         return final_results
 
     def _calculate_priority(self, entry_data, form, match_len, original_lookup, written_form, reading) -> float:
         is_original_lookup_kana = self._is_kana_only(original_lookup)
         priority = float(entry_data['id']) / -10000000.0
-        priority += match_len * 1000
+        priority += match_len
 
         is_kana_only_entry = not entry_data['kebs']
         is_exact_match = len(form.process) == 0
@@ -291,9 +296,6 @@ class Lookup(threading.Thread):
         bonus_reading = self.dictionary.priority_map.get(("", reading), 0)
         bonus_written = self.dictionary.priority_map.get((written_form, reading), 0) if written_form else 0
         bonus = max(bonus_reading, bonus_written)
-        if bonus > 1000:
-            relevance_ratio = len(form.text) / len(original_lookup)
-            bonus *= relevance_ratio
 
         priority += bonus
         priority -= len(form.process)

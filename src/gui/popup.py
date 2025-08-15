@@ -177,7 +177,7 @@ class Popup(QWidget):
 
         for i, entry in enumerate(entries[:min(len(entries), MAX_DICT_ENTRIES)]):
             if i > 0:
-                all_html_parts.append('<hr style="margin-top: 5px; margin-bottom: 2px;">')
+                all_html_parts.append('<hr style="margin-top: 0px; margin-bottom: 0px;">')
 
             header_text_calc = entry.written_form
             if entry.reading: header_text_calc += f" [{entry.reading}]"
