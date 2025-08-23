@@ -46,8 +46,8 @@ this is the easiest way to run meikipop on windows and recommended for most wind
 
 3.  **install python dependencies and run:**
     ```bash
-    pip install -r requirements.txt
-    python -m src.main # alternatively run the meikipop.bat or meikipop.sh
+    pip install -r requirements.txt # alternatively run meikipop.install.bat
+    python -m src.main # alternatively run meikipop.run.bat or meikipop.run.sh
     ```
 
 ### macos (beta): bundled source + dict
