@@ -103,7 +103,7 @@ class HitScanner(threading.Thread):
             for word in para.words:
                 if word is target_word:
                     break
-                word_start_index += len(word.text) + len(word.separator)
+                word_start_index += len(word.text)
 
             final_char_index = word_start_index + char_offset
             full_text = para.full_text
