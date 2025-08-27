@@ -89,7 +89,6 @@ class GoogleLensOcrV2(OcrProvider):
                         full_line_text = ""
                         for word in line.words:
                             clean_word_text = word.plain_text.replace(' ', '')
-                            separator = word.text_separator or ""
 
                             w_box = BoundingBox(
                                 center_x=word.geometry.bounding_box.center_x,
@@ -97,8 +96,8 @@ class GoogleLensOcrV2(OcrProvider):
                                 width=word.geometry.bounding_box.width,
                                 height=word.geometry.bounding_box.height,
                             )
-                            words_in_line.append(Word(text=clean_word_text, separator=separator, box=w_box))
-                            full_line_text += clean_word_text + separator
+                            words_in_line.append(Word(text=clean_word_text, separator='', box=w_box))
+                            full_line_text += clean_word_text
 
                         if full_line_text:
                             l_box = BoundingBox(
