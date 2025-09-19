@@ -16,7 +16,7 @@ https://github.com/user-attachments/assets/ad0fa0ce-0f5f-4d1d-a99b-22e67e5fb80b
 *   **simple & intuitive:** just point your mouse and press a hotkey. that's it.
 *   **highly customizable:** change the hotkey, theme, colors, and layout to create your perfect reading experience.
 *   **region or fullscreen:** scan your entire screen or select a specific region (like a game window or manga page) to improve performance.
-* **pluggable ocr backend:** comes with a great default OCR, but allows advanced users to integrate their own OCR
+* **pluggable ocr backend:** comes with a great default ocr, but allows users to integrate owocr or their own ocr
   engines.
 
 ## philosophy & limitations
@@ -87,13 +87,31 @@ you can fully customize meikipop's behavior and appearance. right-click the tray
 
 changes are saved to `config.ini` in the same folder as the application.
 
-## extending with a custom ocr provider
+## using alternative ocr backends...
 
-meikipop's architecture allows you to replace the default ocr engine with one of your own. this is an advanced feature
-for users who may want to use a local, offline ocr model or a different online service.
+while meikipop's default google ocr backend is powerful, fast and platform independent, you may want to use a different
+ocr backend for reasons like privacy or offline capabilities. meikipop's architecture allows you to choose whatever ocr
+suits your use case best.
 
-the application will automatically detect any valid ocr provider placed in the `src/ocr/providers` directory. to get
-started, you can copy the `dummy` provider and use it as a template.
+### ...via owocr provider
+
+the easiest way to change the ocr backend is by running a
+local [owocr](https://github.com/AuroraWright/owocr/tree/master/owocr) instance and selecting the owocr ocr provider
+from meikipop's system tray menu.
+
+make sure you:
+
+* use owocr 1.5.0 or newer
+* enable reading from and writing to websockets
+* choose the json output format
+* and use an ocr backend that supports coordinates (currently oneocr, apple live text, google lens and bing)
+    ```bash
+    owocr -r websocket -w websocket -of json -e glens # replace glens with your favorite owocr backend
+    ```
+
+### ...via custom ocr provider
+
+you can develop your own ocr provider. to get started, you can copy the `dummy` provider and use it as a template.
 
 for a complete guide, see: [how to create a custom ocr provider](docs/CUSTOM_OCR_PROVIDER.md)
 
