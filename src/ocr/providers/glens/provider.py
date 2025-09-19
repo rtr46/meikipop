@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)  # Get the logger
 
 class GoogleLensOcr(OcrProvider):
     # Implement the required NAME property
-    NAME = "Google Lens"
+    NAME = "Google Lens v1-deprecated"
 
     def __init__(self):
         self._session = requests.Session()
