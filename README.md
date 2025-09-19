@@ -50,6 +50,16 @@ this is the easiest way to run meikipop on windows and recommended for most wind
     python -m src.main # alternatively run meikipop.run.bat or meikipop.run.sh
     ```
 
+### linux (kde wayland): full support
+
+meikipop now includes a dedicated KDE Wayland pipeline. when running on plasma 6+ with the latest KDE portal stack (xdg-desktop-portal-kde 6.1 or newer):
+
+* install the python dependencies as usual (`pip install -r requirements.txt`). the list now bundles `qtlayershell` to expose layer-shell integration for the popup overlay.
+* enable the **global shortcuts** portal in system settings (it’s enabled by default on current plasma releases). the first launch will prompt you to approve the hotkey binding.
+* ensure `xdg-desktop-portal` and `pipewire` services are running (default on KDE) so that screencast capture works.
+
+the wayland backend is auto-selected when meikipop detects a KDE Wayland session—no flags required. x11, windows, and macos code paths remain unchanged.
+
 ### macos (beta): bundled source + dict
 
 note that meikipop is in beta for macos. the tray and therefore the settings menu may or may not show up (you should still be able to configure meikipop through the config.ini). if you notice meikipop breaking with a new release, feel free to let us know via an issue and we will try to fix it. 
@@ -131,5 +141,4 @@ for more details, you can look here: [Nazeka](https://github.com/wareya/nazeka)
 ## license
 
 meikipop is licensed under the GNU General Public License v3.0. see the `LICENSE` file for the full license text.
-
 

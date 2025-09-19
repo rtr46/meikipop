@@ -3,11 +3,9 @@ import logging
 import threading
 import time
 
-import mss
-from PIL import Image
-
 from src.config.config import config
 from src.gui.region_selector import RegionSelector
+from src.screenshot.backends import create_backend
 
 logger = logging.getLogger(__name__) # Get the logger
 
@@ -16,6 +14,7 @@ class ScreenManager(threading.Thread):
     def __init__(self, shared_state):
         super().__init__(daemon=True, name="ScreenManager")
         self.shared_state = shared_state
+        self.backend = create_backend()
         self.monitor = None
         self.last_screenshot = None
         if config.scan_region == "region":
@@ -63,9 +62,7 @@ class ScreenManager(threading.Thread):
         logger.debug("Screenshot thread stopped.")
 
     def take_screenshot(self):
-        with mss.mss() as sct:
-            sct_img = sct.grab(self.monitor)
-            return Image.frombytes("RGB", sct_img.size, sct_img.bgra, "raw", "BGRX")
+        return self.backend.capture(self.monitor)
 
     def set_scan_region(self):
         scan_rect = RegionSelector.get_region()
@@ -80,12 +77,11 @@ class ScreenManager(threading.Thread):
 
     def set_scan_screen(self, screen_index):
         logger.info(f"Set scan area to screen {screen_index}")
-        with mss.mss() as sct:
-            if screen_index < len(sct.monitors):
-                logger.info(f"Set scan area to screen {screen_index}")
-                self.monitor = sct.monitors[screen_index]
-            else:
-                logger.error(f"Cannot set scan screen: index {screen_index} is out of bounds.")
+        monitors = self.backend.list_monitors()
+        if screen_index < len(monitors):
+            self.monitor = monitors[screen_index]
+        else:
+            logger.error(f"Cannot set scan screen: index {screen_index} is out of bounds.")
 
     def get_scan_geometry(self):
         if not self.monitor:
@@ -99,7 +95,5 @@ class ScreenManager(threading.Thread):
         else:
             self.shared_state.hit_scan_queue.put((False, None))
 
-    @staticmethod
-    def get_screens():
-        with mss.mss() as sct:
-            return sct.monitors
+    def get_screens(self):
+        return self.backend.list_monitors()

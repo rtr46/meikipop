@@ -9,6 +9,7 @@ from PyQt6.QtGui import QColor, QCursor, QFont, QFontMetrics, QFontInfo
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel, QFrame, QApplication
 
 from src.config.config import config, MAX_DICT_ENTRIES, IS_MACOS
+from src.utils.platform import is_kde_wayland_session
 from src.dictionary.lookup import DictionaryEntry
 
 logger = logging.getLogger(__name__)
@@ -42,6 +43,18 @@ class Popup(QWidget):
         )
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         self.setStyleSheet("background: transparent;")
+
+        if is_kde_wayland_session():
+            try:
+                from qtlayershell import QtLayerShell
+
+                QtLayerShell.initialize(self)
+                QtLayerShell.setLayer(self, QtLayerShell.Layer.Overlay)
+                QtLayerShell.setKeyboardInteractivity(self, QtLayerShell.KeyboardInteractivity.NoKeyboardFocus)
+                QtLayerShell.setExclusiveZone(self, 0)
+                self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+            except ImportError:
+                logger.warning("qtlayershell is not installed; Wayland popup may not behave as expected.")
 
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(0, 0, 0, 0)

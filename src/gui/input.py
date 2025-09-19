@@ -4,19 +4,27 @@ import sys
 import threading
 import time
 
-from pynput import mouse
-
 from src.config.config import config, IS_LINUX, IS_MACOS
+from src.utils.platform import is_kde_wayland_session
+
+if not (IS_LINUX and is_kde_wayland_session()):
+    from pynput import mouse
 
 if IS_LINUX:
-    from Xlib import display as xlib_display
-    from Xlib.error import XError
-    from Xlib import XK
+    if is_kde_wayland_session():
+        from src.gui.input_wayland import KDEWaylandKeyboardController
+    else:
+        from Xlib import display as xlib_display
+        from Xlib.error import XError
+        from Xlib import XK
 elif IS_MACOS:
     import Quartz
     from AppKit import NSEvent
 else:
     import keyboard
+
+if IS_LINUX and is_kde_wayland_session():
+    from PyQt6.QtGui import QCursor
 
 
 logger = logging.getLogger(__name__)
@@ -116,11 +124,17 @@ class InputLoop(threading.Thread):
     def __init__(self, shared_state):
         super().__init__(daemon=True, name="InputLoop")
         self.shared_state = shared_state
-        self.mouse_controller = mouse.Controller()
+        if IS_LINUX and is_kde_wayland_session():
+            self.mouse_controller = None
+        else:
+            self.mouse_controller = mouse.Controller()
 
         self.hotkey_str = config.hotkey.lower()
         if IS_LINUX:
-            self.keyboard_controller = LinuxX11KeyboardController(self.hotkey_str)
+            if is_kde_wayland_session():
+                self.keyboard_controller = KDEWaylandKeyboardController(self.hotkey_str)
+            else:
+                self.keyboard_controller = LinuxX11KeyboardController(self.hotkey_str)
         elif IS_MACOS:
             self.keyboard_controller = MacOSKeyboardController(self.hotkey_str)
         else: # IS_WINDOWS
@@ -139,7 +153,11 @@ class InputLoop(threading.Thread):
                 time.sleep(0.1)
                 continue
             try:
-                current_mouse_pos = self.mouse_controller.position
+                if IS_LINUX and is_kde_wayland_session():
+                    qt_pos = QCursor.pos()
+                    current_mouse_pos = (qt_pos.x(), qt_pos.y())
+                else:
+                    current_mouse_pos = self.mouse_controller.position
                 try:
                     hotkey_is_pressed = self.keyboard_controller.is_hotkey_pressed()
                 except Exception:
@@ -179,7 +197,15 @@ class InputLoop(threading.Thread):
         logger.debug(f"InputLoop: Re-applying settings. New hotkey: '{config.hotkey}'.")
         self.hotkey_str = config.hotkey.lower()
         if IS_LINUX:
-            self.keyboard_controller = LinuxX11KeyboardController(self.hotkey_str)
+            if hasattr(self.keyboard_controller, "close"):
+                try:
+                    self.keyboard_controller.close()
+                except Exception:  # pylint: disable=broad-except
+                    logger.debug("Failed to close previous keyboard controller", exc_info=True)
+            if is_kde_wayland_session():
+                self.keyboard_controller = KDEWaylandKeyboardController(self.hotkey_str)
+            else:
+                self.keyboard_controller = LinuxX11KeyboardController(self.hotkey_str)
         elif IS_MACOS:
             self.keyboard_controller = MacOSKeyboardController(self.hotkey_str)
         else: # IS_WINDOWS
@@ -187,7 +213,9 @@ class InputLoop(threading.Thread):
 
     @staticmethod
     def get_mouse_pos():
+        if IS_LINUX and is_kde_wayland_session():
+            pos = QCursor.pos()
+            return pos.x(), pos.y()
         with mouse.Controller() as mc:
             pos = mc.position
-            # Convert floats to integers for QPoint compatibility
-            return (int(pos[0]), int(pos[1]))
+            return int(pos[0]), int(pos[1])
