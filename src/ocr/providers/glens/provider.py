@@ -87,7 +87,6 @@ class GoogleLensOcr(OcrProvider):
                     for line in para.lines:
                         for word in line.words:
                             clean_word_text = word.plain_text.replace(' ', '')
-                            separator = word.text_separator or ""
 
                             # Map the specific 'CenterRotatedBox' to our generic 'BoundingBox'
                             w_box = BoundingBox(
@@ -96,8 +95,8 @@ class GoogleLensOcr(OcrProvider):
                                 width=word.geometry.bounding_box.width,
                                 height=word.geometry.bounding_box.height,
                             )
-                            words_in_para.append(Word(text=clean_word_text, separator=separator, box=w_box))
-                            full_para_text += clean_word_text + separator
+                            words_in_para.append(Word(text=clean_word_text, separator='', box=w_box))
+                            full_para_text += clean_word_text
 
                     if full_para_text:
                         # Map the specific paragraph to our generic 'Paragraph'
