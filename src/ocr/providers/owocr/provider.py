@@ -1,137 +1,151 @@
-import asyncio
 import io
 import json
 import logging
+import time
 from typing import List, Optional
 
-import websockets
 from PIL import Image
+from websockets.exceptions import ConnectionClosed, WebSocketException
+from websockets.sync.client import connect, ClientConnection
 
-# The "contract" classes that a provider MUST use for its return value.
 from src.ocr.interface import OcrProvider, Paragraph, Word, BoundingBox
+from src.ocr.providers.postprocessing import group_lines_into_paragraphs
 
 logger = logging.getLogger(__name__)
 
-# Define the connection details for the owocr websocket server
-OWOCR_WEBSOCKET_URI = "ws://localhost:7331"
+# Use the direct IP to avoid localhost resolution delays
+OWOCR_WEBSOCKET_URI = "ws://127.0.0.1:7331"
 
 
 class OwocrWebsocketProvider(OcrProvider):
     """
     An OCR provider that connects to a running owocr instance via websockets.
-
-    This provider acts as a client. It sends an image to the owocr server
-    and receives a structured JSON response with text and coordinates, which it
-    then transforms into the required meikipop data format.
+    This provider uses the synchronous websockets client to maintain a
+    persistent connection.
     """
     NAME = "owocr (Websocket)"
 
     def __init__(self):
         super().__init__()
+        self.websocket: Optional[ClientConnection] = None
         self._connection_error_logged = False
 
-    async def _scan_async(self, image: Image.Image) -> Optional[List[Paragraph]]:
-        """Helper to contain the asynchronous websocket communication."""
+    def _connect(self) -> bool:
+        """
+        Establishes a new websocket connection and stores it.
+        """
         try:
-            # Set a longer timeout to account for both connection and receiving the result
-            async with websockets.connect(OWOCR_WEBSOCKET_URI, open_timeout=3) as websocket:
-                # If connection succeeds, reset the error flag
-                self._connection_error_logged = False
+            self.websocket = connect(
+                OWOCR_WEBSOCKET_URI,
+                open_timeout=3,
+                ping_interval=20,
+                ping_timeout=20
+            )
+            self._connection_error_logged = False
+            logger.info("Successfully connected to owocr websocket server.")
+            return True
+        except Exception as e:
+            if not self._connection_error_logged:
+                logger.error(f"Could not connect to owocr at {OWOCR_WEBSOCKET_URI}: {e}")
+                logger.info("Please ensure owocr is running with a command like:")
+                logger.info("owocr -r websocket -w websocket -of json -e glens")
+                self._connection_error_logged = True
+            self.websocket = None
+            return False
 
-                # 1. PREPARE AND SEND THE IMAGE
+    def scan(self, image: Image.Image) -> Optional[List[Paragraph]]:
+        start_time = time.perf_counter()
+
+        for attempt in range(2):
+            try:
+                if self.websocket is None:
+                    if not self._connect():
+                        return None
+
+                # 1. Prepare and send the image
                 with io.BytesIO() as buffer:
-                    image.save(buffer, format="PNG")
-                    image_bytes = buffer.getvalue()
+                    image.save(buffer, format="BMP")
+                    self.websocket.send(buffer.getvalue())
 
-                await websocket.send(image_bytes)
-
-                # 2. HANDLE THE TWO-MESSAGE RESPONSE FROM OWOCR
-                # First, receive the 'True' acknowledgment and check it.
-                ack = await asyncio.wait_for(websocket.recv(), timeout=5)
+                # 2. Receive the two-part response
+                ack = self.websocket.recv(timeout=5)
                 if ack != "True":
-                    logger.error(f"owocr acknowledged the request with an unexpected response: {ack}")
-                    return None
+                    logger.error(f"owocr sent an unexpected ack: {ack}. Closing connection.")
+                    self.websocket.close()
+                    self.websocket = None
+                    return None  # Bad state, don't retry
 
-                # Now, wait for the second message which contains the actual JSON result.
-                # We add a longer timeout here as OCR can take time.
-                response_json_str = await asyncio.wait_for(websocket.recv(), timeout=30)
+                response_json_str = self.websocket.recv(timeout=30)
                 owocr_result = json.loads(response_json_str)
 
-                # 3. TRANSFORM DATA FROM OWOCR FORMAT TO MEIKIPOP FORMAT
-                return self._transform_to_meikipop_format(owocr_result)
+                # 3. Process and return the results
+                processed_paragraphs = self._transform_to_meikipop_format(owocr_result)
 
-        except (websockets.exceptions.ConnectionClosedError, ConnectionRefusedError, asyncio.TimeoutError) as e:
-            if not self._connection_error_logged:
-                logger.error(f"Could not connect to or get a timely response from owocr at {OWOCR_WEBSOCKET_URI}.")
-                logger.info("Please ensure owocr is running with the command:")
-                logger.info("python -m owocr -r websocket -w websocket -of json")  # todo log more useful instructions
-                self._connection_error_logged = True
-            return None
-        except Exception as e:
-            logger.error(f"An unexpected error occurred with the owocr provider: {e}", exc_info=True)
-            return None
+                total_duration = time.perf_counter() - start_time
+                if processed_paragraphs:
+                    full_text_preview = processed_paragraphs[0].full_text[:30]
+                    logger.info("OCR complete in %.2fs. Found %d paragraphs. (e.g., \"%s...\")", total_duration,
+                                len(processed_paragraphs), full_text_preview)
+                else:
+                    logger.info("OCR complete in %.2fs. No Japanese text found.", total_duration)
+
+                return processed_paragraphs
+
+            except ConnectionClosed:
+                logger.warning("Websocket connection lost. Will attempt to reconnect...")
+                self.websocket = None
+                if attempt == 0:
+                    continue
+                else:
+                    logger.error("Reconnect attempt failed.")
+            except WebSocketException as e:
+                logger.error(f"A websocket error occurred: {e}", exc_info=True)
+                if self.websocket:
+                    self.websocket.close()
+                self.websocket = None
+                return None
+            except Exception as e:
+                logger.error(f"An unexpected error occurred during owocr scan: {e}", exc_info=True)
+                if self.websocket:
+                    self.websocket.close()
+                self.websocket = None
+                return None
+        return None
 
     def _transform_to_meikipop_format(self, owocr_result: dict) -> List[Paragraph]:
-        """
-        Converts the JSON response from owocr into a list of meikipop Paragraph objects.
-        """
-        meiki_paragraphs: List[Paragraph] = []
+        raw_lines: List[Paragraph] = []
 
         for owocr_para in owocr_result.get("paragraphs", []):
             for owocr_line in owocr_para.get("lines", []):
-
-                line_full_text_parts = []
-                for word_data in owocr_line.get("words", []):
-                    line_full_text_parts.append(word_data.get("text", ""))
-                line_full_text = "".join(line_full_text_parts).strip()
-
+                line_full_text = "".join(word.get("text", "") for word in owocr_line.get("words", [])).strip()
                 if not line_full_text:
                     continue
 
                 meiki_words: List[Word] = []
                 for word_data in owocr_line.get("words", []):
                     word_box_data = word_data.get("bounding_box", {})
-
                     meiki_word_box = BoundingBox(
                         center_x=word_box_data.get("center_x", 0.0),
                         center_y=word_box_data.get("center_y", 0.0),
                         width=word_box_data.get("width", 0.0),
                         height=word_box_data.get("height", 0.0),
                     )
-
                     meiki_words.append(Word(
-                        text=word_data.get("text", ""),
-                        separator="",
-                        box=meiki_word_box
+                        text=word_data.get("text", ""), separator="", box=meiki_word_box
                     ))
 
                 line_box_data = owocr_line.get("bounding_box", {})
-                meiki_para_box = BoundingBox(
+                meiki_line_box = BoundingBox(
                     center_x=line_box_data.get("center_x", 0.0),
                     center_y=line_box_data.get("center_y", 0.0),
                     width=line_box_data.get("width", 0.0),
                     height=line_box_data.get("height", 0.0),
                 )
+                is_vertical = (owocr_para.get("writing_direction") == "TOP_TO_BOTTOM" or
+                               (meiki_line_box.height > meiki_line_box.width))
 
-                is_vertical = owocr_para.get("writing_direction") == "TOP_TO_BOTTOM" or \
-                              (meiki_para_box.height > meiki_para_box.width)
+                raw_lines.append(Paragraph(
+                    full_text=line_full_text, words=meiki_words, box=meiki_line_box, is_vertical=is_vertical
+                ))
 
-                paragraph = Paragraph(
-                    full_text=line_full_text,
-                    words=meiki_words,
-                    box=meiki_para_box,
-                    is_vertical=is_vertical
-                )
-                meiki_paragraphs.append(paragraph)
-
-        return meiki_paragraphs
-
-    def scan(self, image: Image.Image) -> Optional[List[Paragraph]]:
-        """
-        Performs OCR by sending the image to a running owocr websocket server.
-        """
-        try:
-            return asyncio.run(self._scan_async(image))
-        except Exception as e:
-            logger.error(f"Failed to run async scan operation: {e}", exc_info=True)
-            return None
+        return group_lines_into_paragraphs(raw_lines)

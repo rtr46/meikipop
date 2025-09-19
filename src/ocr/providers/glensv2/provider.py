@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 
 
 class GoogleLensOcrV2(OcrProvider):
-    NAME = "Google Lens v2-beta (better vertical text support)"
+    NAME = "Google Lens"
 
     def __init__(self):
         self._session = requests.Session()
