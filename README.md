@@ -101,11 +101,12 @@ from meikipop's system tray menu.
 
 make sure you:
 
-* use owocr 1.5.0 or newer
+* use owocr 1.15.0 or newer
 * enable reading from and writing to websockets
 * choose the json output format
 * and use an ocr backend that supports coordinates (currently oneocr, apple live text, google lens and bing)
     ```bash
+    pip install -U "owocr>=1.15"
     owocr -r websocket -w websocket -of json -e glens # replace glens with your favorite owocr backend
     ```
 
