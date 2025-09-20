@@ -13,16 +13,20 @@ class TrayIcon(QSystemTrayIcon):
     def __init__(self, screen_manager, ocr_processor: OcrProcessor, popup_window, input_loop, parent=None):
         base_path = os.path.dirname(os.path.abspath(__file__))
         icon_path = os.path.join(base_path, '..', 'resources', 'icon.ico')
+        icon_inactive_path = os.path.join(base_path, '..', 'resources', 'icon.inactive.ico')
+
 
         if os.path.exists(icon_path):
-            icon = QIcon(icon_path)
+            self.icon = QIcon(icon_path)
+            self.icon_inactive = QIcon(icon_inactive_path)
         else:
             # print(f"Warning: Custom icon not found at '{icon_path}'. Using default.")
             from PyQt6.QtWidgets import QStyle
-            icon = QIcon(QApplication.style().standardIcon(
+            self.icon = QIcon(QApplication.style().standardIcon(
                 QStyle.StandardPixmap.SP_ComputerIcon
             ))
-        super().__init__(icon, parent)
+            self.icon_inactive = self.icon
+        super().__init__(self.icon, parent)
 
         self.screen_manager = screen_manager
         self.ocr_processor = ocr_processor
@@ -91,23 +95,36 @@ class TrayIcon(QSystemTrayIcon):
 
         self.menu.addSeparator()
 
-        # New "Enable" action
         self.enable_action = self.menu.addAction("Pause meikipop")
         self.enable_action.setCheckable(True)
-        self.enable_action.setChecked(not config.is_enabled)
-        self.enable_action.triggered.connect(self._on_enable_toggled)
+        self.enable_action.triggered.connect(self.toggle_enabled_state)
+        self.activated.connect(self.on_tray_activated)
 
         self.menu.addSeparator()
 
-        # Quit Action
         self.menu.addAction("Quit").triggered.connect(QApplication.instance().quit)
 
         self.setContextMenu(self.menu)
         self.setToolTip(APP_NAME)
+
         self.show()
 
-    def _on_enable_toggled(self, checked):
-        config.is_enabled = not checked
+    def on_tray_activated(self, reason):
+        """Handles clicks on the tray icon."""
+        # QSystemTrayIcon.ActivationReason.Trigger is the enum for a normal left-click.
+        if reason == self.ActivationReason.Trigger:
+            self.toggle_enabled_state()
+
+    def toggle_enabled_state(self):
+        """Toggles the enabled/paused state of the application."""
+        self.enable_action.setChecked(config.is_enabled)
+        config.is_enabled = not config.is_enabled
+        if config.is_enabled:
+            # App is active/unpaused
+            self.setIcon(self.icon)
+        else:
+            # App is inactive/paused
+            self.setIcon(self.icon_inactive)
 
     def update_scan_area_check(self):
         current_region = config.scan_region
@@ -131,7 +148,6 @@ class TrayIcon(QSystemTrayIcon):
 
     def _on_scan_area_selected(self, action: QAction):
         selected_id = action.data()
-
         if selected_id == 'region':
             if self.screen_manager.set_scan_region():
                 if config.scan_region != 'region':
