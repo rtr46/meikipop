@@ -1,9 +1,11 @@
 # dictionary.py
+import json
 import logging
 import pickle
-import json
 import time
 from collections import defaultdict
+
+from src.config.config import IS_WINDOWS
 
 logger = logging.getLogger(__name__) # Get the logger
 
@@ -77,7 +79,8 @@ class Dictionary:
             logger.info(f"Dictionary loaded in {duration:.2f} seconds.")
             return True
         except FileNotFoundError:
-            logger.error(f"ERROR: Dictionary file '{file_path}' not found.")
+            logger.error(
+                f"ERROR: Dictionary file '{file_path}' not found. Add the file or try running the build.dictonary.{"bat" if IS_WINDOWS else "sh"} script in the repo.")
             return False
         except Exception as e:
             logger.error(f"ERROR: Failed to load dictionary from {file_path}: {e}")
