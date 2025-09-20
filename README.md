@@ -67,7 +67,7 @@ note that meikipop is in beta for macos. the tray and therefore the settings men
 4.  **install python dependencies and run:**
     ```bash
     pip install -r requirements.txt
-    python -m src.main # alternatively run the meikipop.sh
+    python -m src.main # alternatively run the meikipop.run.sh
     ```
 
 ## how to use
