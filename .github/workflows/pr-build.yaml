@@ -59,8 +59,8 @@ jobs:
     steps:
       - name: Prepare container
         run: |
-          sudo apt-get update
-          sudo apt-get install -y sudo
+          apt-get update
+          apt-get install -y sudo
 
       - name: Install Linux (Apt) dependencies
         run: |
