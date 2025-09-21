@@ -35,7 +35,7 @@ jobs:
           rmdir dist -r -force -ErrorAction SilentlyContinue || true
 
       - name: build with pyinstaller (windows)
-        run: pyinstaller meikipop.win.x64.spec
+        run: pyinstaller resources/meikipop.win.x64.spec
 
       - name: build dictionary
         run: python -m scripts.build_dictionary
@@ -69,31 +69,31 @@ jobs:
           pip install -r requirements.txt
           pip install lxml
           pip install pyinstaller
+          wget https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
+          chmod +x linuxdeploy-x86_64.AppImage
+          wget https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage
+          chmod +x appimagetool-x86_64.AppImage
 
       - name: clean previous builds
         run: rm -rf build dist || true
 
-      - name: build with pyinstaller (linux)
-        run: pyinstaller --distpath dist/AppDir meikipop.linux.x64.spec
+      - name: build appimage
+        run: |
+          pyinstaller resources/meikipop.linux.x64.spec
+          mkdir -p AppDir/usr/bin
+          mkdir -p AppDir/usr/share/applications
+          mkdir -p AppDir/usr/share/icons/hicolor/256x256/apps
+          cp dist/meikipop AppDir/usr/bin/
+          chmod +x AppDir/usr/bin/meikipop
+          cp resources/meikipop.png AppDir/usr/share/icons/hicolor/256x256/apps/meikipop.png
+          cp resources/meikipop.desktop AppDir/usr/share/applications/meikipop.desktop
+          ./linuxdeploy-x86_64.AppImage --appdir AppDir --executable AppDir/usr/bin/meikipop --desktop-file AppDir/usr/share/applications/meikipop.desktop --icon-file AppDir/usr/share/icons/hicolor/256x256/apps/meikipop.png --output dist/meikipop.AppImage
 
       - name: build dictionary
         run: python -m scripts.build_dictionary
 
-      - name: prepare AppImage contents
-        run: |
-          mkdir dist/AppDir/usr/bin/
-          mv dist/AppDir/meikipop dist/AppDir/usr/bin/meikipop
-          cp resources/meikipop.png dist/AppDir/meikipop.png
-          cp resources/meikipop.desktop dist/AppDir/
-
-      - name: build the AppImage
-        uses: AppImage/AppImage-GitHub-Action@v1
-        with:
-          directory: dist/AppDir
-
       - name: build linux archive
         run: |
-          ls
           mkdir dist/meikipop/
           mv dist/meikipop.AppImage dist/meikipop/
           mv jmdict_enhanced.pkl dist/meikipop/
