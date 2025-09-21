@@ -64,7 +64,7 @@ jobs:
           apt-get install -y sudo
           apt-get install -y software-properties-common
           add-apt-repository ppa:deadsnakes/ppa
-          apt-get install -y python3.12 python3-pip python3.12-venv
+          apt-get install -y python3.12 python3-pip python3.12-venv python3-distutils
 
       - name: Install Linux (Apt) dependencies
         run: |
