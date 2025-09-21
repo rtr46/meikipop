@@ -87,7 +87,8 @@ jobs:
           chmod +x AppDir/usr/bin/meikipop
           cp resources/meikipop.png AppDir/usr/share/icons/hicolor/256x256/apps/meikipop.png
           cp resources/meikipop.desktop AppDir/usr/share/applications/meikipop.desktop
-          ./linuxdeploy-x86_64.AppImage --appdir AppDir --executable AppDir/usr/bin/meikipop --desktop-file AppDir/usr/share/applications/meikipop.desktop --icon-file AppDir/usr/share/icons/hicolor/256x256/apps/meikipop.png --output dist/meikipop.AppImage
+          ./linuxdeploy-x86_64.AppImage --appdir AppDir --executable AppDir/usr/bin/meikipop --desktop-file AppDir/usr/share/applications/meikipop.desktop --icon-file AppDir/usr/share/icons/hicolor/256x256/apps/meikipop.png --output appimage
+          ls
 
       - name: build dictionary
         run: python -m scripts.build_dictionary
