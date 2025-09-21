@@ -5,7 +5,7 @@ from PyQt6.QtWidgets import (QWidget, QDialog, QFormLayout, QComboBox,
                              QSpinBox, QCheckBox, QPushButton, QColorDialog, QVBoxLayout, QHBoxLayout,
                              QGroupBox, QDialogButtonBox, QLabel, QSlider, QLineEdit)
 
-from src.config.config import config, APP_NAME
+from src.config.config import config, APP_NAME, IS_WINDOWS
 from src.gui.input import InputLoop
 from src.gui.popup import Popup
 from src.ocr.ocr import OcrProcessor
@@ -69,6 +69,11 @@ class SettingsDialog(QDialog):
         self.auto_scan_no_hotkey_check = QCheckBox()
         self.auto_scan_no_hotkey_check.setChecked(config.auto_scan_mode_lookups_without_hotkey)
         general_layout.addRow("Lookups without Hotkey (in Auto Scan):", self.auto_scan_no_hotkey_check)
+        if IS_WINDOWS:
+            self.magpie_check = QCheckBox()
+            self.magpie_check.setChecked(config.magpie_compatibility)
+            self.magpie_check.setToolTip("Enable transformations for compatibility with Magpie game scaler.")
+            general_layout.addRow("Magpie Compatibility:", self.magpie_check)
         general_group.setLayout(general_layout)
         layout.addWidget(general_group)
         theme_group = QGroupBox("Popup")
@@ -185,6 +190,8 @@ class SettingsDialog(QDialog):
         config.max_lookup_length = self.max_lookup_spin.value()
         config.auto_scan_mode = self.auto_scan_check.isChecked()
         config.auto_scan_mode_lookups_without_hotkey = self.auto_scan_no_hotkey_check.isChecked()
+        if IS_WINDOWS:
+            config.magpie_compatibility = self.magpie_check.isChecked()
         config.compact_mode = self.compact_check.isChecked()
         config.show_deconjugation = self.show_deconj_check.isChecked()
         config.show_pos = self.show_pos_check.isChecked()

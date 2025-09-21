@@ -10,6 +10,7 @@ from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel, QFrame, QApplication
 
 from src.config.config import config, MAX_DICT_ENTRIES, IS_MACOS
 from src.dictionary.lookup import DictionaryEntry
+from src.gui.magpie_manager import magpie_manager
 
 # macOS-specific imports for focus management
 if IS_MACOS:
@@ -260,7 +261,8 @@ class Popup(QWidget):
         popup_size = self.size()
         offset = 15
 
-        final_x, final_y = x, y
+        ratio = screen.devicePixelRatio()
+        x, y = magpie_manager.transform_raw_to_visual((int(x), int(y)), ratio)
 
         # --- Positioning logic based on mode ---
         mode = config.popup_position_mode
