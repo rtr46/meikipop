@@ -77,7 +77,8 @@ jobs:
             libxcb-shape0 \
             libxcb-randr0 \
             libxcb-shm0 \
-            libxcb-xfixes0
+            libxcb-xfixes0\
+            libxcb-cursor0
 
       - uses: actions/checkout@v4
 
