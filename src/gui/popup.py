@@ -11,7 +11,15 @@ from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel, QFrame, QApplication
 from src.config.config import config, MAX_DICT_ENTRIES, IS_MACOS
 from src.dictionary.lookup import DictionaryEntry
 
+# macOS-specific imports for focus management
+if IS_MACOS:
+    try:
+        import Quartz
+    except ImportError:
+        Quartz = None
+
 logger = logging.getLogger(__name__)
+
 
 class Popup(QWidget):
     def __init__(self, shared_state, input_loop):
@@ -19,6 +27,8 @@ class Popup(QWidget):
         self._latest_data = None
         self._last_latest_data = None
         self._data_lock = threading.Lock()
+        self._previous_active_window_on_mac = None
+
         self.shared_state = shared_state
         self.input_loop = input_loop
 
@@ -212,7 +222,6 @@ class Popup(QWidget):
                 def_text_parts_calc.append(sense_calc)
                 def_text_parts_html.append(sense_html)
 
-
             if config.compact_mode:
                 separator = "; "
                 full_def_text_html = separator.join(def_text_parts_html)
@@ -334,6 +343,8 @@ class Popup(QWidget):
         logger.debug("...successfully released lock by hide_popup")
         self.is_visible = False
 
+        self._restore_focus_on_mac()
+
     def show_popup(self):
         # logger.debug(f"show_popup triggered while visibility:{self.is_visible}")
         if self.is_visible:
@@ -341,12 +352,12 @@ class Popup(QWidget):
         logger.debug("show_popup acquiring lock...")
         self.shared_state.screen_lock.acquire()
         logger.debug("...successfully acquired lock by show_popup")
+
+        self._store_active_window_on_mac()
         self.show()
-        
-        # macOS-specific: ensure the popup is properly raised
         if IS_MACOS:
             self.raise_()
-        
+
         self.is_visible = True
 
     def reapply_settings(self):
@@ -355,3 +366,33 @@ class Popup(QWidget):
         # By setting is_calibrated to False, the main loop will automatically
         # run _calibrate_empirically() again with the new font settings.
         self.is_calibrated = False
+
+    def _store_active_window_on_mac(self):
+        """Store the currently active window for focus restoration (macOS only)."""
+        if not IS_MACOS or not Quartz:
+            return
+
+        try:
+            # Get the currently active application
+            active_app = Quartz.NSWorkspace.sharedWorkspace().frontmostApplication()
+            if active_app:
+                # Store the application reference instead of trying to get the window
+                # We'll use the application to restore focus later
+                self._previous_active_window_on_mac = active_app
+        except Exception as e:
+            logger.warning(f"Failed to store active window: {e}")
+            self._previous_active_window_on_mac = None
+
+    def _restore_focus_on_mac(self):
+        """Restore focus to the previously active application (macOS only)."""
+        if not IS_MACOS or not Quartz or not self._previous_active_window_on_mac:
+            return
+
+        try:
+            # Activate the previously active application
+            self._previous_active_window_on_mac.activateWithOptions_(Quartz.NSApplicationActivateAllWindows)
+        except Exception as e:
+            logger.warning(f"Failed to restore focus: {e}")
+        finally:
+            # Clear the stored application reference
+            self._previous_active_window_on_mac = None
