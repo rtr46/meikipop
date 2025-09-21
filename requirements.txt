@@ -8,3 +8,4 @@ keyboard~=0.13.5; sys_platform == 'win32'
 pyobjc-framework-Quartz>=10.0; sys_platform == 'darwin'
 pyobjc-framework-Cocoa>=10.0; sys_platform == 'darwin'
 python-xlib~=0.33; sys_platform == 'linux'
+websockets>=15.0.1
