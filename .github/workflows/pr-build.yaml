@@ -11,7 +11,7 @@ on:
 
 jobs:
   build-windows:
-    uses: ./.github/workflows/build-windows.yml
+    uses: ./build-windows.yml
 
   build-linux:
-    uses: ./.github/workflows/build-linux.yml
+    uses: ./build-linux.yml
