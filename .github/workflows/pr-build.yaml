@@ -106,7 +106,8 @@ jobs:
           mkdir -p AppDir/usr/bin
           mkdir -p AppDir/usr/share/applications
           mkdir -p AppDir/usr/share/icons/hicolor/256x256/apps
-          mv dist/meikipop AppDir/usr/bin/
+          mv dist/meikipop dist/meikipop.pyinstaller
+          cp dist/meikipop.pyinstaller AppDir/usr/bin/meikipop
           chmod +x AppDir/usr/bin/meikipop
           cp resources/meikipop.png AppDir/usr/share/icons/hicolor/256x256/apps/meikipop.png
           cp resources/meikipop.desktop AppDir/usr/share/applications/meikipop.desktop
@@ -120,6 +121,7 @@ jobs:
           mkdir dist/meikipop/
           mv meikipop-x86_64.AppImage dist/meikipop/meikipop.AppImage
           mv jmdict_enhanced.pkl dist/meikipop/
+          mv dist/meikipop.pyinstaller dist/meikipop/
           tar -czvf dist/meikipop.linux.x64.tar.gz -C dist/ meikipop
 
       - name: upload linux artifact
