@@ -79,8 +79,9 @@ class Dictionary:
             logger.info(f"Dictionary loaded in {duration:.2f} seconds.")
             return True
         except FileNotFoundError:
+            script_extension = "bat" if IS_WINDOWS else "sh"
             logger.error(
-                f"ERROR: Dictionary file '{file_path}' not found. Add the file or try running the build.dictonary.{"bat" if IS_WINDOWS else "sh"} script in the repo.")
+                f"ERROR: Dictionary file '{file_path}' not found. Add the file or try running the build.dictonary.{script_extension} script in the repo.")
             return False
         except Exception as e:
             logger.error(f"ERROR: Failed to load dictionary from {file_path}: {e}")

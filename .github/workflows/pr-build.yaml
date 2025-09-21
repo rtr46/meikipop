@@ -1,0 +1,91 @@
+# .github/workflows/pr-build.yml
+name: pre-release builds
+
+on:
+  push:
+    branches:
+      - main
+      - github-workflow # todo delete later
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: set up python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+          architecture: 'x64'
+
+      - name: install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install lxml
+          pip install pyinstaller
+
+      - name: clean previous builds
+        run: rmdir /s /q build dist || true
+
+      - name: build with pyinstaller (windows)
+        run: pyinstaller meikipop.win.x64.spec
+
+      - name: build dictionary
+        run: python -m python -m scripts.build_dictionary
+
+      - name: build windows archive
+        run: |
+          mkdir dist/meikipop
+          mv jmdict_enhanced.pkl dist/meikipop/
+          mv dist/meikipop.exe dist/meikipop/
+          powershell -Command "Compress-Archive -Path dist/meikipop -DestinationPath dist/meikipop.x64.zip"
+
+      - name: upload windows artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: meikipop-windows-x64-pr
+          path: dist/meikipop.x64.zip
+
+  build-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: set up python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install lxml
+          pip install pyinstaller
+
+      - name: clean previous builds
+        run: rm -rf build dist || true
+
+      - name: build with pyinstaller (linux)
+        run: pyinstaller meikipop.linux.x64.spec
+
+      - name: build dictionary
+        run: python -m python -m scripts.build_dictionary
+
+      - name: build linux archive
+        run: |
+          mkdir dist/meikipop
+          mv jmdict_enhanced.pkl dist/meikipop/
+          mv dist/meikipop dist/meikipop/
+          tar -czvf meikipop.linux.x64.tar.gz -C dist/ meikipop
+
+      - name: upload linux artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: meikipop-linux-x64-pr
+          path: dist/meikipop.linux.x64.tar.gz
