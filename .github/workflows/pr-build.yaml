@@ -31,8 +31,8 @@ jobs:
 
       - name: clean previous builds
         run: |
-          rmdir build -r -force || true
-          rmdir dist -r -force || true
+          rmdir build -r -force -ErrorAction SilentlyContinue || true
+          rmdir dist -r -force -ErrorAction SilentlyContinue || true
 
       - name: build with pyinstaller (windows)
         run: pyinstaller meikipop.win.x64.spec
@@ -81,7 +81,9 @@ jobs:
 
       - name: build linux archive
         run: |
-          mkdir dist/meikipop
+          mv dist/meikipop dist/meikipop.elf
+          mkdir dist/meikipop/
+          mv dist/meikipop.elf dist/meikipop/meikipop
           mv jmdict_enhanced.pkl dist/meikipop/
           mv dist/meikipop dist/meikipop/
           tar -czvf meikipop.linux.x64.tar.gz -C dist/ meikipop
