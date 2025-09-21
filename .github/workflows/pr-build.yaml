@@ -53,6 +53,15 @@ jobs:
           name: meikipop-windows-x64-pr
           path: dist/meikipop.x64.zip
 
+      # todo delete these steps... just for testing
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts/
+      # todo delete these steps... just for testing
+      - name: List files
+        run: ls -R artifacts/
+
   build-linux:
     runs-on: ubuntu-latest
     steps:
@@ -92,3 +101,12 @@ jobs:
         with:
           name: meikipop-linux-x64-pr
           path: dist/meikipop.linux.x64.tar.gz
+
+      # todo delete these steps... just for testing
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts/
+      # todo delete these steps... just for testing
+      - name: List files
+        run: ls -R artifacts/
