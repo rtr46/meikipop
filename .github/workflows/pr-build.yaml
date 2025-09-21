@@ -88,15 +88,16 @@ jobs:
           cp resources/meikipop.png AppDir/usr/share/icons/hicolor/256x256/apps/meikipop.png
           cp resources/meikipop.desktop AppDir/usr/share/applications/meikipop.desktop
           ./linuxdeploy-x86_64.AppImage --appdir AppDir --executable AppDir/usr/bin/meikipop --desktop-file AppDir/usr/share/applications/meikipop.desktop --icon-file AppDir/usr/share/icons/hicolor/256x256/apps/meikipop.png --output appimage
-          ls
 
       - name: build dictionary
         run: python -m scripts.build_dictionary
 
       - name: build linux archive
         run: |
+          ls
+          ls dist
           mkdir dist/meikipop/
-          mv dist/meikipop.AppImage dist/meikipop/
+          mv meikipop-x86_64.AppImage dist/meikipop/meikipop.AppImage
           mv jmdict_enhanced.pkl dist/meikipop/
           tar -czvf dist/meikipop.linux.x64.tar.gz -C dist/ meikipop
 
