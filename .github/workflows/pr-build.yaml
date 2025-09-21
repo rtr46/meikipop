@@ -59,6 +59,7 @@ jobs:
     steps:
       - name: Prepare container
         run: |
+          export DEBIAN_FRONTEND=noninteractive
           apt-get update
           apt-get install -y sudo
           apt-get install -y software-properties-common
