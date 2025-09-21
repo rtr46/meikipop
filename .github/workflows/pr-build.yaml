@@ -35,7 +35,7 @@ jobs:
           rmdir dist -r -force -ErrorAction SilentlyContinue || true
 
       - name: build with pyinstaller (windows)
-        run: pyinstaller resources/meikipop.win.x64.spec
+        run: pyinstaller meikipop.win.x64.spec
 
       - name: build dictionary
         run: python -m scripts.build_dictionary
@@ -79,7 +79,7 @@ jobs:
 
       - name: build appimage
         run: |
-          pyinstaller resources/meikipop.linux.x64.spec
+          pyinstaller meikipop.linux.x64.spec
           mkdir -p AppDir/usr/bin
           mkdir -p AppDir/usr/share/applications
           mkdir -p AppDir/usr/share/icons/hicolor/256x256/apps
