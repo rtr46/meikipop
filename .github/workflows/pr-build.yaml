@@ -87,6 +87,7 @@ jobs:
 
       - name: install dependencies
         run: |
+          python3.12 -m pip install setuptools
           python3.12 -m pip install --upgrade pip
           python3.12 -m pip install -r requirements.txt lxml pyinstaller
           wget https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
