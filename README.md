@@ -32,42 +32,34 @@ to maintain this focus, there are a few things meikipop is **not**:
 
 ## installation
 
-### windows: meikipop.exe
+### windows + linux (x11): prepackaged binaries + dictionary
 
-this is the easiest way to run meikipop on windows and recommended for most windows user: https://github.com/rtr46/meikipop/releases
+this is the easiest way to run meikipop on windows and linux and is recommended for most users. no python installation required. just download, unpack and start the executable binary:
+* https://github.com/rtr46/meikipop/releases/latest
 
-### windows + linux: bundled source + dict
+### windows + linux (x11) + macos (beta): run from source
 
-1.  **prerequisites:**
-    * python 3.10+
+if you want to develop or use custom ocr provider, modify meikipop's behaviour, want to debug an error or prefer to run from source for any other reason, this is the way to go. for windows + linux ignore the macos specific parts.
 
-2.  **download the latest release that includes a prebuilt dictionary:**
-    * https://github.com/rtr46/meikipop/releases
-
-3.  **install python dependencies and run:**
-    ```bash
-    pip install -r requirements.txt # alternatively run meikipop.install.bat
-    python -m src.main # alternatively run meikipop.run.bat or meikipop.run.sh
-    ```
-
-### macos (beta): bundled source + dict
-
-note that meikipop is in beta for macos. the tray and therefore the settings menu may or may not show up (you should still be able to configure meikipop through the config.ini). if you notice meikipop breaking with a new release, feel free to let us know via an issue and we will try to fix it. 
+(note that meikipop is in beta for macos. the tray and therefore the settings menu may or may not show up - you should still be able to configure meikipop through the config.ini. if you notice meikipop breaking with a new release, feel free to let us know via an issue and we will try to fix it.)
 
 1.  **prerequisites:**
     * python 3.10+
   
-2. **set required permissions**
+2. **set required permissions (macos only)**
     * go to **System Preferences** > **Security & Privacy** > **Privacy**
     * add/enable your terminal app in **Input Monitoring**, **Screen Recording** and **Accessibility**
 
 3.  **download the latest release that includes a prebuilt dictionary:**
-    * https://github.com/rtr46/meikipop/releases
+    * git clone https://github.com/rtr46/meikipop.git
+    * or simply download and unpack the source archive: https://github.com/rtr46/meikipop/archive/refs/heads/main.zip
 
-4.  **install python dependencies and run:**
+4.  **install python dependencies, build a dictionary and run:**
     ```bash
     pip install -r requirements.txt
-    python -m src.main # alternatively run the meikipop.run.sh
+    pip install lxml # needed for the build_dictionary script
+    python -m scripts.build_dictionary # you can alternatively use the dictionary from one of the binary distributions 
+    python -m src.main # run meikipop
     ```
 
 ## how to use
