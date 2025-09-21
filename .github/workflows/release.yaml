@@ -1,0 +1,34 @@
+# .github/workflows/release.yaml
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  call-build-windows:
+    uses: ./.github/workflows/build-windows.yml
+  call-build-linux:
+    uses: ./.github/workflows/build-linux.yml
+
+  release:
+    needs: [ call-build-windows, call-build-linux ]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts/
+      - name: create release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: meikipop ${{ github.ref_name }}
+          generate_release_notes: true # This is the magic line
+          prerelease: ${{ contains(github.ref_name, '-rc') }}
+          files: |
+            artifacts/*/*.zip
+            artifacts/*/*.tar.gz

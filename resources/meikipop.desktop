@@ -1,9 +1,0 @@
-[Desktop Entry]
-Name=meikipop
-Exec=meikipop
-Icon=meikipop
-Type=Application
-Categories=Utility;Education;Languages;
-Comment=Japanese OCR Popup Dictionary
-Terminal=true
-StartupNotify=true
