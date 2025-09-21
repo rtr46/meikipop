@@ -75,8 +75,9 @@ jobs:
             libxcb-shape0 \
             libxcb-randr0 \
             libxcb-shm0 \
-            libxcb-xfixes0\
-            libxcb-cursor0
+            libxcb-xfixes0 \
+            libxcb-cursor0 \
+            xvfb
 
       - uses: actions/checkout@v4
 
@@ -101,7 +102,7 @@ jobs:
 
       - name: build appimage
         run: |
-          pyinstaller meikipop.linux.x64.spec
+          xvfb-run pyinstaller meikipop.linux.x64.spec
           mkdir -p AppDir/usr/bin
           mkdir -p AppDir/usr/share/applications
           mkdir -p AppDir/usr/share/icons/hicolor/256x256/apps
