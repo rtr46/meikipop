@@ -1,5 +1,6 @@
 # src/gui/tray.py
 import os
+import sys
 
 from PyQt6.QtGui import QIcon, QAction, QActionGroup
 from PyQt6.QtWidgets import QSystemTrayIcon, QMenu, QApplication
@@ -9,12 +10,26 @@ from src.gui.settings_dialog import SettingsDialog
 from src.ocr.ocr import OcrProcessor
 
 
+def get_resource_path(relative_path):
+    """Get absolute path to resource"""
+    try:
+        # PyInstaller creates a temp folder and stores path in _MEIPASS
+        base_path = sys._MEIPASS
+    except Exception:
+        # In development, use project root (where src/ is located)
+        base_path = os.path.abspath(".")
+
+    full_path = os.path.join(base_path, relative_path)
+    # Optional: Uncomment for debugging
+    # print(f"[DEBUG] Resolved resource path: {full_path}")
+    return full_path
+
+
 class TrayIcon(QSystemTrayIcon):
     def __init__(self, screen_manager, ocr_processor: OcrProcessor, popup_window, input_loop, parent=None):
-        base_path = os.path.dirname(os.path.abspath(__file__))
-        icon_path = os.path.join(base_path, '..', 'resources', 'icon.ico')
-        icon_inactive_path = os.path.join(base_path, '..', 'resources', 'icon.inactive.ico')
-
+        # Resolve icon paths using robust helper
+        icon_path = get_resource_path('src/resources/icon.ico')
+        icon_inactive_path = get_resource_path('src/resources/icon.inactive.ico')
 
         if os.path.exists(icon_path):
             self.icon = QIcon(icon_path)
