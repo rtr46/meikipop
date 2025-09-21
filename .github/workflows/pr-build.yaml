@@ -96,28 +96,19 @@ jobs:
       - name: clean previous builds
         run: rm -rf build dist || true
 
-      - name: build appimage
+      - name: build with pyinstaller (linux)
         run: |
           xvfb-run pyinstaller meikipop.linux.x64.spec
-          mkdir -p AppDir/usr/bin
-          mkdir -p AppDir/usr/share/applications
-          mkdir -p AppDir/usr/share/icons/hicolor/256x256/apps
-          mv dist/meikipop dist/meikipop.pyinstaller
-          cp dist/meikipop.pyinstaller AppDir/usr/bin/meikipop
-          chmod +x AppDir/usr/bin/meikipop
-          cp resources/meikipop.png AppDir/usr/share/icons/hicolor/256x256/apps/meikipop.png
-          cp resources/meikipop.desktop AppDir/usr/share/applications/meikipop.desktop
-          ./linuxdeploy-x86_64.AppImage --appdir AppDir --executable AppDir/usr/bin/meikipop --desktop-file AppDir/usr/share/applications/meikipop.desktop --icon-file AppDir/usr/share/icons/hicolor/256x256/apps/meikipop.png --output appimage
 
       - name: build dictionary
         run: python -m scripts.build_dictionary
 
       - name: build linux archive
         run: |
+          mv dist/meikipop dist/meikipop.elf
           mkdir dist/meikipop/
-          mv meikipop-x86_64.AppImage dist/meikipop/meikipop.AppImage
+          mv dist/meikipop.elf dist/meikipop/meikipop
           mv jmdict_enhanced.pkl dist/meikipop/
-          mv dist/meikipop.pyinstaller dist/meikipop/
           tar -czvf dist/meikipop.linux.x64.tar.gz -C dist/ meikipop
 
       - name: upload linux artifact
