@@ -7,8 +7,8 @@ from dataclasses import dataclass
 from typing import Set, Dict, Tuple, List
 
 from src.config.config import config, MAX_DICT_ENTRIES
+from src.dictionary.customdict import Dictionary
 from src.dictionary.deconjugator import Deconjugator, Form
-from src.dictionary.dictionary import Dictionary
 
 KANJI_REGEX = re.compile(r'[\u4e00-\u9faf]')
 JAPANESE_SEPARATORS = {"、", "。", "「", "」", "｛", "｝", "（", "）", "【", "】", "『", "』", "〈", "〉", "《", "》", "：", "・", "／",

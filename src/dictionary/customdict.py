@@ -1,4 +1,4 @@
-# dictionary.py
+# customdict.py
 import json
 import logging
 import pickle

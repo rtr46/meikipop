@@ -35,7 +35,7 @@ jobs:
           rmdir dist -r -force -ErrorAction SilentlyContinue || true
 
       - name: build with pyinstaller (windows)
-        run: pyinstaller meikipop.win.x64.spec
+        run: pyinstaller resources/meikipop.win.x64.spec
 
       - name: build dictionary
         run: python -m scripts.build_dictionary
@@ -53,15 +53,6 @@ jobs:
           name: meikipop-windows-x64-pr
           path: dist/meikipop.x64.zip
 
-      # todo delete these steps... just for testing
-      - name: Download all artifacts
-        uses: actions/download-artifact@v4
-        with:
-          path: artifacts/
-      # todo delete these steps... just for testing
-      - name: List files
-        run: ls -R artifacts/
-
   build-linux:
     runs-on: ubuntu-latest
     steps:
@@ -78,21 +69,35 @@ jobs:
           pip install -r requirements.txt
           pip install lxml
           pip install pyinstaller
+          cd tools
+          wget https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
+          chmod +x linuxdeploy-x86_64.AppImage
+          wget https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage
+          chmod +x appimagetool-x86_64.AppImage
+          cd ..
 
       - name: clean previous builds
         run: rm -rf build dist || true
 
-      - name: build with pyinstaller (linux)
-        run: pyinstaller meikipop.linux.x64.spec
+      - name: build appimage
+        run: |
+          pyinstaller resources/meikipop.linux.x64.spec
+          mkdir -p AppDir/usr/bin
+          mkdir -p AppDir/usr/share/applications
+          mkdir -p AppDir/usr/share/icons/hicolor/256x256/apps
+          cp dist/meikipop AppDir/usr/bin/
+          chmod +x AppDir/usr/bin/meikipop
+          cp resources/meikipop.png AppDir/usr/share/icons/hicolor/256x256/apps/meikipop.png
+          cp resources/meikipop.desktop AppDir/usr/share/applications/meikipop.desktop
+          ./tools/linuxdeploy-x86_64.AppImage --appdir AppDir --executable AppDir/usr/bin/meikipop --desktop-file AppDir/usr/share/applications/meikipop.desktop --icon-file AppDir/usr/share/icons/hicolor/256x256/apps/meikipop.png --output dist/meikipop.appimage
 
       - name: build dictionary
         run: python -m scripts.build_dictionary
 
       - name: build linux archive
         run: |
-          mv dist/meikipop dist/meikipop.elf
           mkdir dist/meikipop/
-          mv dist/meikipop.elf dist/meikipop/meikipop
+          mv dist/meikipop.appimage dist/meikipop/
           mv jmdict_enhanced.pkl dist/meikipop/
           tar -czvf dist/meikipop.linux.x64.tar.gz -C dist/ meikipop
 
@@ -101,12 +106,3 @@ jobs:
         with:
           name: meikipop-linux-x64-pr
           path: dist/meikipop.linux.x64.tar.gz
-
-      # todo delete these steps... just for testing
-      - name: Download all artifacts
-        uses: actions/download-artifact@v4
-        with:
-          path: artifacts/
-      # todo delete these steps... just for testing
-      - name: List files
-        run: ls -R artifacts/
