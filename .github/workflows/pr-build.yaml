@@ -55,7 +55,30 @@ jobs:
 
   build-linux:
     runs-on: ubuntu-latest
+    container: ubuntu:22.04
+
     steps:
+      - name: Prepare container
+        run: |
+          apt-get update
+          apt-get install -y sudo
+
+      - name: Install Linux (Apt) dependencies
+        run: |
+          sudo apt-get install -y \
+            patchelf \
+            libgl1 \
+            libxkbcommon-x11-0 \
+            libxcb-icccm4 \
+            libxcb-image0 \
+            libxcb-keysyms1 \
+            libxcb-render-util0 \
+            libxcb-xinerama0 \
+            libxcb-shape0 \
+            libxcb-randr0 \
+            libxcb-shm0 \
+            libxcb-xfixes0
+
       - uses: actions/checkout@v4
 
       - name: set up python
@@ -94,8 +117,6 @@ jobs:
 
       - name: build linux archive
         run: |
-          ls
-          ls dist
           mkdir dist/meikipop/
           mv meikipop-x86_64.AppImage dist/meikipop/meikipop.AppImage
           mv jmdict_enhanced.pkl dist/meikipop/
