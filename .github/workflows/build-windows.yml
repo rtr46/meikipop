@@ -43,11 +43,11 @@ jobs:
           mkdir dist/meikipop
           mv jmdict_enhanced.pkl dist/meikipop/
           mv dist/meikipop.exe dist/meikipop/
-          powershell -Command "Compress-Archive -Path dist/meikipop -DestinationPath dist/meikipop.x64.zip"
+          powershell -Command "Compress-Archive -Path dist/meikipop -DestinationPath dist/meikipop.windows.x64.zip"
 
       - name: upload windows artifact
         id: upload
         uses: actions/upload-artifact@v4
         with:
-          name: meikipop-windows-x64-pr
-          path: dist/meikipop.x64.zip
+          name: meikipop-windows-x64
+          path: dist/meikipop.windows.x64.zip
