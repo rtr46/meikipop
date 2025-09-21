@@ -7,13 +7,13 @@ on:
       - 'v*'
 
 jobs:
-  call-build-windows:
+  build-windows:
     uses: ./.github/workflows/build-windows.yml
-  call-build-linux:
+  build-linux:
     uses: ./.github/workflows/build-linux.yml
 
   release:
-    needs: [ call-build-windows, call-build-linux ]
+    needs: [ build-windows, build-linux ]
     runs-on: ubuntu-latest
     permissions:
       contents: write
