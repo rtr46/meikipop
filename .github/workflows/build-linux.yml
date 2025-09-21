@@ -1,0 +1,77 @@
+# .github/workflows/build-linux.yml
+name: reusable linux build
+
+on:
+  workflow_call:
+    outputs:
+      artifact_name:
+        description: "the name of the linux artifact"
+        value: ${{ jobs.build-linux.outputs.artifact_name }}
+
+jobs:
+  build-linux:
+    runs-on: ubuntu-22.04
+    outputs:
+      artifact_name: ${{ steps.upload.outputs.artifact-name }}
+    steps:
+      - name: Prepare container
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y sudo
+
+      - name: install apt dependencies
+        run: |
+          sudo apt-get install -y \
+            patchelf \
+            libgl1 \
+            libxkbcommon-x11-0 \
+            libxcb-icccm4 \
+            libxcb-image0 \
+            libxcb-keysyms1 \
+            libxcb-render-util0 \
+            libxcb-xinerama0 \
+            libxcb-shape0 \
+            libxcb-randr0 \
+            libxcb-shm0 \
+            libxcb-xfixes0 \
+            libxcb-cursor0 \
+            xvfb
+
+      - uses: actions/checkout@v4
+
+      - name: set up python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: install pip dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install lxml
+          pip install pyinstaller
+
+      - name: clean previous builds
+        run: rm -rf build dist || true
+
+      - name: build with pyinstaller (linux)
+        run: |
+          xvfb-run pyinstaller meikipop.linux.x64.spec
+
+      - name: build dictionary
+        run: python -m scripts.build_dictionary
+
+      - name: build linux archive
+        run: |
+          mv dist/meikipop dist/meikipop.elf
+          mkdir dist/meikipop/
+          mv dist/meikipop.elf dist/meikipop/meikipop
+          mv jmdict_enhanced.pkl dist/meikipop/
+          tar -czvf dist/meikipop.linux.x64.tar.gz -C dist/ meikipop
+
+      - name: upload linux artifact
+        id: upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: meikipop-linux-x64
+          path: dist/meikipop.linux.x64.tar.gz

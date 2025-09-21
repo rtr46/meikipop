@@ -1,13 +1,14 @@
 # build_dictionary.py
+import glob
+import os
+import shutil
 import sys
 import time
-import os
+
 import requests
-import glob
-import shutil
 
+from src.dictionary.customdict import Dictionary
 
-from src.dictionary.dictionary import Dictionary
 
 def main():
     print("downloading jmdict...")

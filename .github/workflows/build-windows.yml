@@ -1,0 +1,53 @@
+# .github/workflows/build-windows.yml
+name: reusable windows build
+
+on:
+  workflow_call:
+    outputs:
+      artifact_name:
+        description: "the name of the windows artifact"
+        value: ${{ jobs.build-windows.outputs.artifact_name }}
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: set up python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+          architecture: 'x64'
+
+      - name: install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install lxml
+          pip install pyinstaller
+
+      - name: clean previous builds
+        run: |
+          rmdir build -r -force -ErrorAction SilentlyContinue || true
+          rmdir dist -r -force -ErrorAction SilentlyContinue || true
+
+      - name: build with pyinstaller (windows)
+        run: pyinstaller meikipop.win.x64.spec
+
+      - name: build dictionary
+        run: python -m scripts.build_dictionary
+
+      - name: build windows archive
+        run: |
+          mkdir dist/meikipop
+          mv jmdict_enhanced.pkl dist/meikipop/
+          mv dist/meikipop.exe dist/meikipop/
+          powershell -Command "Compress-Archive -Path dist/meikipop -DestinationPath dist/meikipop.x64.zip"
+
+      - name: upload windows artifact
+        id: upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: meikipop-windows-x64-pr
+          path: dist/meikipop.x64.zip
