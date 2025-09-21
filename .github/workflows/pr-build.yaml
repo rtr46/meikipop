@@ -85,7 +85,6 @@ jobs:
           mkdir dist/meikipop/
           mv dist/meikipop.elf dist/meikipop/meikipop
           mv jmdict_enhanced.pkl dist/meikipop/
-          mv dist/meikipop dist/meikipop/
           tar -czvf meikipop.linux.x64.tar.gz -C dist/ meikipop
 
       - name: upload linux artifact
