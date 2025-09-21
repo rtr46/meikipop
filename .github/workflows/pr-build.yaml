@@ -83,7 +83,7 @@ jobs:
           mkdir -p AppDir/usr/bin
           mkdir -p AppDir/usr/share/applications
           mkdir -p AppDir/usr/share/icons/hicolor/256x256/apps
-          cp dist/meikipop AppDir/usr/bin/
+          mv dist/meikipop AppDir/usr/bin/
           chmod +x AppDir/usr/bin/meikipop
           cp resources/meikipop.png AppDir/usr/share/icons/hicolor/256x256/apps/meikipop.png
           cp resources/meikipop.desktop AppDir/usr/share/applications/meikipop.desktop
