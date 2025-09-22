@@ -79,7 +79,7 @@ class MacOSKeyboardController:
     def __init__(self, hotkey_str):
         self.hotkey_str = hotkey_str.lower()
         self._setup_keycodes()
-        
+
     def _setup_keycodes(self):
         # Map common hotkey strings to macOS key codes
         key_mapping = {
@@ -92,12 +92,12 @@ class MacOSKeyboardController:
         if not self.keycodes_to_check:
             logger.critical(f"Unsupported hotkey '{self.hotkey_str}' for macOS. Use 'shift', 'ctrl', 'alt', or 'cmd'.")
             sys.exit(1)
-            
+
     def is_hotkey_pressed(self) -> bool:
         try:
             # Get current modifier flags
             flags = NSEvent.modifierFlags()
-            
+
             # Check if any of our target keys are pressed
             if self.hotkey_str == 'shift':
                 return bool(flags & (1 << 17) or flags & (1 << 18))  # NSShiftKeyMask
@@ -129,7 +129,6 @@ class InputLoop(threading.Thread):
         self.started_auto_mode = False
 
     def run(self):
-
         logger.debug("Input thread started.")
         last_mouse_pos = (0, 0)
         hotkey_was_pressed = False
@@ -173,7 +172,7 @@ class InputLoop(threading.Thread):
 
     def is_virtual_hotkey_down(self):
         return self.keyboard_controller.is_hotkey_pressed() or (
-                    config.auto_scan_mode and config.auto_scan_mode_lookups_without_hotkey)
+                config.auto_scan_mode and config.auto_scan_mode_lookups_without_hotkey)
 
     def reapply_settings(self):
         logger.debug(f"InputLoop: Re-applying settings. New hotkey: '{config.hotkey}'.")

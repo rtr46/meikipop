@@ -6,7 +6,7 @@ import sys
 logger = logging.getLogger(__name__)
 
 APP_NAME = "meikipop"
-APP_VERSION = "v.1.3.0"
+APP_VERSION = "v.1.4.0"
 MAX_DICT_ENTRIES = 10
 IS_LINUX = sys.platform.startswith('linux')
 IS_WINDOWS = sys.platform.startswith('win')
@@ -36,7 +36,8 @@ class Config:
                 'quality_mode': 'balanced',
                 'ocr_provider': 'Google Lens',
                 'auto_scan_mode': 'false',
-                'auto_scan_mode_lookups_without_hotkey': 'true'
+                'auto_scan_mode_lookups_without_hotkey': 'true',
+                'magpie_compatibility': 'false'
             },
             'Theme': {
                 'theme_name': 'Nazeka',
@@ -77,6 +78,7 @@ class Config:
         self.auto_scan_mode = config.getboolean('Settings', 'auto_scan_mode')
         self.auto_scan_mode_lookups_without_hotkey = config.getboolean('Settings',
                                                                        'auto_scan_mode_lookups_without_hotkey')
+        self.magpie_compatibility = config.getboolean('Settings', 'magpie_compatibility')
         self.theme_name = config.get('Theme', 'theme_name')
         self.font_family = config.get('Theme', 'font_family')
         self.font_size_definitions = config.getint('Theme', 'font_size_definitions')
@@ -105,7 +107,8 @@ class Config:
             'quality_mode': self.quality_mode,
             'ocr_provider': self.ocr_provider,
             'auto_scan_mode': str(self.auto_scan_mode).lower(),
-            'auto_scan_mode_lookups_without_hotkey': str(self.auto_scan_mode_lookups_without_hotkey).lower()
+            'auto_scan_mode_lookups_without_hotkey': str(self.auto_scan_mode_lookups_without_hotkey).lower(),
+            'magpie_compatibility': str(self.magpie_compatibility).lower()
         }
         config['Theme'] = {
             'theme_name': self.theme_name,

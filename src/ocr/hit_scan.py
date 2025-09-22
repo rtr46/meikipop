@@ -3,6 +3,7 @@ import logging
 import threading
 from typing import List
 
+from src.gui.magpie_manager import magpie_manager
 from src.ocr.interface import Paragraph
 
 logger = logging.getLogger(__name__)  # Get the logger
@@ -36,7 +37,7 @@ class HitScanner(threading.Thread):
         logger.debug("HitScanner thread stopped.")
 
     def hit_scan(self, paragraphs: List[Paragraph]):
-        mouse_x, mouse_y = self.input_loop.get_mouse_pos()
+        mouse_x, mouse_y = magpie_manager.transform_raw_to_visual(self.input_loop.get_mouse_pos(), 1)
         mouse_off_x, mouse_off_y, img_w, img_h = self.screen_manager.get_scan_geometry()
         relative_x = mouse_x - mouse_off_x
         relative_y = mouse_y - mouse_off_y
