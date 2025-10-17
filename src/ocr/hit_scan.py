@@ -70,7 +70,9 @@ class HitScanner(threading.Thread):
                 continue
 
             target_word = None
-            is_vertical = para.is_vertical or para.box.height > para.box.width
+            para_box_abs_w = para.box.width * img_w
+            para_box_abs_h = para.box.height * img_h
+            is_vertical = para.is_vertical or para_box_abs_h > para_box_abs_w
             words = list(para.words)
 
             for i, word in enumerate(words):
