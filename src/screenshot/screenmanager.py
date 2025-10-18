@@ -50,13 +50,14 @@ class ScreenManager(threading.Thread):
                 processing_duration = time.perf_counter() - start_time
                 logger.debug(f"Screenshot {screenshot.size} complete in {processing_duration:.2f}s")
 
-                if self.last_screenshot and self.last_screenshot == screenshot:
+                if self.last_screenshot and self.last_screenshot.raw == screenshot.raw:
                     logger.debug(f"Screen content didnt change... skipping ocr")
                     self._sleep_and_handle_loop_exit(0.1)
                     continue
 
                 self.last_screenshot = screenshot
-                self.shared_state.ocr_queue.put(screenshot)
+                img = Image.frombytes("RGB", screenshot.size, screenshot.bgra, "raw", "BGRX")
+                self.shared_state.ocr_queue.put(img)
             except:
                 logger.exception("An unexpected error occurred in the screenshot loop. Continuing...")
                 self._sleep_and_handle_loop_exit(1)
@@ -65,7 +66,7 @@ class ScreenManager(threading.Thread):
     def take_screenshot(self):
         with mss.mss() as sct:
             sct_img = sct.grab(self.monitor)
-            return Image.frombytes("RGB", sct_img.size, sct_img.bgra, "raw", "BGRX")
+            return sct_img
 
     def set_scan_region(self):
         scan_rect = RegionSelector.get_region()

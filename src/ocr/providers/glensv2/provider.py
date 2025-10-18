@@ -42,12 +42,12 @@ class GoogleLensOcrV2(OcrProvider):
                 processed_image.save(bio, format='PNG')
                 return bio.getvalue(), new_width, new_height
         elif config.quality_mode == 'balanced':
-            processed_image = image.convert('RGB')
+            processed_image = image if image.mode == 'RGB' else image.convert('RGB')
             with io.BytesIO() as bio:
                 processed_image.save(bio, format='JPEG', quality=90)
                 return bio.getvalue(), image.width, image.height
         else:
-            processed_image = image.convert('RGB')
+            processed_image = image if image.mode == 'RGB' else image.convert('RGB')
             with io.BytesIO() as bio:
                 processed_image.save(bio, format='PNG')
                 return bio.getvalue(), image.width, image.height
