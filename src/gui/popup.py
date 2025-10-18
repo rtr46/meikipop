@@ -340,12 +340,14 @@ class Popup(QWidget):
         if not self.is_visible:
             return
         self.hide()
+        self.is_visible = False
+        QTimer.singleShot(50, lambda: self._release_lock_safely())  # prevent popup from being screenshotted
+        self._restore_focus_on_mac()
+
+    def _release_lock_safely(self):
         logger.debug("hide_popup releasing lock...")
         self.shared_state.screen_lock.release()
         logger.debug("...successfully released lock by hide_popup")
-        self.is_visible = False
-
-        self._restore_focus_on_mac()
 
     def show_popup(self):
         # logger.debug(f"show_popup triggered while visibility:{self.is_visible}")

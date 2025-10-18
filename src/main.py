@@ -39,7 +39,7 @@ class SharedState:
         self.lookup_queue = LatestValueQueue()
 
         # screen lock - used by screen manager and popup
-        self.screen_lock = threading.Lock()
+        self.screen_lock = threading.RLock()
         
 def main():
     setup_logging()
