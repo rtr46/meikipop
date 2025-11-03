@@ -186,7 +186,12 @@ class MeikiOcrProvider(OcrProvider):
         for box, score in zip(boxes, scores):
             if score < DET_CONFIDENCE_THRESHOLD: continue
             x1, y1, x2, y2 = box
-            text_boxes.append({'bbox': [int(x1 * scale_x), int(y1 * scale_y), int(x2 * scale_x), int(y2 * scale_y)]})
+            text_boxes.append({'bbox': [
+                max(0, int(x1 * scale_x)),
+                max(0, int(y1 * scale_y)),
+                max(0, int(x2 * scale_x)),
+                max(0, int(y2 * scale_y))
+            ]})
         return text_boxes
 
     def _preprocess_for_recognition(self, image: np.ndarray, text_boxes: list):
@@ -194,7 +199,7 @@ class MeikiOcrProvider(OcrProvider):
         for i, tb in enumerate(text_boxes):
             x1, y1, x2, y2 = tb['bbox']
             w, h = x2 - x1, y2 - y1
-            if w < h or w == 0 or h == 0: continue
+            if w < h or w <= 0 or h <= 0: continue
             crop = image[y1:y2, x1:x2]
             ch, cw = crop.shape[:2]
             nh, nw = INPUT_REC_HEIGHT, int(round(cw * (INPUT_REC_HEIGHT / ch)))
