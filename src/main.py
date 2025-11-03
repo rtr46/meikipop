@@ -1,4 +1,5 @@
 # src/main.py
+import onnxruntime  # never remove this import or meikiocrprovider fails to load on windows
 import signal
 import sys
 import threading

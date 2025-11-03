@@ -1,12 +1,10 @@
 import logging
-import re
 import time
 from typing import List, Optional
 
 import cv2
 import numpy as np
 import onnxruntime as ort
-from PIL import Image
 from huggingface_hub import hf_hub_download
 
 # the "contract" classes that a new provider MUST use for its return value.
