@@ -6,6 +6,8 @@ import cv2
 import numpy as np
 import onnxruntime as ort
 from huggingface_hub import hf_hub_download
+from PIL import Image
+import re
 
 # the "contract" classes that a new provider MUST use for its return value.
 from src.ocr.interface import BoundingBox, OcrProvider, Paragraph, Word
