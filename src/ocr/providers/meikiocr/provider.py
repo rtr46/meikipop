@@ -84,9 +84,9 @@ class MeikiOcrProvider(OcrProvider):
                 return None
 
             # --- 1. run detection stage ---
-            det_input, sx, sy = self._preprocess_for_detection(image_np)
-            det_raw = self._run_detection_inference(det_input)
-            text_boxes = self._postprocess_detection_results(det_raw, sx, sy)
+            det_input, scale = self._preprocess_for_detection(image_np)
+            det_raw = self._run_detection_inference(det_input, scale)
+            text_boxes = self._postprocess_detection_results(det_raw)
 
             if not text_boxes:
                 return []
@@ -159,32 +159,38 @@ class MeikiOcrProvider(OcrProvider):
 
     def _preprocess_for_detection(self, image: np.ndarray):
         h_orig, w_orig = image.shape[:2]
-        resized = cv2.resize(image, (INPUT_DET_WIDTH, INPUT_DET_HEIGHT), interpolation=cv2.INTER_LINEAR)
-        tensor = resized.astype(np.float32) / 255.0
+
+        scale = min(INPUT_DET_WIDTH / w_orig, INPUT_DET_HEIGHT / h_orig)
+        w_resized, h_resized = int(w_orig * scale), int(h_orig * scale)
+
+        resized = cv2.resize(image, (w_resized, h_resized), interpolation=cv2.INTER_LINEAR)
+        normalized_resized = resized.astype(np.float32) / 255.0
+
+        tensor = np.zeros((INPUT_DET_HEIGHT, INPUT_DET_WIDTH, 3), dtype=np.float32)
+        tensor[:h_resized, :w_resized] = normalized_resized
         tensor = np.transpose(tensor, (2, 0, 1))
         tensor = np.expand_dims(tensor, axis=0)
-        return tensor, w_orig / INPUT_DET_WIDTH, h_orig / INPUT_DET_HEIGHT
 
-    def _run_detection_inference(self, tensor: np.ndarray):
+        return tensor, scale
+
+    def _run_detection_inference(self, tensor: np.ndarray, scale: float):
         inputs = {
             self.det_session.get_inputs()[0].name: tensor,
-            self.det_session.get_inputs()[1].name: np.array([[INPUT_DET_WIDTH, INPUT_DET_HEIGHT]], dtype=np.int64)
+            self.det_session.get_inputs()[1].name: np.array([[INPUT_DET_WIDTH / scale, INPUT_DET_HEIGHT / scale]],
+                                                            dtype=np.int64)
         }
         return self.det_session.run(None, inputs)
 
-    def _postprocess_detection_results(self, raw_outputs: list, scale_x: float, scale_y: float):
+    def _postprocess_detection_results(self, raw_outputs: list):
         _, boxes, scores = raw_outputs
         boxes, scores = boxes[0], scores[0]
-        text_boxes = []
-        for box, score in zip(boxes, scores):
-            if score < DET_CONFIDENCE_THRESHOLD: continue
-            x1, y1, x2, y2 = box
-            text_boxes.append({'bbox': [
-                max(0, int(x1 * scale_x)),
-                max(0, int(y1 * scale_y)),
-                max(0, int(x2 * scale_x)),
-                max(0, int(y2 * scale_y))
-            ]})
+        confident_boxes = boxes[scores > DET_CONFIDENCE_THRESHOLD]
+        if confident_boxes.shape[0] == 0:
+            return []
+
+        clamped_boxes = np.maximum(0, confident_boxes.astype(np.int32))
+
+        text_boxes = [{'bbox': box.tolist()} for box in clamped_boxes]
         return text_boxes
 
     def _preprocess_for_recognition(self, image: np.ndarray, text_boxes: list):

@@ -39,7 +39,7 @@ class OcrProcessor(threading.Thread):
                 start_time = time.perf_counter()
                 ocr_result = self.ocr_backend.scan(screenshot)
                 logger.info(
-                    f"{self.ocr_backend.NAME} found {len(ocr_result)} paragraphs in {(time.perf_counter() - start_time):.3f}s.")
+                    f"{self.ocr_backend.NAME} found {len(ocr_result) if ocr_result else 0} paragraphs in {(time.perf_counter() - start_time):.3f}s.")
                 # todo keep last ocr result?
 
                 self.shared_state.hit_scan_queue.put((True, ocr_result))
