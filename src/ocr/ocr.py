@@ -4,12 +4,13 @@ import inspect
 import logging
 import sys
 import threading
+import time
 from pathlib import Path
 from typing import Dict, Type, Optional
 
 from src.config.config import config
 from src.ocr.interface import OcrProvider
-from src.ocr.providers.glens import GoogleLensOcr
+from src.ocr.providers.glensv2 import GoogleLensOcrV2
 
 logger = logging.getLogger(__name__)  # Get the logger
 
@@ -34,7 +35,11 @@ class OcrProcessor(threading.Thread):
                 if not self.shared_state.running: break
 
                 logger.debug("OCR: Triggered!")
+
+                start_time = time.perf_counter()
                 ocr_result = self.ocr_backend.scan(screenshot)
+                logger.info(
+                    f"{self.ocr_backend.NAME} found {len(ocr_result)} paragraphs in {(time.perf_counter() - start_time):.3f}s.")
                 # todo keep last ocr result?
 
                 self.shared_state.hit_scan_queue.put((True, ocr_result))
@@ -67,7 +72,7 @@ class OcrProcessor(threading.Thread):
 
     def _load_provider_from_config(self):
         configured_provider_name = config.ocr_provider
-        default_provider_name = GoogleLensOcr.NAME
+        default_provider_name = GoogleLensOcrV2.NAME
 
         provider_to_load_name = configured_provider_name
 

@@ -1,5 +1,4 @@
 import logging
-import time
 from typing import List, Optional
 
 import cv2
@@ -76,7 +75,6 @@ class MeikiOcrProvider(OcrProvider):
             return None
 
         try:
-            start_time = time.perf_counter()
 
             # convert pil (rgb) image to numpy array for opencv processing.
             image_np = np.array(image.convert("RGB"))
@@ -102,12 +100,7 @@ class MeikiOcrProvider(OcrProvider):
             ocr_results = self._postprocess_recognition_results(rec_raw, valid_indices, crop_meta, len(text_boxes))
 
             # --- 3. transform data to meikipop's format ---
-            paragraphs = self._to_meikipop_paragraphs(ocr_results, img_width, img_height)
-
-            duration = time.perf_counter() - start_time
-            logger.info(f"{self.NAME} processed image in {duration:.3f}s, found {len(paragraphs)} paragraphs.")
-
-            return paragraphs
+            return self._to_meikipop_paragraphs(ocr_results, img_width, img_height)
 
         except Exception as e:
             logger.error(f"an error occurred in {self.NAME}: {e}", exc_info=True)

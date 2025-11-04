@@ -1,7 +1,6 @@
 import io
 import json
 import logging
-import time
 from typing import List, Optional
 
 from PIL import Image
@@ -54,8 +53,6 @@ class OwocrWebsocketProvider(OcrProvider):
             return False
 
     def scan(self, image: Image.Image) -> Optional[List[Paragraph]]:
-        start_time = time.perf_counter()
-
         for attempt in range(2):
             try:
                 if self.websocket is None:
@@ -79,17 +76,7 @@ class OwocrWebsocketProvider(OcrProvider):
                 owocr_result = json.loads(response_json_str)
 
                 # 3. Process and return the results
-                processed_paragraphs = self._transform_to_meikipop_format(owocr_result)
-
-                total_duration = time.perf_counter() - start_time
-                if processed_paragraphs:
-                    full_text_preview = processed_paragraphs[0].full_text[:30]
-                    logger.info("OCR complete in %.2fs. Found %d paragraphs. (e.g., \"%s...\")", total_duration,
-                                len(processed_paragraphs), full_text_preview)
-                else:
-                    logger.info("OCR complete in %.2fs. No Japanese text found.", total_duration)
-
-                return processed_paragraphs
+                return self._transform_to_meikipop_format(owocr_result)
 
             except ConnectionClosed:
                 logger.warning("Websocket connection lost. Will attempt to reconnect...")
