@@ -12,7 +12,7 @@ from PIL import Image
 
 from src.config.config import config
 from src.ocr.interface import OcrProvider, Paragraph, Word, BoundingBox
-from src.ocr.providers.glens.lens_betterproto import LensOverlayServerRequest, WritingDirection, \
+from src.ocr.providers.glensv2.lens_betterproto import LensOverlayServerRequest, WritingDirection, \
     LensOverlayServerResponse
 from src.ocr.providers.postprocessing import group_lines_into_paragraphs  # Import the new function
 
@@ -112,17 +112,7 @@ class GoogleLensOcrV2(OcrProvider):
                                           is_vertical=is_vertical)
                             )
 
-            processed_paragraphs = group_lines_into_paragraphs(raw_lines)
-
-            total_duration = time.perf_counter() - start_time
-            if processed_paragraphs:
-                full_text_preview = processed_paragraphs[0].full_text[:30]
-                logger.info("OCR complete in %.2fs. Found %d paragraphs. (e.g., \"%s...\")", total_duration,
-                            len(processed_paragraphs), full_text_preview)
-            else:
-                logger.info("OCR complete in %.2fs. No Japanese text found.", total_duration)
-
-            return processed_paragraphs
+            return group_lines_into_paragraphs(raw_lines)
 
         except requests.RequestException as e:
             logger.error("OCR Request Failed: %s", e)
