@@ -6,9 +6,6 @@ a = Analysis(
     pathex=['.'],
     binaries=[],
     datas=[
-        ('src/ocr/providers/glens/provider.py', 'src/ocr/providers/glens'),
-        ('src/ocr/providers/glens/lens_betterproto.py', 'src/ocr/providers/glens'),
-        ('src/ocr/providers/glens/__init__.py', 'src/ocr/providers/glens'),
         ('src/ocr/providers/glensv2/provider.py', 'src/ocr/providers/glensv2'),
         ('src/ocr/providers/glensv2/lens_betterproto.py', 'src/ocr/providers/glensv2'),
         ('src/ocr/providers/glensv2/__init__.py', 'src/ocr/providers/glensv2'),
@@ -22,7 +19,7 @@ a = Analysis(
         ('src/resources/icon.inactive.ico', '.'),
         ('src/resources/icon.inactive.ico', 'src/resources'),
     ],
-    hiddenimports=['src.ocr.providers.glens', 'src.ocr.providers.glensv2', 'src.ocr.providers.owocr', 'src.ocr.providers.meikiocr'],
+    hiddenimports=['src.ocr.providers.glensv2', 'src.ocr.providers.owocr', 'src.ocr.providers.meikiocr'],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
