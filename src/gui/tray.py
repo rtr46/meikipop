@@ -184,6 +184,21 @@ class TrayIcon(QSystemTrayIcon):
             config.ocr_provider = provider_name
             config.save()
 
+    def reapply_settings(self):
+        """Updates the tray menu's checkmarks to reflect the current config."""
+        # Update OCR Provider selection
+        for action in self.ocr_action_group.actions():
+            if action.text() == config.ocr_provider:
+                action.setChecked(True)
+                break
+
+        # Update Scan Mode selection
+        for action in self.scan_mode_action_group.actions():
+            is_auto_action = action.text() == "Auto"
+            if is_auto_action == config.auto_scan_mode:
+                action.setChecked(True)
+                break
+
     def show_settings(self):
-        settings_dialog = SettingsDialog(self.ocr_processor, self.popup_window, self.input_loop)
+        settings_dialog = SettingsDialog(self.ocr_processor, self.popup_window, self.input_loop, self)
         settings_dialog.exec()

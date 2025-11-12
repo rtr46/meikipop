@@ -17,6 +17,7 @@ class ScreenManager(threading.Thread):
         super().__init__(daemon=True, name="ScreenManager")
         self.shared_state = shared_state
         self.monitor = None
+        self.last_ocr_put_time = 0.0
         self.last_screenshot = None
         if config.scan_region == "region":
             self.set_scan_region()
@@ -41,6 +42,13 @@ class ScreenManager(threading.Thread):
                 if not self.shared_state.running: break
                 logger.debug("Screenshot: Triggered!")
 
+                seconds_since_last_ocr = time.perf_counter() - self.last_ocr_put_time
+                if config.auto_scan_mode and seconds_since_last_ocr < config.auto_scan_interval_seconds:
+                    logger.debug(
+                        f"...{seconds_since_last_ocr:.2f}s since last ocr, sleeping for another {config.auto_scan_interval_seconds - seconds_since_last_ocr:.2f}s")
+                    self._sleep_and_handle_loop_exit(config.auto_scan_interval_seconds - seconds_since_last_ocr)
+                    continue
+
                 logger.debug("screenmanager acquiring lock...")
                 with self.shared_state.screen_lock:
                     logger.debug("...successfully acquired lock by screenmanager")
@@ -58,6 +66,7 @@ class ScreenManager(threading.Thread):
                 self.last_screenshot = screenshot
                 img = Image.frombytes("RGB", screenshot.size, screenshot.bgra, "raw", "BGRX")
                 self.shared_state.ocr_queue.put(img)
+                self.last_ocr_put_time = time.perf_counter()
             except:
                 logger.exception("An unexpected error occurred in the screenshot loop. Continuing...")
                 self._sleep_and_handle_loop_exit(1)
