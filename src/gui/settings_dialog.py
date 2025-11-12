@@ -3,7 +3,7 @@ from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QColor, QIcon
 from PyQt6.QtWidgets import (QWidget, QDialog, QFormLayout, QComboBox,
                              QSpinBox, QCheckBox, QPushButton, QColorDialog, QVBoxLayout, QHBoxLayout,
-                             QGroupBox, QDialogButtonBox, QLabel, QSlider, QLineEdit)
+                             QGroupBox, QDialogButtonBox, QLabel, QSlider, QLineEdit, QDoubleSpinBox)
 
 from src.config.config import config, APP_NAME, IS_WINDOWS
 from src.gui.input import InputLoop
@@ -36,11 +36,12 @@ THEMES = {
 
 
 class SettingsDialog(QDialog):
-    def __init__(self, ocr_processor: OcrProcessor, popup_window: Popup, input_loop: InputLoop, parent=None):
+    def __init__(self, ocr_processor: OcrProcessor, popup_window: Popup, input_loop: InputLoop, tray_icon, parent=None):
         super().__init__(parent)
         self.ocr_processor = ocr_processor
         self.popup_window = popup_window
         self.input_loop = input_loop
+        self.tray_icon = tray_icon
 
         self.setWindowTitle(f"{APP_NAME} Settings")
         self.setWindowIcon(QIcon("icon.ico"))
@@ -66,6 +67,13 @@ class SettingsDialog(QDialog):
         self.auto_scan_check = QCheckBox()
         self.auto_scan_check.setChecked(config.auto_scan_mode)
         general_layout.addRow("Auto Scan Mode:", self.auto_scan_check)
+        self.auto_scan_interval_spin = QDoubleSpinBox()
+        self.auto_scan_interval_spin.setRange(0.0, 60.0)
+        self.auto_scan_interval_spin.setDecimals(1)
+        self.auto_scan_interval_spin.setSingleStep(0.1)
+        self.auto_scan_interval_spin.setValue(config.auto_scan_interval_seconds)
+        self.auto_scan_interval_spin.setSuffix(" s")
+        general_layout.addRow("Auto Scan Interval:", self.auto_scan_interval_spin)
         self.auto_scan_no_hotkey_check = QCheckBox()
         self.auto_scan_no_hotkey_check.setChecked(config.auto_scan_mode_lookups_without_hotkey)
         general_layout.addRow("Lookups without Hotkey (in Auto Scan):", self.auto_scan_no_hotkey_check)
@@ -189,6 +197,7 @@ class SettingsDialog(QDialog):
         config.quality_mode = self.quality_combo.currentText()
         config.max_lookup_length = self.max_lookup_spin.value()
         config.auto_scan_mode = self.auto_scan_check.isChecked()
+        config.auto_scan_interval_seconds = self.auto_scan_interval_spin.value()
         config.auto_scan_mode_lookups_without_hotkey = self.auto_scan_no_hotkey_check.isChecked()
         if IS_WINDOWS:
             config.magpie_compatibility = self.magpie_check.isChecked()
@@ -208,5 +217,7 @@ class SettingsDialog(QDialog):
         # Tell the live components to re-apply settings
         self.input_loop.reapply_settings()
         self.popup_window.reapply_settings()
+        self.tray_icon.reapply_settings()
+        self.ocr_processor.shared_state.screenshot_trigger_event.set()
 
         self.accept()

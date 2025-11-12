@@ -6,7 +6,7 @@ import sys
 logger = logging.getLogger(__name__)
 
 APP_NAME = "meikipop"
-APP_VERSION = "v.1.5.3"
+APP_VERSION = "v.1.5.4"
 MAX_DICT_ENTRIES = 10
 IS_LINUX = sys.platform.startswith('linux')
 IS_WINDOWS = sys.platform.startswith('win')
@@ -37,6 +37,7 @@ class Config:
                 'ocr_provider': 'Google Lens',
                 'auto_scan_mode': 'false',
                 'auto_scan_mode_lookups_without_hotkey': 'true',
+                'auto_scan_interval_seconds': '0.0',
                 'magpie_compatibility': 'false'
             },
             'Theme': {
@@ -78,6 +79,7 @@ class Config:
         self.auto_scan_mode = config.getboolean('Settings', 'auto_scan_mode')
         self.auto_scan_mode_lookups_without_hotkey = config.getboolean('Settings',
                                                                        'auto_scan_mode_lookups_without_hotkey')
+        self.auto_scan_interval_seconds = config.getfloat('Settings', 'auto_scan_interval_seconds')
         self.magpie_compatibility = config.getboolean('Settings', 'magpie_compatibility')
         self.theme_name = config.get('Theme', 'theme_name')
         self.font_family = config.get('Theme', 'font_family')
@@ -108,6 +110,7 @@ class Config:
             'ocr_provider': self.ocr_provider,
             'auto_scan_mode': str(self.auto_scan_mode).lower(),
             'auto_scan_mode_lookups_without_hotkey': str(self.auto_scan_mode_lookups_without_hotkey).lower(),
+            'auto_scan_interval_seconds': str(self.auto_scan_interval_seconds),
             'magpie_compatibility': str(self.magpie_compatibility).lower()
         }
         config['Theme'] = {
