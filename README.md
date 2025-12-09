@@ -14,13 +14,9 @@ instantly look up japanese words anywhere on your screen. meikipop uses optical 
 
 ## installation
 
-### windows: prepackaged binaries
-download the latest release, unpack, and run `meikipop.run.bat`.
-* https://github.com/rtr46/meikipop/releases/latest
-
 ### run from source
 1.  install python 3.10+
-2.  clone the repo: `git clone https://github.com/rtr46/meikipop.git`
+2.  clone the repo: `git clone https://github.com/pnotisdev/meikipop.git`
 3.  install dependencies: `pip install -r requirements.txt`
 4.  build dictionary: `scripts/build_dictionary.bat` (windows) or `python -m scripts.build_dictionary`
 5.  run: `meikipop.run.bat` (windows) or `python -m src.main`
