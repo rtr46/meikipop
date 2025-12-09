@@ -120,20 +120,13 @@ class HitScanner(threading.Thread):
             lookup_string = full_text[final_char_index:]
             context_text = full_text
             hit_scan_result = (full_text, final_char_index, character,
-                               lookup_string)  # this may be interesting for debugging, but only lookup_string is really relevant
+                               lookup_string, para.box)  # Pass the box directly
             break
 
         if hit_scan_result:
-            text, char_pos, char, lookup_string = hit_scan_result
+            text, char_pos, char, lookup_string, context_box = hit_scan_result
             truncated_text = (text[:40] + '...') if len(text) > 40 else text
             
-            # Find the paragraph that contains the text to get its box
-            context_box = None
-            for para in paragraphs:
-                if para.full_text == context_text:
-                    context_box = para.box
-                    break
-
             return {
                 "lookup_string": lookup_string,
                 "context_text": context_text,

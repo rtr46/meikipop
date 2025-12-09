@@ -122,6 +122,8 @@ class Popup(QWidget):
         screenshot = context.get("screenshot")
         context_box = context.get("context_box")
         
+        logger.debug(f"Anki Context Box: {context_box}")
+
         screenshot_filename = f"meikipop_{int(time.time())}.png"
         screenshot_field = ""
         
@@ -133,6 +135,7 @@ class Popup(QWidget):
             # Crop to context if available
             if context_box:
                 width, height = img.size
+                logger.debug(f"Original Image Size: {width}x{height}")
                 
                 # Calculate coordinates from normalized box
                 c_x = context_box.center_x * width
@@ -145,6 +148,8 @@ class Popup(QWidget):
                 right = c_x + (b_w / 2)
                 bottom = c_y + (b_h / 2)
                 
+                logger.debug(f"Calculated Crop: {left}, {top}, {right}, {bottom}")
+                
                 # Add padding (e.g., 50px or 10% of dimension)
                 padding_x = 50
                 padding_y = 50
@@ -154,9 +159,16 @@ class Popup(QWidget):
                 right = min(width, int(right + padding_x))
                 bottom = min(height, int(bottom + padding_y))
                 
+                logger.debug(f"Padded Crop: {left}, {top}, {right}, {bottom}")
+
                 # Ensure we have a valid crop
                 if right > left and bottom > top:
                     img = img.crop((left, top, right, bottom))
+                    logger.debug("Image cropped successfully")
+                else:
+                    logger.warning("Invalid crop dimensions")
+            else:
+                logger.warning("No context box found for cropping")
             
             buffered = BytesIO()
             img.save(buffered, format="PNG")
