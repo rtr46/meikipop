@@ -62,6 +62,11 @@ class LinuxX11KeyboardController:
         except XError:
             return False
 
+    def is_key_pressed(self, key_str: str) -> bool:
+        # Basic implementation for Linux - might need expansion for combos
+        # For now, just return False to avoid crashes if called
+        return False
+
 class WindowsKeyboardController:
     def __init__(self, hotkey_str):
         self.hotkey_str = hotkey_str.lower()
@@ -73,6 +78,12 @@ class WindowsKeyboardController:
             logger.critical("FATAL: The 'keyboard' library failed to import a backend. This often means it needs to be run with administrator/sudo privileges.")
             sys.exit(1)
         except Exception:
+            return False
+
+    def is_key_pressed(self, key_str: str) -> bool:
+        try:
+            return keyboard.is_pressed(key_str)
+        except:
             return False
 
 class MacOSKeyboardController:
@@ -111,6 +122,10 @@ class MacOSKeyboardController:
         except Exception as e:
             logger.warning(f"Error checking hotkey state: {e}")
             return False
+
+    def is_key_pressed(self, key_str: str) -> bool:
+        # Basic implementation for macOS
+        return False
 
 class InputLoop(threading.Thread):
     def __init__(self, shared_state):
@@ -173,6 +188,9 @@ class InputLoop(threading.Thread):
     def is_virtual_hotkey_down(self):
         return self.keyboard_controller.is_hotkey_pressed() or (
                 config.auto_scan_mode and config.auto_scan_mode_lookups_without_hotkey)
+
+    def is_key_pressed(self, key_str: str) -> bool:
+        return self.keyboard_controller.is_key_pressed(key_str)
 
     def reapply_settings(self):
         logger.debug(f"InputLoop: Re-applying settings. New hotkey: '{config.hotkey}'.")

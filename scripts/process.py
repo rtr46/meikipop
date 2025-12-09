@@ -149,13 +149,13 @@ for entry in entries:
     i += 1
     copylist += [entry]
     if i >= limit:
-        f = open(basename+str(under)+extension, "w", newline="\n", encoding="utf-8")
-        f.write(json.dumps(copylist, ensure_ascii=False, separators=(',',':')));
+        with open(basename+str(under)+extension, "w", newline="\n", encoding="utf-8") as f:
+            f.write(json.dumps(copylist, ensure_ascii=False, separators=(',',':')))
         copylist = []
         i = 0
         under += 1
 
-f = open(basename+str(under)+extension, "w", newline="\n", encoding="utf-8")
-f.write(json.dumps(copylist, ensure_ascii=False, separators=(',',':')));
+with open(basename+str(under)+extension, "w", newline="\n", encoding="utf-8") as f:
+    f.write(json.dumps(copylist, ensure_ascii=False, separators=(',',':')))
 
 

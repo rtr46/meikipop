@@ -65,6 +65,8 @@ class HitScanner(threading.Thread):
 
         hit_scan_result = None
         lookup_string = None
+        context_text = None
+
         for para in paragraphs:
             if not is_in_box((norm_x, norm_y), para.box):
                 continue
@@ -116,6 +118,7 @@ class HitScanner(threading.Thread):
 
             character = full_text[final_char_index]
             lookup_string = full_text[final_char_index:]
+            context_text = full_text
             hit_scan_result = (full_text, final_char_index, character,
                                lookup_string)  # this may be interesting for debugging, but only lookup_string is really relevant
             break
@@ -123,8 +126,19 @@ class HitScanner(threading.Thread):
         if hit_scan_result:
             text, char_pos, char, lookup_string = hit_scan_result
             truncated_text = (text[:40] + '...') if len(text) > 40 else text
-        #     config.user_log(f"  -> Looking up '{char}' at pos {char_pos} in text: \"{truncated_text}\"")
-        # else:
-        #     config.user_log("hit scan unsuccessful")
+            
+            # Find the paragraph that contains the text to get its box
+            context_box = None
+            for para in paragraphs:
+                if para.full_text == context_text:
+                    context_box = para.box
+                    break
 
-        return lookup_string
+            return {
+                "lookup_string": lookup_string,
+                "context_text": context_text,
+                "screenshot": self.screen_manager.last_screenshot,
+                "context_box": context_box
+            }
+
+        return None

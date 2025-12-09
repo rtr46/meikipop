@@ -4,8 +4,12 @@ import os
 import shutil
 import sys
 import time
+import gzip
 
 import requests
+
+# Add project root to sys.path to allow imports from src
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from src.dictionary.customdict import Dictionary
 
@@ -13,7 +17,18 @@ from src.dictionary.customdict import Dictionary
 def main():
     print("downloading jmdict...")
     download_url = 'http://ftp.edrdg.org/pub/Nihongo/JMdict.gz'
-    open('JMdict', 'wb').write(requests.get(download_url).content)
+    response = requests.get(download_url)
+    
+    # Save as .gz first
+    with open('JMdict.gz', 'wb') as f:
+        f.write(response.content)
+        
+    print("extracting jmdict...")
+    with gzip.open('JMdict.gz', 'rb') as f_in:
+        with open('JMdict', 'wb') as f_out:
+            shutil.copyfileobj(f_in, f_out)
+            
+    os.remove('JMdict.gz')
 
     print("processing jmdict -> json...")
     exec(open('scripts/process.py').read()) # python scripts/process.py - see https://github.com/wareya/nazeka/blob/master/etc/process.py

@@ -1,0 +1,2 @@
+python scripts/build_dictionary.py
+pause

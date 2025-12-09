@@ -52,13 +52,18 @@ class Lookup(threading.Thread):
                 if not self.shared_state.running: break
                 logger.debug("Lookup: Triggered")
 
-                # skip lookup if hit_result didnt change
-                if hit_result == self.last_hit_result:
+                # hit_result is now a dict or None
+                # Extract lookup_string for comparison
+                current_lookup_string = hit_result["lookup_string"] if hit_result else None
+                last_lookup_string = self.last_hit_result["lookup_string"] if self.last_hit_result else None
+
+                # skip lookup if lookup_string didnt change
+                if current_lookup_string == last_lookup_string:
                     continue
                 self.last_hit_result = hit_result
 
-                lookup_result = self.lookup(self.last_hit_result) if self.last_hit_result else None
-                self.popup_window.set_latest_data(lookup_result)
+                lookup_result = self.lookup(current_lookup_string) if current_lookup_string else None
+                self.popup_window.set_latest_data(lookup_result, hit_result)
             except:
                 logger.exception("An unexpected error occurred in the lookup loop. Continuing...")
         logger.debug("Lookup thread stopped.")

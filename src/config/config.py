@@ -55,6 +55,11 @@ class Config:
                 'color_highlight_reading': '#90EE90',
                 'background_opacity': '245',
                 'popup_position_mode': 'flip_vertically'
+            },
+            'Anki': {
+                'deck_name': 'Default',
+                'model_name': 'Meikipop Card',
+                'url': 'http://127.0.0.1:8765'
             }
         }
         config.read_dict(defaults)
@@ -95,6 +100,10 @@ class Config:
         self.color_highlight_reading = config.get('Theme', 'color_highlight_reading')
         self.background_opacity = config.getint('Theme', 'background_opacity')
         self.popup_position_mode = config.get('Theme', 'popup_position_mode')
+
+        self.anki_deck_name = config.get('Anki', 'deck_name', fallback='Default')
+        self.anki_model_name = config.get('Anki', 'model_name', fallback='Basic')
+        self.anki_url = config.get('Anki', 'url', fallback='http://127.0.0.1:8765')
 
         self.is_enabled = True
 
