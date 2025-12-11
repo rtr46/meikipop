@@ -2,6 +2,10 @@
 
 instantly look up japanese words anywhere on your screen. meikipop uses optical character recognition (ocr) to read text from websites, games, scanned manga, or even hard-coded video subtitles.
 
+
+https://github.com/user-attachments/assets/51e80ccb-d484-4314-ad5f-27b65e761ec9
+
+
 ## features
 
 *   **works everywhere:** look up text from any window, game, or video.
@@ -43,7 +47,7 @@ instantly look up japanese words anywhere on your screen. meikipop uses optical 
 
 settings are saved to `config.ini`. right-click the tray icon to open the settings gui.
 
-## changelog (short)
+## changelog
 
 - 2025-12-11: Alt+A now always prompts a region selector and immediately sends the cropped screenshot to Anki; Anki payload now includes a safe Kana fallback to avoid empty-note errors.
 
