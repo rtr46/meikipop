@@ -12,6 +12,7 @@ from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel, QFrame, QApplication
 from src.config.config import config, MAX_DICT_ENTRIES, IS_MACOS
 from src.dictionary.lookup import DictionaryEntry
 from src.gui.magpie_manager import magpie_manager
+from src.gui.region_selector import RegionSelector
 
 # macOS-specific imports for focus management
 if IS_MACOS:
@@ -35,6 +36,8 @@ class Popup(QWidget):
         
         self.anki_shortcut_was_pressed = False
         self.copy_shortcut_was_pressed = False
+        self.deepl_shortcut_was_pressed = False
+        self.last_manual_crop_rect = None  # remember last user crop so Alt+A can reuse it
 
         self.shared_state = shared_state
         self.input_loop = input_loop
@@ -80,20 +83,58 @@ class Popup(QWidget):
 
     def handle_link_click(self, url):
         if url == "anki":
-            self.add_to_anki()
+            self.add_to_anki(manual_crop=True)
         elif url == "copy":
             self.copy_to_clipboard()
+        elif url == "deepl":
+            self.open_deepl()
 
-    def add_to_anki(self):
-        logger.info("Add to Anki clicked")
-        if not self._latest_context:
+    def add_to_anki(self, manual_crop=True):
+        logger.info(f"Add to Anki clicked (manual_crop={manual_crop})")
+
+        latest_data, latest_context = self.get_latest_data()
+        if not latest_context:
             logger.warning("No context available for Anki")
             return
+        if not latest_data:
+            logger.warning("No entries available for Anki")
+            return
         
-        # We need to run this in a separate thread to not block GUI
-        threading.Thread(target=self._add_to_anki_thread).start()
+        crop_rect = None
+        if manual_crop:
+            self.hide_popup()
+            QApplication.processEvents()
+            time.sleep(0.2)
+            logger.info("Launching region selector for manual crop")
+            crop_rect = RegionSelector.get_region()
+            logger.info(f"Region selector result: {crop_rect}")
+            if not crop_rect:
+                logger.info("Manual crop cancelled")
+                return
+            self.last_manual_crop_rect = crop_rect
+        else:
+            # Reuse last manual crop if user selects then presses Alt+A
+            crop_rect = self.last_manual_crop_rect
+        
+        logger.info("Spawning Anki add thread")
+        threading.Thread(target=self._add_to_anki_thread, args=(crop_rect, latest_context, latest_data)).start()
 
-    def _add_to_anki_thread(self):
+    def open_deepl(self):
+        if not self._latest_context:
+            return
+        
+        import webbrowser
+        import urllib.parse
+        
+        text = self._latest_context.get("context_text", "")
+        if not text:
+            return
+            
+        encoded_text = urllib.parse.quote(text)
+        url = f"https://www.deepl.com/translator#ja/en/{encoded_text}"
+        webbrowser.open(url)
+
+    def _add_to_anki_thread(self, manual_crop_rect=None, context=None, entries=None):
         from src.utils.anki import AnkiConnect
         import base64
         from io import BytesIO
@@ -102,27 +143,34 @@ class Popup(QWidget):
         if not anki.is_connected():
             logger.error("Anki is not connected")
             return
+        logger.info("Anki add thread started")
 
-        context = self._latest_context
-        entries = self._latest_data
+        # Fallback to latest if not passed (should not happen)
+        context = context or self._latest_context
+        entries = entries or self._latest_data
         if not entries:
+            logger.warning("Anki add thread: no entries")
             return
         
         entry = entries[0] # Use the first entry
         
         # Prepare data
-        word = entry.written_form
-        reading = entry.reading
+        word = entry.written_form or ""
+        reading = entry.reading or ""
         meanings = []
         for sense in entry.senses:
             meanings.append("; ".join(sense.get('glosses', [])))
         meaning_str = "<br>".join(meanings)
         
-        sentence = context.get("context_text", "")
+        sentence = context.get("context_text", "") or ""
+        safe_word = word or reading or sentence
         screenshot = context.get("screenshot")
         context_box = context.get("context_box")
+        scan_geometry = context.get("scan_geometry") # (x, y, w, h)
         
         logger.debug(f"Anki Context Box: {context_box}")
+        logger.debug(f"Manual crop passed in: {manual_crop_rect}; last saved: {self.last_manual_crop_rect}")
+        logger.debug(f"Context text: {sentence}")
 
         screenshot_filename = f"meikipop_{int(time.time())}.png"
         screenshot_field = ""
@@ -132,8 +180,38 @@ class Popup(QWidget):
             # Convert mss screenshot to PIL Image
             img = Image.frombytes("RGB", screenshot.size, screenshot.bgra, "raw", "BGRX")
             
-            # Crop to context if available
-            if context_box:
+            # Crop logic
+            crop_coords = None # (left, top, right, bottom) relative to image
+            if manual_crop_rect is None and self.last_manual_crop_rect:
+                manual_crop_rect = self.last_manual_crop_rect
+            
+            if manual_crop_rect and scan_geometry:
+                # Manual crop
+                # manual_crop_rect is QRect in absolute screen coords
+                # scan_geometry is (off_x, off_y, w, h)
+                
+                off_x, off_y, scan_w, scan_h = scan_geometry
+                
+                # Calculate relative coordinates
+                rel_x = manual_crop_rect.x() - off_x
+                rel_y = manual_crop_rect.y() - off_y
+                rel_w = manual_crop_rect.width()
+                rel_h = manual_crop_rect.height()
+                
+                # Ensure within bounds
+                left = max(0, rel_x)
+                top = max(0, rel_y)
+                right = min(img.width, rel_x + rel_w)
+                bottom = min(img.height, rel_y + rel_h)
+                
+                if right > left and bottom > top:
+                    crop_coords = (left, top, right, bottom)
+                    logger.debug(f"Manual Crop: {crop_coords}")
+                else:
+                    logger.warning("Manual crop outside of scan area")
+
+            elif context_box:
+                # Auto smart crop
                 width, height = img.size
                 logger.debug(f"Original Image Size: {width}x{height}")
                 
@@ -160,15 +238,15 @@ class Popup(QWidget):
                 bottom = min(height, int(bottom + padding_y))
                 
                 logger.debug(f"Padded Crop: {left}, {top}, {right}, {bottom}")
-
-                # Ensure we have a valid crop
+                
                 if right > left and bottom > top:
-                    img = img.crop((left, top, right, bottom))
-                    logger.debug("Image cropped successfully")
-                else:
-                    logger.warning("Invalid crop dimensions")
+                    crop_coords = (left, top, right, bottom)
+
+            if crop_coords:
+                img = img.crop(crop_coords)
+                logger.debug("Image cropped successfully")
             else:
-                logger.warning("No context box found for cropping")
+                logger.debug("No crop applied; using full screenshot")
             
             buffered = BytesIO()
             img.save(buffered, format="PNG")
@@ -402,8 +480,10 @@ ruby:hover rt {
         # Get model fields
         model_fields = anki.get_model_field_names(model_name)
         if not model_fields:
-             logger.error(f"Could not get fields for model: {model_name}")
-             return
+            logger.error(f"Could not get fields for model: {model_name}")
+            return
+
+        logger.info(f"Model '{model_name}' fields: {model_fields}")
 
         fields = {}
         
@@ -417,14 +497,21 @@ ruby:hover rt {
 
         # 2. Populate fields
         if target_word:
-            fields[target_word] = word
+            fields[target_word] = word or reading or sentence
         
         if target_reading:
             # Special handling for "Kana" field in Meikipop Card which expects Word[Reading] for furigana
-            if model_name == "Meikipop Card" and reading:
-                 fields[target_reading] = f"{word}[{reading}]"
+            if model_name == "Meikipop Card":
+                 if word and reading:
+                     fields[target_reading] = f"{word}[{reading}]"
+                 elif word:
+                     fields[target_reading] = word
+                 elif reading:
+                     fields[target_reading] = reading
+                 else:
+                     fields[target_reading] = sentence or safe_word or "(empty)"
             else:
-                 fields[target_reading] = reading
+                 fields[target_reading] = reading or word or sentence
             
         if target_meaning:
             fields[target_meaning] = meaning_str
@@ -452,11 +539,20 @@ ruby:hover rt {
                 if screenshot_field: content.append(f"<br>{screenshot_field}")
                 fields[target_back] = "<br>".join(content)
 
+        if not fields:
+            # Fallback: avoid empty note error by stuffing primary field
+            fallback_field = model_fields[0]
+            fields[fallback_field] = word or reading or meaning_str or sentence or "(empty)"
+            logger.warning(f"No target fields matched; falling back to {fallback_field}")
+
+        preview = {k: (v[:80] + "…" if isinstance(v, str) and len(v) > 80 else v) for k, v in fields.items()}
+        logger.info(f"Adding Anki note to deck='{deck_name}', model='{model_name}', fields={preview}")
+
         result = anki.add_note(deck_name, model_name, fields, tags=["meikipop"])
         if result:
             logger.info(f"Added note: {result}")
         else:
-            logger.error("Failed to add note")
+            logger.error(f"Failed to add note. Fields were: {preview}")
 
     def copy_to_clipboard(self):
         logger.info("Copy to clipboard clicked")
@@ -571,13 +667,18 @@ ruby:hover rt {
             # Check for shortcuts
             anki_pressed = self.input_loop.is_key_pressed('alt+a')
             if anki_pressed and not self.anki_shortcut_was_pressed:
-                self.add_to_anki()
+                self.add_to_anki(manual_crop=True)
             self.anki_shortcut_was_pressed = anki_pressed
 
             copy_pressed = self.input_loop.is_key_pressed('alt+c')
             if copy_pressed and not self.copy_shortcut_was_pressed:
                 self.copy_to_clipboard()
             self.copy_shortcut_was_pressed = copy_pressed
+
+            deepl_pressed = self.input_loop.is_key_pressed('alt+d')
+            if deepl_pressed and not self.deepl_shortcut_was_pressed:
+                self.open_deepl()
+            self.deepl_shortcut_was_pressed = deepl_pressed
         else:
             self.hide_popup()
 
@@ -652,7 +753,12 @@ ruby:hover rt {
         full_html = "".join(all_html_parts)
         
         # Add buttons
-        buttons_html = '<br><br><a href="anki" style="color: cyan; text-decoration: none;">[Add to Anki - Alt+A]</a> &nbsp; <a href="copy" style="color: cyan; text-decoration: none;">[Copy Text - Alt+C]</a>'
+        buttons_html = (
+            '<br><br>'
+            '<a href="anki" style="color: cyan; text-decoration: none;">[Add (Crop) - Alt+A]</a> &nbsp; '
+            '<a href="copy" style="color: cyan; text-decoration: none;">[Copy - Alt+C]</a> &nbsp; '
+            '<a href="deepl" style="color: cyan; text-decoration: none;">[DeepL - Alt+D]</a>'
+        )
         full_html += buttons_html
 
         self.probe_label.setText(full_html)

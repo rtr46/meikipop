@@ -131,7 +131,8 @@ class HitScanner(threading.Thread):
                 "lookup_string": lookup_string,
                 "context_text": context_text,
                 "screenshot": self.screen_manager.last_screenshot,
-                "context_box": context_box
+                "context_box": context_box,
+                "scan_geometry": self.screen_manager.get_scan_geometry()
             }
 
         return None

@@ -59,6 +59,7 @@ class RegionSelector(QDialog):
             painter.drawRect(border_rect)
 
     def mousePressEvent(self, event: QMouseEvent):
+        logger.debug("RegionSelector: mousePressEvent")
         self.begin_logical = QCursor.pos()
         if not self.begin_logical:  # when user selects upper left corner aka (0,0) aka None, the paint method won't work
             self.begin_logical = QPoint(1, 1)
@@ -74,7 +75,10 @@ class RegionSelector(QDialog):
     def update_selection_rect(self):
         mouse_pos = QCursor.pos()
         if not self.has_selection_started:
-            self.setGeometry(self.get_current_screen(mouse_pos).geometry())
+            # Keep the window covering the screen where the mouse is
+            current_screen = self.get_current_screen(mouse_pos)
+            if current_screen and current_screen.geometry() != self.geometry():
+                 self.setGeometry(current_screen.geometry())
             self.update()
             return
 
@@ -82,6 +86,7 @@ class RegionSelector(QDialog):
         self.update()
 
     def mouseReleaseEvent(self, event: QMouseEvent):
+        logger.debug("RegionSelector: mouseReleaseEvent")
         self.update_timer.stop()
 
         # Get the final physical position
@@ -110,6 +115,9 @@ class RegionSelector(QDialog):
     def get_region():
         logger.info("Awaiting region selection... you can change the scan region in the tray")
         selector = RegionSelector()
+        selector.show()
+        selector.activateWindow()
+        selector.raise_()
         if selector.exec() == QDialog.DialogCode.Accepted:
             return selector.selection_rect
         return None
