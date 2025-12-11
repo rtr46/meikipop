@@ -2,6 +2,7 @@
 import logging
 import threading
 import time
+import hashlib
 from typing import List, Optional
 
 from PyQt6.QtCore import QTimer, QPoint, QSize
@@ -86,6 +87,15 @@ class Popup(QWidget):
         self.status_label.hide()
         self.content_layout.addWidget(self.status_label)
 
+        self.presence_label = QLabel()
+        self.presence_label.setWordWrap(True)
+        self.presence_label.setTextFormat(Qt.TextFormat.PlainText)
+        self.presence_label.setStyleSheet("color: #8aa2b8; font-size: 12px;")
+        self.presence_label.hide()
+        self.content_layout.addWidget(self.presence_label)
+
+        self._last_presence_key = None
+
         self.hide()
 
     def handle_link_click(self, url):
@@ -107,26 +117,42 @@ class Popup(QWidget):
             logger.warning("No entries available for Anki")
             return
 
-        # Duplicate guard before any UI interaction
+        # Duplicate guard before any UI interaction (per-word, not per-sentence)
         entry = latest_data[0]
-        unique_term = entry.written_form or entry.reading or ""
-        sentence_text = latest_context.get("context_text", "") if latest_context else ""
-        if not unique_term:
-            unique_term = sentence_text
+        dedup_key = (entry.written_form or entry.reading or "").strip()
+        dedup_tag = None
 
-        if unique_term:
+        if dedup_key:
             from src.utils.anki import AnkiConnect
             anki = AnkiConnect(config.anki_url)
-            safe_term = unique_term.replace('"', '\\"')
-            query_parts = [f'deck:"{config.anki_deck_name}"']
-            if config.anki_model_name:
-                query_parts.append(f'note:"{config.anki_model_name}"')
-            query_parts.append(f'"{safe_term}"')
-            duplicate_query = " ".join(query_parts)
-            existing_notes = anki.find_notes(duplicate_query) or []
+
+            # Stable, tag-safe hash for this word/reading
+            dedup_hash = hashlib.sha1(dedup_key.encode("utf-8")).hexdigest()[:12]
+            dedup_tag = f"mp_word_{dedup_hash}"
+
+            tag_query = f'deck:"{config.anki_deck_name}" tag:{dedup_tag}'
+            existing_notes = anki.find_notes(tag_query) or []
+
+            # Fallback text query in case older cards lack the tag
+            if not existing_notes:
+                safe_term = dedup_key.replace('"', '\\"')
+                query_parts = [f'deck:"{config.anki_deck_name}"']
+                if config.anki_model_name:
+                    query_parts.append(f'note:"{config.anki_model_name}"')
+                query_parts.append(f'"{safe_term}"')
+                text_query = " ".join(query_parts)
+                existing_notes = anki.find_notes(text_query) or []
+                if existing_notes:
+                    logger.info(
+                        f"Duplicate detected via text query for '{dedup_key}' ({len(existing_notes)} matches). Query: {text_query}"
+                    )
+            else:
+                logger.info(
+                    f"Duplicate detected via tag for '{dedup_key}' ({len(existing_notes)} matches). Query: {tag_query}"
+                )
+
             if existing_notes:
-                msg = f"Already in Anki: {unique_term}"
-                logger.info(f"Skipping Anki add; duplicate detected for '{unique_term}' ({len(existing_notes)} matches). Query: {duplicate_query}")
+                msg = f"Already in Anki: {dedup_key}"
                 self._show_status_message(msg)
                 return
         
@@ -147,7 +173,7 @@ class Popup(QWidget):
             crop_rect = self.last_manual_crop_rect
         
         logger.info("Spawning Anki add thread")
-        threading.Thread(target=self._add_to_anki_thread, args=(crop_rect, latest_context, latest_data)).start()
+        threading.Thread(target=self._add_to_anki_thread, args=(crop_rect, latest_context, latest_data, dedup_tag)).start()
 
     def _show_status_message(self, message: str, duration_ms: int = 2000):
         self.status_label.setText(message)
@@ -159,6 +185,47 @@ class Popup(QWidget):
 
         if duration_ms > 0:
             QTimer.singleShot(duration_ms, clear_message)
+
+    def _set_presence_label(self, text: str = "", color: str = "#8aa2b8", visible: bool = True):
+        if not visible:
+            self.presence_label.clear()
+            self.presence_label.hide()
+            return
+        self.presence_label.setStyleSheet(f"color: {color}; font-size: 12px;")
+        self.presence_label.setText(text)
+        self.presence_label.show()
+
+    def _check_anki_presence(self, dedup_key: str):
+        try:
+            from src.utils.anki import AnkiConnect
+            dedup_hash = hashlib.sha1(dedup_key.encode("utf-8")).hexdigest()[:12]
+            dedup_tag = f"mp_word_{dedup_hash}"
+            tag_query = f'deck:"{config.anki_deck_name}" tag:{dedup_tag}'
+            anki = AnkiConnect(config.anki_url)
+            existing_notes = anki.find_notes(tag_query) or []
+
+            if not existing_notes:
+                safe_term = dedup_key.replace('"', '\\"')
+                query_parts = [f'deck:"{config.anki_deck_name}"']
+                if config.anki_model_name:
+                    query_parts.append(f'note:"{config.anki_model_name}"')
+                query_parts.append(f'"{safe_term}"')
+                text_query = " ".join(query_parts)
+                existing_notes = anki.find_notes(text_query) or []
+
+            is_present = bool(existing_notes)
+
+            def update_label():
+                if dedup_key != self._last_presence_key:
+                    return  # stale
+                if is_present:
+                    self._set_presence_label(text="Anki: already added", color="#7ed87e", visible=True)
+                else:
+                    self._set_presence_label(text="Anki: new", color="#8aa2b8", visible=True)
+
+            QTimer.singleShot(0, update_label)
+        except Exception as e:
+            logger.debug(f"Presence check failed: {e}")
 
     def open_deepl(self):
         if not self._latest_context:
@@ -175,7 +242,7 @@ class Popup(QWidget):
         url = f"https://www.deepl.com/translator#ja/en/{encoded_text}"
         webbrowser.open(url)
 
-    def _add_to_anki_thread(self, manual_crop_rect=None, context=None, entries=None):
+    def _add_to_anki_thread(self, manual_crop_rect=None, context=None, entries=None, dedup_tag=None):
         from src.utils.anki import AnkiConnect
         import base64
         from io import BytesIO
@@ -587,11 +654,16 @@ ruby:hover rt {
         preview = {k: (v[:80] + "…" if isinstance(v, str) and len(v) > 80 else v) for k, v in fields.items()}
         logger.info(f"Adding Anki note to deck='{deck_name}', model='{model_name}', fields={preview}")
 
-        result = anki.add_note(deck_name, model_name, fields, tags=["meikipop"])
+        tags = ["meikipop"]
+        if dedup_tag:
+            tags.append(dedup_tag)
+
+        result = anki.add_note(deck_name, model_name, fields, tags=tags)
         if result:
             logger.info(f"Added note: {result}")
         else:
             logger.error(f"Failed to add note. Fields were: {preview}")
+            QTimer.singleShot(0, lambda: self._show_status_message("Anki says duplicate or add failed"))
 
     def copy_to_clipboard(self):
         logger.info("Copy to clipboard clicked")
@@ -721,6 +793,18 @@ ruby:hover rt {
         else:
             self.hide_popup()
 
+        # Optional Anki presence indicator on hover
+        if config.anki_show_hover_status and latest_data:
+            entry = latest_data[0]
+            presence_key = (entry.written_form or entry.reading or "").strip()
+            if presence_key and presence_key != self._last_presence_key:
+                self._last_presence_key = presence_key
+                threading.Thread(target=self._check_anki_presence, args=(presence_key,), daemon=True).start()
+            elif not presence_key:
+                self._set_presence_label(visible=False)
+        else:
+            self._set_presence_label(visible=False)
+
         mouse_pos = QCursor.pos()
         self.move_to(mouse_pos.x(), mouse_pos.y())
 
@@ -809,7 +893,8 @@ ruby:hover rt {
         horizontal_padding = margins.left() + margins.right() + (border_width * 2)
         vertical_padding = margins.top() + margins.bottom() + (border_width * 2)
 
-        final_size = QSize(int(optimal_content_width) + horizontal_padding, final_height + vertical_padding)
+        extra_labels_height = self.status_label.sizeHint().height() + self.presence_label.sizeHint().height() + 8
+        final_size = QSize(int(optimal_content_width) + horizontal_padding, final_height + vertical_padding + extra_labels_height)
         return full_html, final_size
 
     def move_to(self, x, y):

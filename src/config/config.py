@@ -59,7 +59,8 @@ class Config:
             'Anki': {
                 'deck_name': 'Default',
                 'model_name': 'Meikipop Card',
-                'url': 'http://127.0.0.1:8765'
+                'url': 'http://127.0.0.1:8765',
+                'show_hover_status': 'false'
             }
         }
         config.read_dict(defaults)
@@ -104,6 +105,7 @@ class Config:
         self.anki_deck_name = config.get('Anki', 'deck_name', fallback='Default')
         self.anki_model_name = config.get('Anki', 'model_name', fallback='Basic')
         self.anki_url = config.get('Anki', 'url', fallback='http://127.0.0.1:8765')
+        self.anki_show_hover_status = config.getboolean('Anki', 'show_hover_status', fallback=False)
 
         self.is_enabled = True
 
@@ -137,6 +139,12 @@ class Config:
             'color_highlight_reading': self.color_highlight_reading,
             'background_opacity': str(self.background_opacity),
             'popup_position_mode': self.popup_position_mode
+        }
+        config['Anki'] = {
+            'deck_name': self.anki_deck_name,
+            'model_name': self.anki_model_name,
+            'url': self.anki_url,
+            'show_hover_status': str(self.anki_show_hover_status).lower()
         }
         with open('config.ini', 'w', encoding='utf-8') as configfile:
             config.write(configfile)
