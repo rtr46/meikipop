@@ -1,58 +1,63 @@
 # meikipop - universal japanese ocr popup dictionary
 
-instantly look up japanese words anywhere on your screen. meikipop uses optical character recognition (ocr) to read text from websites, games, scanned manga, or even hard-coded video subtitles.
+Instantly look up Japanese words anywhere on your screen. Meikipop uses OCR to read text from websites, games, manga scans, or even hard-coded video subtitles.
 
+Project video: https://github.com/user-attachments/assets/51e80ccb-d484-4314-ad5f-27b65e761ec9
 
-https://github.com/user-attachments/assets/51e80ccb-d484-4314-ad5f-27b65e761ec9
+## About this fork
 
+This is a friendly fork of the original project at https://github.com/rtr46/meikipop. Our fork focuses on Anki-first quality-of-life tweaks.
 
-## features
+## What I changed
 
-*   **works everywhere:** look up text from any window, game, or video.
-*   **ocr-powered:** reads japanese text directly from images.
-*   **anki integration:** create beautiful flashcards with a quick region-select screenshot and context sentences (`Alt+A`).
-*   **smart cropping:** automatically crops screenshots to the relevant text area.
-*   **clipboard support:** quickly copy recognized text (`Alt+C`).
-*   **blazingly fast:** optimized dictionary lookups.
-*   **highly customizable:** themes, fonts, and scan regions.
+- Built-in Anki card creation with region crop and context sentence (`Alt+A`).
+- DeepL jump for quick translation checks (`Alt+D`).
+- One-tap copy of the recognized text (`Alt+C`).
+- Duplicate guard: we skip adding a card if the word already exists in the chosen deck/model and show a short popup message.
+- Cropping (images for anki) has been made possible.
 
-## installation
+## Features from original repository by rtr46
 
-### run from source
-1.  install python 3.10+
-2.  clone the repo: `git clone https://github.com/pnotisdev/meikipop.git`
-3.  install dependencies: `pip install -r requirements.txt`
-4.  build dictionary: `scripts/build_dictionary.bat` (windows) or `python -m scripts.build_dictionary`
-5.  run: `meikipop.run.bat` (windows) or `python -m src.main`
+- works everywhere: if you can see it on your screen, you can look it up. no more limitations of browser extensions, hooks or application-specific tools.
+- ocr-powered: reads japanese text directly from images, making it perfect for games, comics, and videos.
+- blazingly fast: the dictionary is pre-processed into a highly optimized format for instant lookups. the ui is designed to be lightweight and responsive.
+- simple & intuitive: just point your mouse and press a hotkey. that's it.
+- highly customizable: change the hotkey, theme, colors, and layout to create your perfect reading experience.
+- region or fullscreen: scan your entire screen or select a specific region (like a game window or manga page) to improve performance.
+- pluggable ocr backend: comes with a great default ocr, but allows users to integrate owocr or their own ocr engines.
 
-## how to use
+## Installation
 
-1.  run the application.
-2.  select a scan region (first run).
-3.  hold **shift** and hover over japanese text to see the popup.
-4.  **shortcuts:**
-    *   `Alt+A`: select a region on screen, then add a card to **Anki** with that crop and the current lookup (requires [AnkiConnect](https://ankiweb.net/shared/info/2055492159)).
-    *   `Alt+C`: copy text to clipboard.
-    *   `Alt+D`: open the current context in DeepL.
-5.  right-click the tray icon for settings.
+Run from source:
+1. Install Python 3.10+.
+2. Clone this fork: `git clone https://github.com/pnotisdev/meikipop.git`.
+3. Install dependencies: `pip install -r requirements.txt`.
+4. Build dictionary: `scripts/build_dictionary.bat` (Windows) or `python -m scripts.build_dictionary`.
+5. Run: `meikipop.run.bat` (Windows) or `python -m src.main`.
 
-## anki setup
+## How to use
 
-1.  install the **AnkiConnect** add-on in Anki.
-2.  ensure Anki is running.
-3.  meikipop will automatically create a "Meikipop Card" model on first use.
-4.  customize deck/model in `config.ini` if needed.
+1. Run the app.
+2. Select a scan region (first run).
+3. Hold **Shift** and hover over Japanese text to see the popup.
+4. Shortcuts:
+   - `Alt+A`: region-select screenshot, then add to Anki (needs [AnkiConnect](https://ankiweb.net/shared/info/2055492159)).
+   - `Alt+C`: copy recognized text.
+   - `Alt+D`: open the current context in DeepL.
+5. Right-click the tray icon for settings.
 
-## configuration
+## Anki setup
 
-settings are saved to `config.ini`. right-click the tray icon to open the settings gui.
+1. Install the **AnkiConnect** add-on in Anki.
+2. Keep Anki running.
+3. Meikipop will auto-create the "Meikipop Card" model on first use.
+4. Customize deck/model in `config.ini` if you like.
 
-## changelog
+## Configuration
 
-- 2025-12-11: Alt+A now always prompts a region selector and immediately sends the cropped screenshot to Anki; Anki payload now includes a safe Kana fallback to avoid empty-note errors.
+Settings live in `config.ini`. Right-click the tray icon to open the settings GUI.
 
-## license
+## License
 
-meikipop is licensed under the GNU General Public License v3.0. see the `LICENSE` file for the full license text.
-
-
+Meikipop is licensed under the GNU General Public License v3.0. See `LICENSE` for the full text.
+Original credit: https://github.com/rtr46/meikipop
