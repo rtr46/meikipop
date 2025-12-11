@@ -79,6 +79,13 @@ class Popup(QWidget):
         self.display_label.linkActivated.connect(self.handle_link_click)
         self.content_layout.addWidget(self.display_label)
 
+        self.status_label = QLabel()
+        self.status_label.setWordWrap(True)
+        self.status_label.setTextFormat(Qt.TextFormat.PlainText)
+        self.status_label.setStyleSheet("color: #f0c674; font-size: 12px;")
+        self.status_label.hide()
+        self.content_layout.addWidget(self.status_label)
+
         self.hide()
 
     def handle_link_click(self, url):
@@ -99,6 +106,29 @@ class Popup(QWidget):
         if not latest_data:
             logger.warning("No entries available for Anki")
             return
+
+        # Duplicate guard before any UI interaction
+        entry = latest_data[0]
+        unique_term = entry.written_form or entry.reading or ""
+        sentence_text = latest_context.get("context_text", "") if latest_context else ""
+        if not unique_term:
+            unique_term = sentence_text
+
+        if unique_term:
+            from src.utils.anki import AnkiConnect
+            anki = AnkiConnect(config.anki_url)
+            safe_term = unique_term.replace('"', '\\"')
+            query_parts = [f'deck:"{config.anki_deck_name}"']
+            if config.anki_model_name:
+                query_parts.append(f'note:"{config.anki_model_name}"')
+            query_parts.append(f'"{safe_term}"')
+            duplicate_query = " ".join(query_parts)
+            existing_notes = anki.find_notes(duplicate_query) or []
+            if existing_notes:
+                msg = f"Already in Anki: {unique_term}"
+                logger.info(f"Skipping Anki add; duplicate detected for '{unique_term}' ({len(existing_notes)} matches). Query: {duplicate_query}")
+                self._show_status_message(msg)
+                return
         
         crop_rect = None
         if manual_crop:
@@ -118,6 +148,17 @@ class Popup(QWidget):
         
         logger.info("Spawning Anki add thread")
         threading.Thread(target=self._add_to_anki_thread, args=(crop_rect, latest_context, latest_data)).start()
+
+    def _show_status_message(self, message: str, duration_ms: int = 2000):
+        self.status_label.setText(message)
+        self.status_label.show()
+
+        def clear_message():
+            self.status_label.clear()
+            self.status_label.hide()
+
+        if duration_ms > 0:
+            QTimer.singleShot(duration_ms, clear_message)
 
     def open_deepl(self):
         if not self._latest_context:
@@ -139,7 +180,9 @@ class Popup(QWidget):
         import base64
         from io import BytesIO
         
-        anki = AnkiConnect()
+        anki = AnkiConnect(config.anki_url)
+        deck_name = config.anki_deck_name
+        model_name = config.anki_model_name
         if not anki.is_connected():
             logger.error("Anki is not connected")
             return
@@ -254,10 +297,6 @@ class Popup(QWidget):
             anki.store_media_file(screenshot_filename, img_str)
             screenshot_field = f'<img src="{screenshot_filename}">'
 
-        # Configure deck and model (hardcoded for now or from config)
-        deck_name = config.anki_deck_name
-        model_name = config.anki_model_name
-        
         # Check if we need to create the Meikipop model
         if model_name == "Meikipop Card":
             available_models = anki.get_model_names()

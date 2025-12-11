@@ -53,6 +53,9 @@ class AnkiConnect:
     def store_media_file(self, filename, data_base64):
         return self.invoke("storeMediaFile", filename=filename, data=data_base64)
 
+    def find_notes(self, query):
+        return self.invoke("findNotes", query=query)
+
     def add_note(self, deck_name, model_name, fields, tags=None):
         note = {
             "deckName": deck_name,
