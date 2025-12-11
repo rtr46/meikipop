@@ -2,6 +2,10 @@
 
 instantly look up japanese words anywhere on your screen. meikipop uses optical character recognition (ocr) to read text from websites, games, scanned manga, or even hard-coded video subtitles.
 
+
+https://github.com/user-attachments/assets/51e80ccb-d484-4314-ad5f-27b65e761ec9
+
+
 ## features
 
 *   **works everywhere:** look up text from any window, game, or video.
