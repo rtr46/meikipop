@@ -125,32 +125,7 @@ class Popup(QWidget):
         if dedup_key:
             from src.utils.anki import AnkiConnect
             anki = AnkiConnect(config.anki_url)
-
-            # Stable, tag-safe hash for this word/reading
-            dedup_hash = hashlib.sha1(dedup_key.encode("utf-8")).hexdigest()[:12]
-            dedup_tag = f"mp_word_{dedup_hash}"
-
-            tag_query = f'deck:"{config.anki_deck_name}" tag:{dedup_tag}'
-            existing_notes = anki.find_notes(tag_query) or []
-
-            # Fallback text query in case older cards lack the tag
-            if not existing_notes:
-                safe_term = dedup_key.replace('"', '\\"')
-                query_parts = [f'deck:"{config.anki_deck_name}"']
-                if config.anki_model_name:
-                    query_parts.append(f'note:"{config.anki_model_name}"')
-                query_parts.append(f'"{safe_term}"')
-                text_query = " ".join(query_parts)
-                existing_notes = anki.find_notes(text_query) or []
-                if existing_notes:
-                    logger.info(
-                        f"Duplicate detected via text query for '{dedup_key}' ({len(existing_notes)} matches). Query: {text_query}"
-                    )
-            else:
-                logger.info(
-                    f"Duplicate detected via tag for '{dedup_key}' ({len(existing_notes)} matches). Query: {tag_query}"
-                )
-
+            existing_notes, dedup_tag = self._find_anki_notes_for_key(dedup_key, anki=anki)
             if existing_notes:
                 msg = f"Already in Anki: {dedup_key}"
                 self._show_status_message(msg)
@@ -195,24 +170,59 @@ class Popup(QWidget):
         self.presence_label.setText(text)
         self.presence_label.show()
 
+    def _dedup_tag_for_key(self, dedup_key: str) -> Optional[str]:
+        if not dedup_key:
+            return None
+        dedup_hash = hashlib.sha1(dedup_key.encode("utf-8")).hexdigest()[:12]
+        return f"mp_word_{dedup_hash}"
+
+    def _find_anki_notes_for_key(self, dedup_key: str, anki=None, model_fields: Optional[List[str]] = None):
+        """Find notes matching this word/read with tag first, then front/reading fields (avoids sentence matches)."""
+        if not dedup_key:
+            return [], None
+
+        if not anki:
+            from src.utils.anki import AnkiConnect
+            anki = AnkiConnect(config.anki_url)
+
+        dedup_tag = self._dedup_tag_for_key(dedup_key)
+        queries = []
+
+        if dedup_tag:
+            queries.append(f'deck:"{config.anki_deck_name}" tag:{dedup_tag}')
+
+        try:
+            if model_fields is None:
+                model_fields = anki.get_model_field_names(config.anki_model_name) or []
+        except Exception as e:
+            logger.debug(f"Model field lookup failed: {e}")
+            model_fields = []
+
+        safe_term = dedup_key.replace('"', '\\"')
+        word_fields = [
+            f for f in model_fields
+            if f.lower() in ["front", "word", "expression", "vocab", "kanji", "kana", "reading", "furigana"]
+        ]
+        for field_name in word_fields:
+            queries.append(f'deck:"{config.anki_deck_name}" {field_name}:"{safe_term}"')
+
+        existing_notes = []
+        for query in queries:
+            try:
+                found = anki.find_notes(query) or []
+                for note_id in found:
+                    if note_id not in existing_notes:
+                        existing_notes.append(note_id)
+            except Exception as e:
+                logger.debug(f"Anki query failed for '{query}': {e}")
+
+        return existing_notes, dedup_tag
+
     def _check_anki_presence(self, dedup_key: str):
         try:
             from src.utils.anki import AnkiConnect
-            dedup_hash = hashlib.sha1(dedup_key.encode("utf-8")).hexdigest()[:12]
-            dedup_tag = f"mp_word_{dedup_hash}"
-            tag_query = f'deck:"{config.anki_deck_name}" tag:{dedup_tag}'
             anki = AnkiConnect(config.anki_url)
-            existing_notes = anki.find_notes(tag_query) or []
-
-            if not existing_notes:
-                safe_term = dedup_key.replace('"', '\\"')
-                query_parts = [f'deck:"{config.anki_deck_name}"']
-                if config.anki_model_name:
-                    query_parts.append(f'note:"{config.anki_model_name}"')
-                query_parts.append(f'"{safe_term}"')
-                text_query = " ".join(query_parts)
-                existing_notes = anki.find_notes(text_query) or []
-
+            existing_notes, _ = self._find_anki_notes_for_key(dedup_key, anki=anki)
             is_present = bool(existing_notes)
 
             def update_label():
