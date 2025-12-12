@@ -2,7 +2,9 @@
 
 Instantly look up Japanese words anywhere on your screen. Meikipop uses OCR to read text from websites, games, manga scans, or even hard-coded video subtitles.
 
-Project video: https://github.com/user-attachments/assets/51e80ccb-d484-4314-ad5f-27b65e761ec9
+## Demo
+
+https://github.com/user-attachments/assets/51e80ccb-d484-4314-ad5f-27b65e761ec9
 
 ## About this fork
 
@@ -10,9 +12,9 @@ This is a friendly fork of the original project at https://github.com/rtr46/meik
 
 ## What I changed
 
-- Built-in Anki card creation with region crop and context sentence (`Alt+A`).
-- DeepL jump for quick translation checks (`Alt+D`).
-- One-tap copy of the recognized text (`Alt+C`).
+- Built-in Anki card creation with region crop and context sentence `Alt+A`).
+- DeepL jump for quick translation checks `Alt+D`).
+- One-tap copy of the recognized text `Alt+C`).
 - Duplicate guard: we skip adding a card if the word already exists in the chosen deck/model and show a short popup message.
 - Cropping (images for anki) has been made possible.
 
@@ -29,6 +31,7 @@ This is a friendly fork of the original project at https://github.com/rtr46/meik
 ## Installation
 
 Run from source:
+
 1. Install Python 3.10+.
 2. Clone this fork: `git clone https://github.com/pnotisdev/meikipop.git`.
 3. Install dependencies: `pip install -r requirements.txt`.
@@ -60,4 +63,5 @@ Settings live in `config.ini`. Right-click the tray icon to open the settings GU
 ## License
 
 Meikipop is licensed under the GNU General Public License v3.0. See `LICENSE` for the full text.
+
 Original credit: https://github.com/rtr46/meikipop
