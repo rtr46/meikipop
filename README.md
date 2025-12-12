@@ -44,7 +44,7 @@ Run from source:
 2. Select a scan region (first run).
 3. Hold **Shift** and hover over Japanese text to see the popup.
 4. Shortcuts:
-   - `Alt+A`: region-select screenshot, then add to Anki (needs [AnkiConnect](https://ankiweb.net/shared/info/2055492159)).
+   - `Alt+A`: region-select screenshot, then add to Anki (needs [AnkiConnect](https://ankiweb.net/shared/info/2055492159).
    - `Alt+C`: copy recognized text.
    - `Alt+D`: open the current context in DeepL.
 5. Right-click the tray icon for settings.
