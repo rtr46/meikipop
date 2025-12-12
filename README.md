@@ -12,9 +12,9 @@ This is a friendly fork of the original project at https://github.com/rtr46/meik
 
 ## What I changed
 
-- Built-in Anki card creation with region crop and context sentence `Alt+A`).
-- DeepL jump for quick translation checks `Alt+D`).
-- One-tap copy of the recognized text `Alt+C`).
+- Built-in Anki card creation with region crop and context sentence `Alt+A`.
+- DeepL jump for quick translation checks `Alt+D`.
+- One-tap copy of the recognized text `Alt+C`.
 - Duplicate guard: we skip adding a card if the word already exists in the chosen deck/model and show a short popup message.
 - Cropping (images for anki) has been made possible.
 
