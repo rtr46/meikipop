@@ -51,10 +51,8 @@ class MeikiOcrProvider(OcrProvider):
             return None
 
         try:
-            # Convert PIL (RGB) image to the OpenCV (BGR) format expected by the library.
             image_np_rgb = np.array(image.convert("RGB"))
-            image_np_bgr = image_np_rgb[:, :, ::-1]  # Convert RGB to BGR
-            img_height, img_width = image_np_bgr.shape[:2]
+            img_height, img_width = image_np_rgb.shape[:2]
 
             if img_width == 0 or img_height == 0:
                 logger.error("invalid image dimensions received.")
@@ -62,7 +60,7 @@ class MeikiOcrProvider(OcrProvider):
 
             # --- 1. Run the entire OCR pipeline with a single library call ---
             ocr_results = self.ocr_client.run_ocr(
-                image_np_bgr,
+                image_np_rgb,
                 det_threshold=DET_CONFIDENCE_THRESHOLD,
                 rec_threshold=REC_CONFIDENCE_THRESHOLD
             )
