@@ -62,7 +62,8 @@ class MeikiOcrProvider(OcrProvider):
             ocr_results = self.ocr_client.run_ocr(
                 image_np_rgb,
                 det_threshold=DET_CONFIDENCE_THRESHOLD,
-                rec_threshold=REC_CONFIDENCE_THRESHOLD
+                rec_threshold=REC_CONFIDENCE_THRESHOLD,
+                punct_conf_factor=0.2
             )
 
             # --- 2. Transform the library's output to MeikiPop's format ---
