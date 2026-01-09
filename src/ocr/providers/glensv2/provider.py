@@ -14,7 +14,7 @@ from src.config.config import config
 from src.ocr.interface import OcrProvider, Paragraph, Word, BoundingBox
 from src.ocr.providers.glensv2.lens_betterproto import LensOverlayServerRequest, WritingDirection, \
     LensOverlayServerResponse
-from src.ocr.providers.postprocessing import group_lines_into_paragraphs  # Import the new function
+from src.ocr.providers.postprocessing import group_lines_into_paragraphs
 
 JAPANESE_REGEX = re.compile(r'[\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FAF]')
 

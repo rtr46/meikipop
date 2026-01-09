@@ -10,6 +10,7 @@ from meikiocr import MeikiOCR
 
 # Import the "contract" classes from your application's interface
 from src.ocr.interface import BoundingBox, OcrProvider, Paragraph, Word
+from src.ocr.providers.postprocessing import group_lines_into_paragraphs
 
 logger = logging.getLogger(__name__)
 
@@ -87,7 +88,7 @@ class MeikiOcrProvider(OcrProvider):
 
     def _to_meikipop_paragraphs(self, ocr_results: list, img_width: int, img_height: int) -> List[Paragraph]:
         """converts the final meikiocr result list into meikipop's Paragraph format."""
-        paragraphs: List[Paragraph] = []
+        lines: List[Paragraph] = []
         for line_result in ocr_results:
             full_text = line_result.get("text", "").strip()
             chars = line_result.get("chars", [])
@@ -95,10 +96,10 @@ class MeikiOcrProvider(OcrProvider):
                 continue
 
             # create word objects for each character (best for precise lookups).
-            words_in_para: List[Word] = []
+            words_in_line: List[Word] = []
             for char_info in chars:
                 char_box = self._to_normalized_bbox(char_info['bbox'], img_width, img_height)
-                words_in_para.append(Word(text=char_info['char'], separator="", box=char_box))
+                words_in_line.append(Word(text=char_info['char'], separator="", box=char_box))
 
             # meikiocr doesn't provide a line-level box, so we must compute it
             # by finding the union of all character boxes in the line.
@@ -108,12 +109,12 @@ class MeikiOcrProvider(OcrProvider):
             max_y = max(c['bbox'][3] for c in chars)
             line_box = self._to_normalized_bbox([min_x, min_y, max_x, max_y], img_width, img_height)
 
-            paragraph = Paragraph(
+            line = Paragraph(
                 full_text=full_text,
-                words=words_in_para,
+                words=words_in_line,
                 box=line_box,
                 is_vertical=False  # meikiocr currently only supports horizontal text.
             )
-            paragraphs.append(paragraph)
+            lines.append(line)
 
-        return paragraphs
+        return group_lines_into_paragraphs(lines)
