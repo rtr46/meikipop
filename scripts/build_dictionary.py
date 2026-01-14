@@ -17,17 +17,29 @@ def main():
 
     print("processing jmdict -> json...")
     exec(open('scripts/process.py').read()) # python scripts/process.py - see https://github.com/wareya/nazeka/blob/master/etc/process.py
-    [shutil.copy(f, os.path.join('data', os.path.basename(f))) for f in glob.glob('JMdict*.json')] # mv JMdict*.json data
+    data_dir = 'data'
+    os.makedirs(data_dir, exist_ok=True)
+    [shutil.copy(f, os.path.join(data_dir, os.path.basename(f))) for f in glob.glob('JMdict*.json')] # mv JMdict*.json data
     os.remove('JMdict') # rm JMdict
     [os.remove(f) for f in glob.glob('JMdict*.json')] # rm JMdict*.json
 
     print("Starting dictionary build process...")
-    data_dir = 'data'
     output_path = 'jmdict_enhanced.pkl'
     
-    jmdict_files = [os.path.join(data_dir, f) for f in os.listdir(data_dir) if f.startswith('JMdict') and f.endswith('.json')]
     deconjugator_path = os.path.join(data_dir, 'deconjugator.json')
     priority_path = os.path.join(data_dir, 'priority.json')
+    if not os.path.exists(deconjugator_path):
+        resp = requests.get('https://raw.githubusercontent.com/wareya/nazeka/master/dict/deconjugator.json', timeout=60)
+        resp.raise_for_status()
+        with open(deconjugator_path, 'wb') as f:
+            f.write(resp.content)
+    if not os.path.exists(priority_path):
+        resp = requests.get('https://raw.githubusercontent.com/wareya/nazeka/master/dict/priority.json', timeout=60)
+        resp.raise_for_status()
+        with open(priority_path, 'wb') as f:
+            f.write(resp.content)
+
+    jmdict_files = [os.path.join(data_dir, f) for f in os.listdir(data_dir) if f.startswith('JMdict') and f.endswith('.json')]
 
     if not all(os.path.exists(p) for p in jmdict_files + [deconjugator_path, priority_path]):
         print(f"Error: Missing required dictionary files in '{data_dir}' folder.", file=sys.stderr)

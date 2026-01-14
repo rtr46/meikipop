@@ -62,6 +62,38 @@ if you want to develop or use custom ocr provider, modify meikipop's behaviour, 
     python -m src.main # run meikipop
     ```
 
+### macos (beta): build a `.app` bundle (pyinstaller)
+
+this creates a standalone `meikipop.app` that you can copy into your `Applications` folder.
+
+1. **install dependencies**
+    ```bash
+    pip install -r requirements.txt
+    pip install lxml pyinstaller
+    ```
+
+2. **build the dictionary (required for lookups)**
+    ```bash
+    python -m scripts.build_dictionary
+    ```
+    this produces `jmdict_enhanced.pkl` in the project root.
+
+3. **build the app**
+    ```bash
+    pyinstaller --clean meikipop.macos.spec
+    ```
+
+4. **run**
+    * the output is `dist/meikipop.app`
+    * copy it into `/Applications` if you want:
+      ```bash
+      cp -R dist/meikipop.app /Applications/
+      ```
+    * if macos blocks it (gatekeeper), you can remove the quarantine flag:
+      ```bash
+      xattr -dr com.apple.quarantine /Applications/meikipop.app
+      ```
+
 ## how to use
 
 1.  run the application (`python -m src.main`). an icon will appear in your system tray.
@@ -123,5 +155,4 @@ for more details, you can look here: [Nazeka](https://github.com/wareya/nazeka)
 ## license
 
 meikipop is licensed under the GNU General Public License v3.0. see the `LICENSE` file for the full license text.
-
 

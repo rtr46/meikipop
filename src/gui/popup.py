@@ -211,6 +211,7 @@ class Popup(QWidget):
             def_text_parts_html = []
             for idx, sense in enumerate(entry.senses):
                 glosses_str = '; '.join(sense.get('glosses', []))
+                glosses_id_str = '; '.join(sense.get('glosses_id', [])) if config.show_indonesian else ""
                 pos_list = sense.get('pos', [])
                 sense_calc = f"({idx + 1})"
                 sense_html = f"<b>({idx + 1})</b> "
@@ -218,8 +219,17 @@ class Popup(QWidget):
                     pos_str = f' ({", ".join(pos_list)})'
                     sense_calc += pos_str
                     sense_html += f'<span style="color:{config.color_foreground}; opacity:0.7;"><i>{pos_str}</i></span> '
-                sense_calc += glosses_str
-                sense_html += glosses_str
+                id_calc = f" {glosses_id_str}" if glosses_id_str else ""
+                if glosses_id_str:
+                    if config.compact_mode:
+                        id_html = f' <span style="color:{config.color_foreground}; opacity:0.75;"><i>{glosses_id_str}</i></span>'
+                    else:
+                        id_html = f'<br><span style="color:{config.color_foreground}; opacity:0.75;"><i>{glosses_id_str}</i></span>'
+                else:
+                    id_html = ""
+
+                sense_calc += glosses_str + id_calc
+                sense_html += glosses_str + id_html
                 def_text_parts_calc.append(sense_calc)
                 def_text_parts_html.append(sense_html)
 

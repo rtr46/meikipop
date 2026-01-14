@@ -1,7 +1,37 @@
 # src/main.py
+import os
 import signal
 import sys
 import threading
+
+
+def _sanitize_macos_qt_environment():
+    if sys.platform != "darwin":
+        return
+
+    homebrew_prefixes = (
+        "/opt/homebrew/",
+        "/usr/local/",
+    )
+    env_vars = (
+        "DYLD_FRAMEWORK_PATH",
+        "DYLD_LIBRARY_PATH",
+        "QT_PLUGIN_PATH",
+        "QML2_IMPORT_PATH",
+    )
+
+    for var in env_vars:
+        value = os.environ.get(var)
+        if not value:
+            continue
+        parts = [p for p in value.split(":") if p and not p.startswith(homebrew_prefixes)]
+        if parts:
+            os.environ[var] = ":".join(parts)
+        else:
+            os.environ.pop(var, None)
+
+
+_sanitize_macos_qt_environment()
 
 from PyQt6.QtCore import qInstallMessageHandler
 from PyQt6.QtWidgets import QApplication

@@ -20,7 +20,10 @@ class ScreenManager(threading.Thread):
         self.last_ocr_put_time = 0.0
         self.last_screenshot = None
         if config.scan_region == "region":
-            self.set_scan_region()
+            if not self.set_scan_region():
+                self.set_scan_screen(1)
+                config.scan_region = "1"
+                config.save()
         else:
             try:
                 screen_idx = int(config.scan_region)

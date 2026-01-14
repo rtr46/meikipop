@@ -1,7 +1,9 @@
 # src/config/config.py
 import configparser
 import logging
+import os
 import sys
+from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
@@ -11,6 +13,22 @@ MAX_DICT_ENTRIES = 10
 IS_LINUX = sys.platform.startswith('linux')
 IS_WINDOWS = sys.platform.startswith('win')
 IS_MACOS = sys.platform.startswith('darwin')
+
+def _resolve_config_path() -> str:
+    local_path = os.path.abspath("config.ini")
+    if os.path.exists(local_path):
+        return local_path
+
+    if IS_MACOS:
+        base_dir = Path.home() / "Library" / "Application Support" / APP_NAME
+    elif IS_WINDOWS:
+        base_dir = Path(os.environ.get("APPDATA", Path.home())) / APP_NAME
+    else:
+        base_dir = Path.home() / ".config" / APP_NAME
+
+    base_dir.mkdir(parents=True, exist_ok=True)
+    return str(base_dir / "config.ini")
+
 
 class Config:
     _instance = None
@@ -31,7 +49,7 @@ class Config:
         defaults = {
             'Settings': {
                 'hotkey': 'shift',
-                'scan_region': 'region',
+                'scan_region': '1',
                 'max_lookup_length': '25',
                 'quality_mode': 'balanced',
                 'ocr_provider': 'Google Lens',
@@ -49,6 +67,7 @@ class Config:
                 'show_deconjugation': 'false',
                 'show_pos': 'false',
                 'show_tags': 'false',
+                'show_indonesian': 'false',
                 'color_background': '#2E2E2E',
                 'color_foreground': '#F0F0F0',
                 'color_highlight_word': '#88D8FF',
@@ -60,15 +79,16 @@ class Config:
         config.read_dict(defaults)
 
         # Step 2: Load from config.ini, creating it if it doesn't exist
+        config_path = _resolve_config_path()
         try:
-            if not config.read('config.ini'):
-                with open('config.ini', 'w', encoding='utf-8') as configfile:
+            if not config.read(config_path):
+                with open(config_path, 'w', encoding='utf-8') as configfile:
                     config.write(configfile)
-                logger.info("config.ini not found, created with default settings.")
+                logger.info(f"config.ini not found, created with default settings at: {config_path}")
             else:
-                logger.info("Loaded settings from config.ini.")
+                logger.info(f"Loaded settings from config.ini: {config_path}")
         except configparser.Error as e:
-            logger.warning(f"Warning: Could not parse config.ini. Using defaults. Error: {e}")
+            logger.warning(f"Warning: Could not parse config.ini ({config_path}). Using defaults. Error: {e}")
 
         # Apply settings from the config object first
         self.hotkey = config.get('Settings', 'hotkey')
@@ -89,6 +109,7 @@ class Config:
         self.show_deconjugation = config.getboolean('Theme', 'show_deconjugation')
         self.show_pos = config.getboolean('Theme', 'show_pos')
         self.show_tags = config.getboolean('Theme', 'show_tags')
+        self.show_indonesian = config.getboolean('Theme', 'show_indonesian')
         self.color_background = config.get('Theme', 'color_background')
         self.color_foreground = config.get('Theme', 'color_foreground')
         self.color_highlight_word = config.get('Theme', 'color_highlight_word')
@@ -97,6 +118,7 @@ class Config:
         self.popup_position_mode = config.get('Theme', 'popup_position_mode')
 
         self.is_enabled = True
+        self._config_path = config_path
 
         # todo command line args parsing
 
@@ -122,6 +144,7 @@ class Config:
             'show_deconjugation': str(self.show_deconjugation).lower(),
             'show_pos': str(self.show_pos).lower(),
             'show_tags': str(self.show_tags).lower(),
+            'show_indonesian': str(self.show_indonesian).lower(),
             'color_background': self.color_background,
             'color_foreground': self.color_foreground,
             'color_highlight_word': self.color_highlight_word,
@@ -129,9 +152,10 @@ class Config:
             'background_opacity': str(self.background_opacity),
             'popup_position_mode': self.popup_position_mode
         }
-        with open('config.ini', 'w', encoding='utf-8') as configfile:
+        config_path = getattr(self, "_config_path", _resolve_config_path())
+        with open(config_path, 'w', encoding='utf-8') as configfile:
             config.write(configfile)
-        logger.info("Settings saved to config.ini.")
+        logger.info(f"Settings saved to config.ini: {config_path}")
 
 # The singleton instance
 config = Config()

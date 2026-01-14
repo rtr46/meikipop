@@ -1,10 +1,14 @@
 # src/dictionary/lookup.py
 import logging
+import os
 import re
+import sys
 import threading
 from collections import OrderedDict
 from dataclasses import dataclass
 from typing import Set, Dict, Tuple, List
+
+import requests
 
 from src.config.config import config, MAX_DICT_ENTRIES
 from src.dictionary.customdict import Dictionary
@@ -28,6 +32,20 @@ class DictionaryEntry:
 
 logger = logging.getLogger(__name__)
 
+def _resolve_dictionary_path() -> str:
+    candidates = [
+        os.path.abspath("jmdict_enhanced.pkl"),
+    ]
+    meipass = getattr(sys, "_MEIPASS", None)
+    if meipass:
+        candidates.append(os.path.join(meipass, "jmdict_enhanced.pkl"))
+
+    for path in candidates:
+        if os.path.exists(path):
+            return path
+    return candidates[0]
+
+
 class Lookup(threading.Thread):
     def __init__(self, shared_state, popup_window):
         super().__init__(daemon=True, name="Lookup")
@@ -38,11 +56,12 @@ class Lookup(threading.Thread):
         self.dictionary = Dictionary()
         self.lookup_cache = OrderedDict()
 
-        if not self.dictionary.load_dictionary('jmdict_enhanced.pkl'):
-            raise RuntimeError("Failed to load dictionary.")
-        self.deconjugator = Deconjugator(self.dictionary.deconjugator_rules)
+        self.dictionary_loaded = self.dictionary.load_dictionary(_resolve_dictionary_path())
+        self.deconjugator = Deconjugator(self.dictionary.deconjugator_rules if self.dictionary_loaded else [])
 
         self.CACHE_SIZE = 500
+        self._id_translation_cache = OrderedDict()
+        self._ID_TRANSLATION_CACHE_SIZE = 5000
 
     def run(self):
         logger.debug("Lookup thread started.")
@@ -63,7 +82,46 @@ class Lookup(threading.Thread):
                 logger.exception("An unexpected error occurred in the lookup loop. Continuing...")
         logger.debug("Lookup thread stopped.")
 
+    def _translate_text_to_indonesian(self, text: str):
+        cleaned = text.strip()
+        if not cleaned:
+            return None
+
+        cached = self._id_translation_cache.get(cleaned)
+        if cached is not None:
+            self._id_translation_cache.move_to_end(cleaned)
+            return cached
+
+        try:
+            resp = requests.get(
+                "https://translate.googleapis.com/translate_a/single",
+                params={
+                    "client": "gtx",
+                    "sl": "en",
+                    "tl": "id",
+                    "dt": "t",
+                    "q": cleaned,
+                },
+                timeout=1.5,
+            )
+            if resp.status_code != 200:
+                return None
+            data = resp.json()
+            if not data or not data[0]:
+                return None
+            translated = "".join(seg[0] for seg in data[0] if seg and seg[0]).strip()
+            if not translated:
+                return None
+            self._id_translation_cache[cleaned] = translated
+            if len(self._id_translation_cache) > self._ID_TRANSLATION_CACHE_SIZE:
+                self._id_translation_cache.popitem(last=False)
+            return translated
+        except Exception:
+            return None
+
     def lookup(self, lookup_string):
+        if not self.dictionary_loaded:
+            return []
         if not lookup_string:
             return []
         logger.info(f"Looking up: {lookup_string}")  # keep at info level so people know whats up
@@ -237,12 +295,20 @@ class Lookup(threading.Thread):
             priority = self._calculate_priority(entry_data, form, match_len, original_lookup, written_form,
                                                 matched_reading)
 
+            senses = [dict(s) for s in entry_data['senses']]
+            if config.show_indonesian:
+                for sense in senses:
+                    glosses_str = '; '.join(sense.get('glosses', []))
+                    translated = self._translate_text_to_indonesian(glosses_str)
+                    if translated:
+                        sense['glosses_id'] = [translated]
+
             merge_key = (written_form, reading_to_display)
             if merge_key not in merged_entries:
                 merged_entries[merge_key] = {
                     "id": entry_data['id'],
                     "written_form": written_form,
-                    "reading": reading_to_display, "senses": list(entry_data['senses']),
+                    "reading": reading_to_display, "senses": senses,
                     "tags": self._get_misc_tags(entry_data),
                     "deconjugation_process": form.process,
                     "priority": priority,
@@ -250,7 +316,7 @@ class Lookup(threading.Thread):
                 }
             else:
                 current_entry = merged_entries[merge_key]
-                current_entry['senses'].extend(entry_data['senses'])
+                current_entry['senses'].extend(senses)
                 current_entry['tags'].update(self._get_misc_tags(entry_data))
                 if priority > current_entry['priority']:
                     current_entry['priority'] = priority
