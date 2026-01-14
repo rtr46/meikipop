@@ -26,20 +26,40 @@ def get_resource_path(relative_path):
 
 
 class TrayIcon(QSystemTrayIcon):
+    def _load_tray_icon(self, icon_path: str) -> QIcon:
+        icon = QIcon(icon_path)
+        if not icon.isNull():
+            return icon
+
+        try:
+            from PIL import Image
+            from PyQt6.QtGui import QImage, QPixmap
+
+            with Image.open(icon_path) as img:
+                rgba = img.convert("RGBA")
+                rgba = rgba.resize((18, 18))
+                raw = rgba.tobytes("raw", "RGBA")
+                qimg = QImage(raw, rgba.width, rgba.height, QImage.Format.Format_RGBA8888)
+                pix = QPixmap.fromImage(qimg)
+                icon = QIcon(pix)
+                if not icon.isNull():
+                    return icon
+        except Exception:
+            pass
+
+        from PyQt6.QtWidgets import QStyle
+        return QIcon(QApplication.style().standardIcon(QStyle.StandardPixmap.SP_ComputerIcon))
+
     def __init__(self, screen_manager, ocr_processor: OcrProcessor, popup_window, input_loop, parent=None):
         # Resolve icon paths using robust helper
         icon_path = get_resource_path('src/resources/icon.ico')
         icon_inactive_path = get_resource_path('src/resources/icon.inactive.ico')
 
         if os.path.exists(icon_path):
-            self.icon = QIcon(icon_path)
-            self.icon_inactive = QIcon(icon_inactive_path)
+            self.icon = self._load_tray_icon(icon_path)
+            self.icon_inactive = self._load_tray_icon(icon_inactive_path) if os.path.exists(icon_inactive_path) else self.icon
         else:
-            # print(f"Warning: Custom icon not found at '{icon_path}'. Using default.")
-            from PyQt6.QtWidgets import QStyle
-            self.icon = QIcon(QApplication.style().standardIcon(
-                QStyle.StandardPixmap.SP_ComputerIcon
-            ))
+            self.icon = self._load_tray_icon(icon_path)
             self.icon_inactive = self.icon
         super().__init__(self.icon, parent)
 
