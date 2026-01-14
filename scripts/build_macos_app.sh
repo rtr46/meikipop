@@ -12,6 +12,9 @@ if [[ ! -f "jmdict_enhanced.pkl" ]]; then
 fi
 
 rm -rf dist build
-pyinstaller --clean meikipop.macos.spec
+pyinstaller_config_dir="$(mktemp -d "${TMPDIR:-/tmp}/meikipop-pyinstaller.XXXXXX")"
+trap 'rm -rf "$pyinstaller_config_dir"' EXIT
+export PYINSTALLER_CONFIG_DIR="$pyinstaller_config_dir"
+pyinstaller meikipop.macos.spec
 
 echo "Built: $repo_root/dist/meikipop.app"
