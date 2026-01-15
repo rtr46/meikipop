@@ -5,7 +5,7 @@ from enum import Enum, auto
 from typing import Optional
 
 from PyQt6.QtCore import Qt, QPoint, QRect, QTimer, QEvent, QEventLoop
-from PyQt6.QtGui import QColor, QPainter, QPen, QMouseEvent, QKeyEvent, QGuiApplication, QCursor, QScreen
+from PyQt6.QtGui import QColor, QPainter, QPen, QMouseEvent, QKeyEvent, QGuiApplication, QCursor, QScreen, QFont
 from PyQt6.QtWidgets import QWidget, QApplication
 
 from src.gui.input import InputLoop
@@ -47,10 +47,11 @@ class ScreenOverlay(QWidget):
     ALPHA_HOVERED = 40
     ALPHA_SELECTING = 100
 
-    def __init__(self, screen: QScreen, screen_index: int, parent=None):
+    def __init__(self, screen: QScreen, screen_index: int, total_screens: int, parent=None):
         super().__init__(parent)
         self.screen = screen
         self.screen_index = screen_index
+        self.total_screens = total_screens
         self.state = OverlayState.INACTIVE
         self.selection_rect_local: Optional[QRect] = None
 
@@ -88,6 +89,10 @@ class ScreenOverlay(QWidget):
 
         painter.fillRect(self.rect(), QColor(0, 0, 0, alpha))
 
+        # Draw screen index badge (only for multi-monitor setups, and not while selecting)
+        if self.state != OverlayState.SELECTING and self.total_screens > 1:
+            self._draw_screen_badge(painter)
+
         if self.state == OverlayState.SELECTING and self.selection_rect_local is not None:
             rect = self.selection_rect_local.normalized()
 
@@ -99,6 +104,33 @@ class ScreenOverlay(QWidget):
             painter.setPen(pen)
             border_rect = rect.adjusted(0, 0, -1, -1)
             painter.drawRect(border_rect)
+
+    def _draw_screen_badge(self, painter: QPainter):
+        text = str(self.screen_index)
+        font = QFont("Arial", 48, QFont.Weight.Bold)
+        painter.setFont(font)
+
+        font_metrics = painter.fontMetrics()
+        text_width = font_metrics.horizontalAdvance(text)
+        text_height = font_metrics.height()
+
+        padding_h = 40
+        padding_v = 20
+        badge_width = text_width + padding_h * 2
+        badge_height = text_height + padding_v * 2
+        corner_radius = 20
+
+        badge_x = (self.width() - badge_width) // 2
+        badge_y = (self.height() - badge_height) // 2
+        badge_rect = QRect(badge_x, badge_y, badge_width, badge_height)
+
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        painter.setBrush(QColor(0, 0, 0, 180))
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.drawRoundedRect(badge_rect, corner_radius, corner_radius)
+
+        painter.setPen(QColor(255, 255, 255))
+        painter.drawText(badge_rect, Qt.AlignmentFlag.AlignCenter, text)
 
 
 class RegionSelector:
@@ -120,9 +152,10 @@ class RegionSelector:
         self.event_filter = RegionSelectorEventFilter(self)
 
         screens = QGuiApplication.screens()
+        total_screens = len(screens)
         for i, screen in enumerate(screens):
             mss_index = i + 1  # mss uses 1-based indexing (0 is combined virtual screen)
-            overlay = ScreenOverlay(screen, mss_index)
+            overlay = ScreenOverlay(screen, mss_index, total_screens)
             self.overlays.append(overlay)
 
     def _find_screen_at(self, pos: QPoint) -> Optional[int]:
