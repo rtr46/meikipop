@@ -9,7 +9,8 @@ from PyQt6.QtGui import QColor, QCursor, QFont, QFontMetrics, QFontInfo
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel, QFrame, QApplication
 
 from src.config.config import config, MAX_DICT_ENTRIES, IS_MACOS
-from src.dictionary.lookup import DictionaryEntry
+from src.dictionary.lookup import DictionaryEntry, LookupResult
+from src.dictionary.customdict import KanjiEntry
 from src.gui.magpie_manager import magpie_manager
 
 # macOS-specific imports for focus management
@@ -176,16 +177,31 @@ class Popup(QWidget):
         mouse_pos = QCursor.pos()
         self.move_to(mouse_pos.x(), mouse_pos.y())
 
-    def _calculate_content_and_size_char_count(self, entries: Optional[List[DictionaryEntry]]) -> tuple[
+    def _calculate_content_and_size_char_count(self, lookup_result: Optional[LookupResult]) -> tuple[
         Optional[str], Optional[QSize]]:
         if not self.is_calibrated: return None, None
 
-        if not entries:
+        if not lookup_result:
+            return None, None
+
+        # Check if we have any content to display
+        has_kanji = lookup_result.kanji_info is not None
+        has_words = len(lookup_result.word_entries) > 0
+        if not has_kanji and not has_words:
             return None, None
 
         all_html_parts = []
         max_ratio = 0.0
 
+        if has_kanji:
+            kanji_html, kanji_ratio = self._render_kanji_html(lookup_result.kanji_info)
+            all_html_parts.append(kanji_html)
+            max_ratio = max(max_ratio, kanji_ratio)
+
+            if has_words:
+                all_html_parts.append('<hr style="margin-top: 4px; margin-bottom: 4px; border-top: 1px dashed #666;">')
+
+        entries = lookup_result.word_entries
         for i, entry in enumerate(entries[:min(len(entries), MAX_DICT_ENTRIES)]):
             if i > 0:
                 all_html_parts.append('<hr style="margin-top: 0px; margin-bottom: 0px;">')
@@ -197,7 +213,6 @@ class Popup(QWidget):
             header_ratio = len(header_text_calc) / self.header_chars_per_line
             max_ratio = max(max_ratio, header_ratio)
 
-            # --- HTML construction ---
             header_html = f'<span style="color: {config.color_highlight_word}; font-size:{config.font_size_header}px;">{entry.written_form}</span>'
             if entry.reading: header_html += f' <span style="color: {config.color_highlight_reading}; font-size:{config.font_size_header - 2}px;">[{entry.reading}]</span>'
             if config.show_tags and entry.tags:
@@ -253,6 +268,83 @@ class Popup(QWidget):
 
         final_size = QSize(int(optimal_content_width) + horizontal_padding, final_height + vertical_padding)
         return full_html, final_size
+
+    def _render_kanji_html(self, kanji: KanjiEntry) -> tuple[str, float]:
+        max_ratio = 0.0
+
+        if config.kanji_display_mode == 'compact':
+            readings_parts = []
+            if kanji.onyomi:
+                readings_parts.append("、".join(kanji.onyomi[:3]))
+            if kanji.kunyomi:
+                readings_parts.append("、".join(kanji.kunyomi[:3]))
+            readings_str = " / ".join(readings_parts) if readings_parts else ""
+
+            meanings_str = ", ".join(kanji.meanings[:3]) if kanji.meanings else ""
+
+            calc_text = f"{kanji.literal} [{readings_str}] {meanings_str}"
+            max_ratio = len(calc_text) / self.header_chars_per_line
+
+            html = f'<span style="color: {config.color_highlight_word}; font-size:{config.font_size_header + 4}px;">{kanji.literal}</span>'
+            if readings_str:
+                html += f' <span style="color: {config.color_highlight_reading}; font-size:{config.font_size_header - 2}px;">[{readings_str}]</span>'
+            if meanings_str:
+                html += f' <span style="font-size:{config.font_size_definitions}px;">{meanings_str}</span>'
+
+        else:
+            lines_html = []
+
+            lines_html.append(f'<span style="color: {config.color_highlight_word}; font-size:{config.font_size_header + 8}px;">{kanji.literal}</span>')
+            max_ratio = max(max_ratio, 1 / self.header_chars_per_line)
+
+            if kanji.kunyomi:
+                kun_str = "、".join(kanji.kunyomi)
+                calc_kun = f"訓: {kun_str}"
+                max_ratio = max(max_ratio, len(calc_kun) / self.def_chars_per_line)
+                lines_html.append(
+                    f'<div style="font-size:{config.font_size_definitions}px;">'
+                    f'<span style="opacity:0.7;">訓:</span> '
+                    f'<span style="color: {config.color_highlight_reading};">{kun_str}</span>'
+                    f'</div>'
+                )
+
+            if kanji.onyomi:
+                on_str = "、".join(kanji.onyomi)
+                calc_on = f"音: {on_str}"
+                max_ratio = max(max_ratio, len(calc_on) / self.def_chars_per_line)
+                lines_html.append(
+                    f'<div style="font-size:{config.font_size_definitions}px;">'
+                    f'<span style="opacity:0.7;">音:</span> '
+                    f'<span style="color: {config.color_highlight_reading};">{on_str}</span>'
+                    f'</div>'
+                )
+
+            if kanji.meanings:
+                meanings_str = ", ".join(kanji.meanings)
+                max_ratio = max(max_ratio, len(meanings_str) / self.def_chars_per_line)
+                lines_html.append(
+                    f'<div style="font-size:{config.font_size_definitions}px;">{meanings_str}</div>'
+                )
+
+            meta_parts = []
+            if kanji.stroke_count > 0:
+                meta_parts.append(f"Strokes: {kanji.stroke_count}")
+            if kanji.jlpt > 0:
+                meta_parts.append(f"JLPT N{kanji.jlpt}")
+            if kanji.grade > 0:
+                grade_str = f"Grade {kanji.grade}" if kanji.grade <= 6 else "Secondary"
+                meta_parts.append(grade_str)
+
+            if meta_parts:
+                meta_str = " | ".join(meta_parts)
+                max_ratio = max(max_ratio, len(meta_str) / self.def_chars_per_line)
+                lines_html.append(
+                    f'<div style="font-size:{config.font_size_definitions - 2}px; opacity:0.6;">{meta_str}</div>'
+                )
+
+            html = "".join(lines_html)
+
+        return html, max_ratio
 
     def move_to(self, x, y):
         cursor_point = QPoint(x, y)

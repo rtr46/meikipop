@@ -4,10 +4,10 @@ import re
 import threading
 from collections import OrderedDict
 from dataclasses import dataclass
-from typing import Set, Dict, Tuple, List
+from typing import Set, Dict, Tuple, List, Optional
 
 from src.config.config import config, MAX_DICT_ENTRIES
-from src.dictionary.customdict import Dictionary
+from src.dictionary.customdict import Dictionary, KanjiEntry
 from src.dictionary.deconjugator import Deconjugator, Form
 
 KANJI_REGEX = re.compile(r'[\u4e00-\u9faf]')
@@ -24,6 +24,12 @@ class DictionaryEntry:
     tags: Set[str]
     deconjugation_process: tuple
     priority: float = 0.0
+
+
+@dataclass
+class LookupResult:
+    word_entries: List[DictionaryEntry]
+    kanji_info: Optional[KanjiEntry] = None
 
 
 logger = logging.getLogger(__name__)
@@ -65,7 +71,7 @@ class Lookup(threading.Thread):
 
     def lookup(self, lookup_string):
         if not lookup_string:
-            return []
+            return None
         logger.info(f"Looking up: {lookup_string}")  # keep at info level so people know whats up
 
         cleaned_lookup_string = lookup_string.strip()
@@ -79,6 +85,13 @@ class Lookup(threading.Thread):
         if truncated_lookup in self.lookup_cache:
             self.lookup_cache.move_to_end(truncated_lookup)
             return self.lookup_cache[truncated_lookup]
+
+        # Look up kanji info for the first character if it's a kanji
+        kanji_info = None
+        if config.show_kanji_info and truncated_lookup:
+            first_char = truncated_lookup[0]
+            if KANJI_REGEX.match(first_char):
+                kanji_info = self.dictionary.get_kanji(first_char)
 
         all_found_entries: Dict[int, Tuple[dict, Form, int]] = {}
         found_primary_match = False
@@ -160,11 +173,16 @@ class Lookup(threading.Thread):
 
         results = self._format_and_sort_results(list(all_found_entries.values()), truncated_lookup)
 
-        self.lookup_cache[truncated_lookup] = results[:MAX_DICT_ENTRIES]
+        lookup_result = LookupResult(
+            word_entries=results[:MAX_DICT_ENTRIES],
+            kanji_info=kanji_info
+        )
+
+        self.lookup_cache[truncated_lookup] = lookup_result
         if len(self.lookup_cache) > self.CACHE_SIZE:
             self.lookup_cache.popitem(last=False)
 
-        return results[:MAX_DICT_ENTRIES]
+        return lookup_result
 
     def _is_kana_only(self, text: str) -> bool:
         return not KANJI_REGEX.search(text)
