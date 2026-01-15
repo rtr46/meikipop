@@ -2,6 +2,7 @@
 import logging
 import threading
 import time
+from typing import Tuple, Optional
 
 import mss
 from PIL import Image
@@ -20,7 +21,16 @@ class ScreenManager(threading.Thread):
         self.last_ocr_put_time = 0.0
         self.last_screenshot = None
         if config.scan_region == "region":
-            self.set_scan_region()
+            success, config_value = self.set_scan_region()
+            if success and config_value is not None:
+                if config.scan_region != config_value:
+                    config.scan_region = config_value
+                    config.save()
+            elif not success:
+                logger.info("Region selection cancelled, defaulting to screen 1.")
+                self.set_scan_screen(1)
+                config.scan_region = "1"
+                config.save()
         else:
             try:
                 screen_idx = int(config.scan_region)
@@ -77,16 +87,32 @@ class ScreenManager(threading.Thread):
             sct_img = sct.grab(self.monitor)
             return sct_img
 
-    def set_scan_region(self):
-        scan_rect = RegionSelector.get_region()
-        if scan_rect:
-            logger.info(f"Set scan area to region {scan_rect}")
-            self.monitor = {"top": scan_rect.y(), "left": scan_rect.x(), "width": scan_rect.width(),
-                            "height": scan_rect.height()}
-            return True
-        else:
+    def set_scan_region(self) -> Tuple[bool, Optional[str]]:
+        result = RegionSelector.get_region()
+
+        if result.cancelled:
             logger.info("Region selection cancelled.")
-            return False
+            return False, None
+
+        if result.is_screen_selection:
+            screen_index = result.screen_index
+            logger.info(f"Set scan area to screen {screen_index}")
+            self.set_scan_screen(screen_index)
+            return True, str(screen_index)
+
+        if result.is_region_selection:
+            scan_rect = result.region
+            logger.info(f"Set scan area to region {scan_rect}")
+            self.monitor = {
+                "top": scan_rect.y(),
+                "left": scan_rect.x(),
+                "width": scan_rect.width(),
+                "height": scan_rect.height()
+            }
+            return True, 'region'
+
+        logger.warning("Unexpected selection result state")
+        return False, None
 
     def set_scan_screen(self, screen_index):
         logger.info(f"Set scan area to screen {screen_index}")

@@ -164,11 +164,16 @@ class TrayIcon(QSystemTrayIcon):
     def _on_scan_area_selected(self, action: QAction):
         selected_id = action.data()
         if selected_id == 'region':
-            if self.screen_manager.set_scan_region():
-                if config.scan_region != 'region':
-                    config.scan_region = 'region'
+            success, config_value = self.screen_manager.set_scan_region()
+            if success and config_value is not None:
+                # Update config with the actual selection (could be 'region' or a screen index)
+                if config.scan_region != config_value:
+                    config.scan_region = config_value
                     config.save()
+                # Update the menu checkmark to reflect what was actually selected
+                self.update_scan_area_check()
             else:
+                # Selection was cancelled, revert checkmark
                 self.update_scan_area_check()
         else:  # It's a screen index
             index = int(selected_id)

@@ -1,115 +1,268 @@
 # src/gui/region_selector.py
 import logging
+from dataclasses import dataclass
+from enum import Enum, auto
+from typing import Optional
 
-from PyQt6.QtCore import Qt, QPoint, QRect, QTimer
-from PyQt6.QtGui import QColor, QPainter, QPen, QMouseEvent, QKeyEvent, QGuiApplication, QCursor
-from PyQt6.QtWidgets import QDialog
+from PyQt6.QtCore import Qt, QPoint, QRect, QTimer, QEvent, QEventLoop
+from PyQt6.QtGui import QColor, QPainter, QPen, QMouseEvent, QKeyEvent, QGuiApplication, QCursor, QScreen
+from PyQt6.QtWidgets import QWidget, QApplication
 
 from src.gui.input import InputLoop
 
 logger = logging.getLogger(__name__)
 
-class RegionSelector(QDialog):
-    def __init__(self, parent=None):
+DRAG_THRESHOLD_PX = 10
+
+
+class SelectionMode(Enum):
+    IDLE = auto()
+    PENDING = auto()
+    DRAGGING = auto()
+
+
+class OverlayState(Enum):
+    INACTIVE = auto()
+    HOVERED = auto()
+    SELECTING = auto()
+
+
+@dataclass
+class SelectionResult:
+    region: Optional[QRect] = None
+    screen_index: Optional[int] = None
+    cancelled: bool = False
+
+    @property
+    def is_screen_selection(self) -> bool:
+        return self.screen_index is not None and self.region is None
+
+    @property
+    def is_region_selection(self) -> bool:
+        return self.region is not None and self.screen_index is None
+
+
+class ScreenOverlay(QWidget):
+    ALPHA_INACTIVE = 100
+    ALPHA_HOVERED = 40
+    ALPHA_SELECTING = 100
+
+    def __init__(self, screen: QScreen, screen_index: int, parent=None):
         super().__init__(parent)
+        self.screen = screen
+        self.screen_index = screen_index
+        self.state = OverlayState.INACTIVE
+        self.selection_rect_local: Optional[QRect] = None
 
-        self.setGeometry(self.get_current_screen(QCursor.pos()).geometry())
-
-        # Window setup for a seamless overlay
         self.setWindowFlags(
             Qt.WindowType.FramelessWindowHint |
             Qt.WindowType.WindowStaysOnTopHint |
-            Qt.WindowType.Tool
+            Qt.WindowType.Tool |
+            Qt.WindowType.BypassWindowManagerHint
         )
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         self.setCursor(Qt.CursorShape.CrossCursor)
+        self.setGeometry(screen.geometry())
 
-        # Points for drawing the overlay (in Qt's logical coordinates)
-        self.begin_logical = QPoint()
-        self.end_logical = QPoint()
+    def set_state(self, state: OverlayState):
+        if self.state != state:
+            self.state = state
+            self.update()
 
-        # Points for the final result (in physical coordinates)
-        self.begin_physical = None
-        self.selection_rect = None
-
-        self.has_selection_started = False
-
-        self.update_timer = QTimer(self)
-        self.update_timer.setInterval(16)
-        self.update_timer.timeout.connect(self.update_selection_rect)
-        self.update_timer.start()
+    def set_selection_rect(self, rect: Optional[QRect]):
+        if rect is not None:
+            self.selection_rect_local = rect.translated(-self.geometry().topLeft())
+        else:
+            self.selection_rect_local = None
+        self.update()
 
     def paintEvent(self, event):
         painter = QPainter(self)
-        painter.fillRect(self.rect(), QColor(0, 0, 0, 100))
 
-        if self.has_selection_started and not self.begin_logical.isNull() and not self.end_logical.isNull():
-            rect_logical = QRect(self.begin_logical - self.geometry().topLeft(),
-                                 self.end_logical - self.geometry().topLeft()).normalized()
+        if self.state == OverlayState.HOVERED:
+            alpha = self.ALPHA_HOVERED
+        elif self.state == OverlayState.SELECTING:
+            alpha = self.ALPHA_SELECTING
+        else:
+            alpha = self.ALPHA_INACTIVE
 
-            # Clear the selected area
+        painter.fillRect(self.rect(), QColor(0, 0, 0, alpha))
+
+        if self.state == OverlayState.SELECTING and self.selection_rect_local is not None:
+            rect = self.selection_rect_local.normalized()
+
             painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_Clear)
-            painter.fillRect(rect_logical, Qt.GlobalColor.transparent)
+            painter.fillRect(rect, Qt.GlobalColor.transparent)
             painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_SourceOver)
 
-            # Draw the border, adjusted to be fully visible at the edges
             pen = QPen(QColor(30, 200, 255), 1, Qt.PenStyle.SolidLine)
             painter.setPen(pen)
-            border_rect = rect_logical.adjusted(0, 0, -1, -1)
+            border_rect = rect.adjusted(0, 0, -1, -1)
             painter.drawRect(border_rect)
 
-    def mousePressEvent(self, event: QMouseEvent):
-        self.begin_logical = QCursor.pos()
-        if not self.begin_logical:  # when user selects upper left corner aka (0,0) aka None, the paint method won't work
-            self.begin_logical = QPoint(1, 1)
-        self.end_logical = self.begin_logical
 
-        # Store the physical position for the final result
+class RegionSelector:
+    def __init__(self):
+        self.overlays: list[ScreenOverlay] = []
+        self.mode = SelectionMode.IDLE
+        self.result: Optional[SelectionResult] = None
+        self.event_loop: Optional[QEventLoop] = None
+
+        self.press_pos_logical: Optional[QPoint] = None
+        self.press_pos_physical: Optional[QPoint] = None
+        self.current_pos_logical: Optional[QPoint] = None
+        self.hovered_screen_index: Optional[int] = None
+
+        self.update_timer = QTimer()
+        self.update_timer.setInterval(16)
+        self.update_timer.timeout.connect(self._on_timer_tick)
+
+        self.event_filter = RegionSelectorEventFilter(self)
+
+        screens = QGuiApplication.screens()
+        for i, screen in enumerate(screens):
+            mss_index = i + 1  # mss uses 1-based indexing (0 is combined virtual screen)
+            overlay = ScreenOverlay(screen, mss_index)
+            self.overlays.append(overlay)
+
+    def _find_screen_at(self, pos: QPoint) -> Optional[int]:
+        for i, overlay in enumerate(self.overlays):
+            if overlay.geometry().contains(pos):
+                return i
+        return None
+
+    def _get_mss_screen_index(self, overlay_index: int) -> int:
+        return self.overlays[overlay_index].screen_index
+
+    def _update_hovered_screen(self):
+        cursor_pos = QCursor.pos()
+        new_hovered = self._find_screen_at(cursor_pos)
+
+        if new_hovered != self.hovered_screen_index:
+            self.hovered_screen_index = new_hovered
+
+            if self.mode != SelectionMode.DRAGGING:
+                for i, overlay in enumerate(self.overlays):
+                    if i == new_hovered:
+                        overlay.set_state(OverlayState.HOVERED)
+                    else:
+                        overlay.set_state(OverlayState.INACTIVE)
+
+    def _on_timer_tick(self):
+        cursor_pos = QCursor.pos()
+        self.current_pos_logical = cursor_pos
+
+        if self.mode == SelectionMode.IDLE:
+            self._update_hovered_screen()
+
+        elif self.mode == SelectionMode.PENDING:
+            if self.press_pos_logical:
+                delta = cursor_pos - self.press_pos_logical
+                distance = (delta.x() ** 2 + delta.y() ** 2) ** 0.5
+
+                if distance > DRAG_THRESHOLD_PX:
+                    self.mode = SelectionMode.DRAGGING
+                    press_screen_idx = self._find_screen_at(self.press_pos_logical)
+                    for i, overlay in enumerate(self.overlays):
+                        if i == press_screen_idx:
+                            overlay.set_state(OverlayState.SELECTING)
+                        else:
+                            overlay.set_state(OverlayState.INACTIVE)
+
+            self._update_hovered_screen()
+
+        elif self.mode == SelectionMode.DRAGGING:
+            if self.press_pos_logical:
+                selection_rect = QRect(self.press_pos_logical, cursor_pos).normalized()
+                press_screen_idx = self._find_screen_at(self.press_pos_logical)
+
+                if press_screen_idx is not None:
+                    self.overlays[press_screen_idx].set_selection_rect(selection_rect)
+
+    def _on_mouse_press(self, pos: QPoint):
+        self.press_pos_logical = pos
         px, py = InputLoop.get_mouse_pos()
-        self.begin_physical = QPoint(px, py)
+        self.press_pos_physical = QPoint(px, py)
+        self.mode = SelectionMode.PENDING
 
-        self.has_selection_started = True
-        self.update()
+    def _on_mouse_release(self, pos: QPoint):
+        if self.mode == SelectionMode.PENDING:
+            screen_idx = self._find_screen_at(pos)
+            if screen_idx is not None:
+                mss_idx = self._get_mss_screen_index(screen_idx)
+                self.result = SelectionResult(screen_index=mss_idx)
+                logger.info(f"Selected whole screen {mss_idx}")
+            else:
+                self.result = SelectionResult(cancelled=True)
 
-    def update_selection_rect(self):
-        mouse_pos = QCursor.pos()
-        if not self.has_selection_started:
-            self.setGeometry(self.get_current_screen(mouse_pos).geometry())
-            self.update()
-            return
+        elif self.mode == SelectionMode.DRAGGING:
+            px, py = InputLoop.get_mouse_pos()
+            end_physical = QPoint(px, py)
+            selection_rect = QRect(self.press_pos_physical, end_physical).normalized()
+            self.result = SelectionResult(region=selection_rect)
+            logger.info(f"Selected region {selection_rect}")
 
-        self.end_logical = mouse_pos
-        self.update()
+        self._cleanup()
 
-    def mouseReleaseEvent(self, event: QMouseEvent):
+    def _on_key_press(self, key: int):
+        if key == Qt.Key.Key_Escape:
+            self.result = SelectionResult(cancelled=True)
+            logger.info("Region selection cancelled")
+            self._cleanup()
+
+    def _cleanup(self):
         self.update_timer.stop()
+        QApplication.instance().removeEventFilter(self.event_filter)
 
-        # Get the final physical position
-        px, py = InputLoop.get_mouse_pos()
-        end_physical = QPoint(px, py)
+        for overlay in self.overlays:
+            overlay.close()
 
-        # Create the final selection rectangle using the stored physical coordinates
-        self.selection_rect = QRect(self.begin_physical, end_physical).normalized()
-        self.accept()
+        if self.event_loop is not None:
+            self.event_loop.quit()
 
-    def keyPressEvent(self, event: QKeyEvent):
-        if event.key() == Qt.Key.Key_Escape:
-            if self.update_timer.isActive():
-                self.update_timer.stop()
-            self.selection_rect = None
-            self.reject()
+    def run(self) -> SelectionResult:
+        logger.info("Awaiting region selection... click a screen or drag to select a region")
+
+        QApplication.instance().installEventFilter(self.event_filter)
+
+        for overlay in self.overlays:
+            overlay.show()
+
+        self._update_hovered_screen()
+        self.update_timer.start()
+
+        self.event_loop = QEventLoop()
+        self.event_loop.exec()
+
+        return self.result
 
     @staticmethod
-    def get_current_screen(point):
-        for screen in QGuiApplication.screens():
-            if screen.geometry().contains(point):
-                return screen
-        return None
-
-    @staticmethod
-    def get_region():
-        logger.info("Awaiting region selection... you can change the scan region in the tray")
+    def get_region() -> SelectionResult:
         selector = RegionSelector()
-        if selector.exec() == QDialog.DialogCode.Accepted:
-            return selector.selection_rect
-        return None
+        return selector.run()
+
+
+class RegionSelectorEventFilter(QWidget):
+    def __init__(self, selector: RegionSelector):
+        super().__init__()
+        self.selector = selector
+
+    def eventFilter(self, obj, event: QEvent) -> bool:
+        if event.type() == QEvent.Type.MouseButtonPress:
+            mouse_event: QMouseEvent = event
+            if mouse_event.button() == Qt.MouseButton.LeftButton:
+                self.selector._on_mouse_press(QCursor.pos())
+                return True
+
+        elif event.type() == QEvent.Type.MouseButtonRelease:
+            mouse_event: QMouseEvent = event
+            if mouse_event.button() == Qt.MouseButton.LeftButton:
+                self.selector._on_mouse_release(QCursor.pos())
+                return True
+
+        elif event.type() == QEvent.Type.KeyPress:
+            key_event: QKeyEvent = event
+            self.selector._on_key_press(key_event.key())
+            return True
+
+        return False
