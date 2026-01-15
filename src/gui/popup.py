@@ -112,6 +112,9 @@ class Popup(QWidget):
         horizontal_padding = margins.left() + margins.right() + (border_width * 2)
 
         screen = QApplication.primaryScreen()
+        if screen is None:
+            logger.warning("No primary screen found during calibration")
+            return
         self.max_content_width = (int(screen.geometry().width() * 0.4)) - horizontal_padding
 
         header_font = QFont(config.font_family)
@@ -163,10 +166,10 @@ class Popup(QWidget):
 
         latest_data = self.get_latest_data()
         if latest_data and latest_data != self._last_latest_data:
-            # update popup content
             full_html, new_size = self._calculate_content_and_size_char_count(latest_data)
-            self.display_label.setText(full_html)
-            self.setFixedSize(new_size)
+            if full_html is not None and new_size is not None:
+                self.display_label.setText(full_html)
+                self.setFixedSize(new_size)
         self._last_latest_data = latest_data
 
         if self._latest_data and self.input_loop.is_virtual_hotkey_down():
@@ -349,6 +352,8 @@ class Popup(QWidget):
     def move_to(self, x, y):
         cursor_point = QPoint(x, y)
         screen = QApplication.screenAt(cursor_point) or QApplication.primaryScreen()
+        if screen is None:
+            return
         screen_geo = screen.geometry()
         popup_size = self.size()
         offset = 15
@@ -356,7 +361,6 @@ class Popup(QWidget):
         ratio = screen.devicePixelRatio()
         x, y = magpie_manager.transform_raw_to_visual((int(x), int(y)), ratio)
 
-        # --- Positioning logic based on mode ---
         mode = config.popup_position_mode
 
         if mode == 'visual_novel_mode':
