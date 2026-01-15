@@ -150,6 +150,17 @@ class SettingsDialog(QDialog):
         self.show_tags_check = QCheckBox()
         self.show_tags_check.setChecked(config.show_tags)
         theme_layout.addRow("  Show Tags:", self.show_tags_check)
+        self.show_kanji_check = QCheckBox()
+        self.show_kanji_check.setChecked(config.show_kanji_info)
+        theme_layout.addRow("  Show Kanji Info:", self.show_kanji_check)
+        self.kanji_display_combo = QComboBox()
+        self.kanji_display_combo.addItems(["Full", "Compact"])
+        self.kanji_display_mode_map = {"Full": "full", "Compact": "compact"}
+        current_kanji_mode = next(
+            (k for k, v in self.kanji_display_mode_map.items() if v == config.kanji_display_mode), "Full"
+        )
+        self.kanji_display_combo.setCurrentText(current_kanji_mode)
+        theme_layout.addRow("  Kanji Display Mode:", self.kanji_display_combo)
         theme_group.setLayout(theme_layout)
         layout.addWidget(theme_group)
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Save | QDialogButtonBox.StandardButton.Cancel)
@@ -205,6 +216,9 @@ class SettingsDialog(QDialog):
         config.show_deconjugation = self.show_deconj_check.isChecked()
         config.show_pos = self.show_pos_check.isChecked()
         config.show_tags = self.show_tags_check.isChecked()
+        config.show_kanji_info = self.show_kanji_check.isChecked()
+        selected_kanji_mode = self.kanji_display_combo.currentText()
+        config.kanji_display_mode = self.kanji_display_mode_map.get(selected_kanji_mode, "full")
         selected_friendly_name = self.popup_position_combo.currentText()
         config.popup_position_mode = self.popup_mode_map.get(selected_friendly_name, "flip_vertically")
         config.theme_name = self.theme_combo.currentText()
