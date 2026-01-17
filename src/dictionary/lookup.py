@@ -80,7 +80,7 @@ class Lookup(threading.Thread):
             self.lookup_cache.move_to_end(truncated_lookup)
             return self.lookup_cache[truncated_lookup]
 
-        all_found_entries: Dict[int, Tuple[dict, Form, int]] = {}
+        all_found_entries: Dict[int, Tuple[dict, Form, int, str]] = {}
         found_primary_match = False
 
         logger.trace(f"--- STARTING LOOKUP FOR: '{truncated_lookup}' ---")
@@ -100,11 +100,22 @@ class Lookup(threading.Thread):
             current_prefix_results = []
 
             for form in deconjugated_forms:
-                entry_indices = []
-                if self._is_kana_only(form.text):
-                    entry_indices = self.dictionary.lookup_kana.get(form.text, [])
-                else:
-                    entry_indices = self.dictionary.lookup_kan.get(form.text, [])
+                matched_variant = ""
+                entry_indices = self._get_raw_indices(form.text)
+                if entry_indices:
+                    matched_variant = form.text
+                if not entry_indices:
+                    kata_text = self._hira_to_kata(form.text)
+                    if kata_text != form.text:
+                        entry_indices = self._get_raw_indices(kata_text)
+                        if entry_indices:
+                            matched_variant = kata_text
+                if not entry_indices:
+                    hira_text = self._kata_to_hira(form.text)
+                    if hira_text != form.text:
+                        entry_indices = self._get_raw_indices(hira_text)
+                        if entry_indices:
+                            matched_variant = hira_text
 
                 # After getting potential entries, filter them based on Part of Speech tags
                 validated_indices = []
@@ -147,16 +158,16 @@ class Lookup(threading.Thread):
                     entry_indices = filtered_indices
 
                 for index in set(entry_indices):
-                    current_prefix_results.append((self.dictionary.entries[index], form, len(prefix)))
+                    current_prefix_results.append((self.dictionary.entries[index], form, len(prefix), matched_variant))
 
             if current_prefix_results:
                 if not found_primary_match:
                     logger.trace(f"  [Lookup] Found primary match with prefix: '{prefix}'")
                     found_primary_match = True
 
-                for entry, form, match_len in current_prefix_results:
+                for entry, form, match_len, matched_variant in current_prefix_results:
                     if entry['id'] not in all_found_entries:
-                        all_found_entries[entry['id']] = (entry, form, match_len)
+                        all_found_entries[entry['id']] = (entry, form, match_len, matched_variant)
 
         results = self._format_and_sort_results(list(all_found_entries.values()), truncated_lookup)
 
@@ -209,11 +220,11 @@ class Lookup(threading.Thread):
 
     def _format_and_sort_results(self, entries_with_forms: list, original_lookup: str) -> List[DictionaryEntry]:
         merged_entries: Dict[Tuple[str, str], Dict] = {}
-        for entry_data, form, match_len in entries_with_forms:
+        for entry_data, form, match_len, matched_variant in entries_with_forms:
             matched_reading = ""
             primary_keb = ""
-            if self._is_kana_only(form.text):
-                matched_reading = form.text
+            if self._is_kana_only(matched_variant):
+                matched_reading = matched_variant
                 for k in entry_data['raw_k_ele']:
                     restrs = k.get('restr', [])
                     if not restrs or matched_reading in restrs:
@@ -222,7 +233,7 @@ class Lookup(threading.Thread):
                 if not primary_keb and entry_data['kebs']:
                     primary_keb = entry_data['kebs'][0]
             else:
-                primary_keb = form.text
+                primary_keb = matched_variant
                 for r in entry_data['raw_r_ele']:
                     restrs = r.get('restr', [])
                     if not restrs or primary_keb in restrs:
@@ -242,7 +253,8 @@ class Lookup(threading.Thread):
                 merged_entries[merge_key] = {
                     "id": entry_data['id'],
                     "written_form": written_form,
-                    "reading": reading_to_display, "senses": list(entry_data['senses']),
+                    "reading": reading_to_display,
+                    "senses": list(entry_data['senses']),
                     "tags": self._get_misc_tags(entry_data),
                     "deconjugation_process": form.process,
                     "priority": priority,
@@ -300,3 +312,36 @@ class Lookup(threading.Thread):
         priority += bonus
         priority -= len(form.process)
         return priority
+
+    def _hira_to_kata(self, text: str) -> str:
+        """Converts Hiragana to Katakana (Nazeka equivalent)."""
+        res = []
+        for char in text:
+            code = ord(char)
+            if 0x3041 <= code <= 0x3096:
+                res.append(chr(code + 0x60))
+            else:
+                res.append(char)
+        return "".join(res)
+
+    def _kata_to_hira(self, text: str) -> str:
+        """Converts Katakana to Hiragana (Nazeka equivalent)."""
+        res = []
+        for char in text:
+            code = ord(char)
+            if 0x30A1 <= code <= 0x30F6:
+                res.append(chr(code - 0x60))
+            elif code == 0x30FD:  # ヽ -> ゝ
+                res.append(chr(0x309D))
+            elif code == 0x30FE:  # ヾ -> ゞ
+                res.append(chr(0x309E))
+            else:
+                res.append(char)
+        return "".join(res)
+
+    def _get_raw_indices(self, text: str) -> List[int]:
+        """Helper to get raw dictionary indices for a string without processing."""
+        if self._is_kana_only(text):
+            return self.dictionary.lookup_kana.get(text, [])
+        else:
+            return self.dictionary.lookup_kan.get(text, [])
