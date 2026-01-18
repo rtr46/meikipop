@@ -74,6 +74,10 @@ class SettingsDialog(QDialog):
         self.auto_scan_interval_spin.setValue(config.auto_scan_interval_seconds)
         self.auto_scan_interval_spin.setSuffix(" s")
         general_layout.addRow("Auto Scan Interval:", self.auto_scan_interval_spin)
+        self.auto_scan_mouse_move_check = QCheckBox()
+        self.auto_scan_mouse_move_check.setChecked(config.auto_scan_on_mouse_move)
+        self.auto_scan_mouse_move_check.setToolTip("Only run OCR when mouse moves (saves CPU)")
+        general_layout.addRow("Auto Scan on Mouse Move Only:", self.auto_scan_mouse_move_check)
         self.auto_scan_no_hotkey_check = QCheckBox()
         self.auto_scan_no_hotkey_check.setChecked(config.auto_scan_mode_lookups_without_hotkey)
         general_layout.addRow("Lookups without Hotkey (in Auto Scan):", self.auto_scan_no_hotkey_check)
@@ -198,6 +202,7 @@ class SettingsDialog(QDialog):
         config.max_lookup_length = self.max_lookup_spin.value()
         config.auto_scan_mode = self.auto_scan_check.isChecked()
         config.auto_scan_interval_seconds = self.auto_scan_interval_spin.value()
+        config.auto_scan_on_mouse_move = self.auto_scan_mouse_move_check.isChecked()
         config.auto_scan_mode_lookups_without_hotkey = self.auto_scan_no_hotkey_check.isChecked()
         if IS_WINDOWS:
             config.magpie_compatibility = self.magpie_check.isChecked()

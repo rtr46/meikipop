@@ -54,7 +54,7 @@ def main():
     input_loop = InputLoop(shared_state)
     popup_window = Popup(shared_state, input_loop)
 
-    screen_manager = ScreenManager(shared_state)  # trigger region selection
+    screen_manager = ScreenManager(shared_state, input_loop)  # trigger region selection
     lookup = Lookup(shared_state, popup_window)  # load dictionary
 
     ocr_processor = OcrProcessor(shared_state)

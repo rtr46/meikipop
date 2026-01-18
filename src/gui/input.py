@@ -154,6 +154,10 @@ class InputLoop(threading.Thread):
                     self.shared_state.screenshot_trigger_event.set()
                 self.started_auto_mode = config.auto_scan_mode
 
+                # trigger screenshots + ocr in auto-on-mouse-move mode
+                if config.auto_scan_mode and config.auto_scan_on_mouse_move and current_mouse_pos != last_mouse_pos:
+                    self.shared_state.screenshot_trigger_event.set()
+
                 # trigger hit_scans + lookups
                 if current_mouse_pos != last_mouse_pos:
                     self.shared_state.hit_scan_queue.put((False, None))
