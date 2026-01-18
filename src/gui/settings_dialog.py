@@ -46,49 +46,84 @@ class SettingsDialog(QDialog):
         self.setWindowTitle(f"{APP_NAME} Settings")
         self.setWindowIcon(QIcon("icon.ico"))
         layout = QVBoxLayout(self)
+
+        # --- General Settings Group ---
         general_group = QGroupBox("General")
         general_layout = QFormLayout()
+
         self.hotkey_combo = QComboBox()
         self.hotkey_combo.addItems(['shift', 'ctrl', 'alt'])
         self.hotkey_combo.setCurrentText(config.hotkey)
         general_layout.addRow("Hotkey:", self.hotkey_combo)
+
         self.ocr_provider_combo = QComboBox()
         self.ocr_provider_combo.addItems(self.ocr_processor.available_providers.keys())
         self.ocr_provider_combo.setCurrentText(config.ocr_provider)
+        self.ocr_provider_combo.currentTextChanged.connect(self._update_glens_state)
         general_layout.addRow("OCR Provider:", self.ocr_provider_combo)
-        self.quality_combo = QComboBox()
-        self.quality_combo.addItems(['fast', 'balanced', 'quality'])
-        self.quality_combo.setCurrentText(config.quality_mode)
-        general_layout.addRow("Quality Mode:", self.quality_combo)
+
+        # Google Lens specific option
+        self.glens_compression_check_label = QLabel("Google Lens Compression:")
+        self.glens_compression_check = QCheckBox()
+        self.glens_compression_check.setChecked(config.glens_low_bandwidth)
+        self.glens_compression_check.setToolTip(
+            "Compresses screenshots before sending them to Google Lens\nSignificantly improves ocr latency on slow internet connections, but slightly worsens ocr accuracy and system load"
+        )
+        general_layout.addRow(self.glens_compression_check_label, self.glens_compression_check)
+
         self.max_lookup_spin = QSpinBox()
         self.max_lookup_spin.setRange(5, 100)
         self.max_lookup_spin.setValue(config.max_lookup_length)
         general_layout.addRow("Max Lookup Length:", self.max_lookup_spin)
+
+        if IS_WINDOWS:
+            self.magpie_check = QCheckBox()
+            self.magpie_check.setChecked(config.magpie_compatibility)
+            self.magpie_check.setToolTip("Enable transformations for compatibility with Magpie game scaler.")
+            general_layout.addRow("Magpie Compatibility:", self.magpie_check)
+
+        general_group.setLayout(general_layout)
+        layout.addWidget(general_group)
+
+        # --- Auto Scan Settings Group ---
+        auto_group = QGroupBox("Auto Scan Mode")
+        auto_layout = QFormLayout()
+
         self.auto_scan_check = QCheckBox()
         self.auto_scan_check.setChecked(config.auto_scan_mode)
-        general_layout.addRow("Auto Scan Mode:", self.auto_scan_check)
+        self.auto_scan_check.setToolTip(
+            "Permanently ocr screen region\nImproves perceived latency, but worsens system load")
+        self.auto_scan_check.toggled.connect(self._update_auto_scan_state)
+        auto_layout.addRow("Enable Auto Scan:", self.auto_scan_check)
+
+        self.auto_scan_mouse_move_check_label = QLabel("Only Scan on Mouse Move:")
+        self.auto_scan_mouse_move_check = QCheckBox()
+        self.auto_scan_mouse_move_check.setChecked(config.auto_scan_on_mouse_move)
+        self.auto_scan_mouse_move_check.setToolTip(
+            "Prevents auto ocr to occur, if mouse is not moved\nCan reduce system load, but worsen perceived latency")
+        auto_layout.addRow(self.auto_scan_mouse_move_check_label, self.auto_scan_mouse_move_check)
+
+        self.auto_scan_interval_spin_label = QLabel("Scan Interval (Cooldown):")
         self.auto_scan_interval_spin = QDoubleSpinBox()
         self.auto_scan_interval_spin.setRange(0.0, 60.0)
         self.auto_scan_interval_spin.setDecimals(1)
         self.auto_scan_interval_spin.setSingleStep(0.1)
         self.auto_scan_interval_spin.setValue(config.auto_scan_interval_seconds)
         self.auto_scan_interval_spin.setSuffix(" s")
-        general_layout.addRow("Auto Scan Interval:", self.auto_scan_interval_spin)
-        self.auto_scan_mouse_move_check = QCheckBox()
-        self.auto_scan_mouse_move_check.setChecked(config.auto_scan_on_mouse_move)
-        self.auto_scan_mouse_move_check.setToolTip("Only run OCR when mouse moves (saves CPU)")
-        general_layout.addRow("Auto Scan on Mouse Move Only:", self.auto_scan_mouse_move_check)
+        self.auto_scan_interval_spin.setToolTip(
+            "Prevents auto ocr to occur with a high frequency\nCan reduce system load, but worsens perceived latency")
+        auto_layout.addRow(self.auto_scan_interval_spin_label, self.auto_scan_interval_spin)
+
+        self.auto_scan_no_hotkey_check_label = QLabel("Show Popup without Hotkey:")
         self.auto_scan_no_hotkey_check = QCheckBox()
         self.auto_scan_no_hotkey_check.setChecked(config.auto_scan_mode_lookups_without_hotkey)
-        general_layout.addRow("Lookups without Hotkey (in Auto Scan):", self.auto_scan_no_hotkey_check)
-        if IS_WINDOWS:
-            self.magpie_check = QCheckBox()
-            self.magpie_check.setChecked(config.magpie_compatibility)
-            self.magpie_check.setToolTip("Enable transformations for compatibility with Magpie game scaler.")
-            general_layout.addRow("Magpie Compatibility:", self.magpie_check)
-        general_group.setLayout(general_layout)
-        layout.addWidget(general_group)
-        theme_group = QGroupBox("Popup")
+        auto_layout.addRow(self.auto_scan_no_hotkey_check_label, self.auto_scan_no_hotkey_check)
+
+        auto_group.setLayout(auto_layout)
+        layout.addWidget(auto_group)
+
+        # --- Theme/Popup Settings Group ---
+        theme_group = QGroupBox("Popup Appearance")
         theme_layout = QFormLayout()
         self.theme_combo = QComboBox()
         self.theme_combo.addItems(THEMES.keys())
@@ -160,7 +195,26 @@ class SettingsDialog(QDialog):
         buttons.accepted.connect(self.save_and_accept)
         buttons.rejected.connect(self.reject)
         layout.addWidget(buttons)
+
+        # Initialize UI States
         self._update_color_buttons()
+        self._update_auto_scan_state(self.auto_scan_check.isChecked())
+        self._update_glens_state(self.ocr_provider_combo.currentText())
+
+    def _update_auto_scan_state(self, is_checked):
+        """Grays out auto scan options if the main toggle is off."""
+        self.auto_scan_interval_spin.setEnabled(is_checked)
+        self.auto_scan_no_hotkey_check.setEnabled(is_checked)
+        self.auto_scan_mouse_move_check.setEnabled(is_checked)
+        self.auto_scan_interval_spin_label.setEnabled(is_checked)
+        self.auto_scan_no_hotkey_check_label.setEnabled(is_checked)
+        self.auto_scan_mouse_move_check_label.setEnabled(is_checked)
+
+    def _update_glens_state(self, current_provider):
+        """Grays out Google Lens options if another provider is selected."""
+        is_glens = "Google Lens" in current_provider
+        self.glens_compression_check.setEnabled(is_glens)
+        self.glens_compression_check_label.setEnabled(is_glens)
 
     def _mark_as_custom(self):
         if self.theme_combo.currentText() != "Custom":
@@ -198,12 +252,13 @@ class SettingsDialog(QDialog):
 
         # Update all other config values
         config.hotkey = self.hotkey_combo.currentText()
-        config.quality_mode = self.quality_combo.currentText()
+        config.glens_low_bandwidth = self.glens_compression_check.isChecked()
         config.max_lookup_length = self.max_lookup_spin.value()
         config.auto_scan_mode = self.auto_scan_check.isChecked()
         config.auto_scan_interval_seconds = self.auto_scan_interval_spin.value()
-        config.auto_scan_on_mouse_move = self.auto_scan_mouse_move_check.isChecked()
         config.auto_scan_mode_lookups_without_hotkey = self.auto_scan_no_hotkey_check.isChecked()
+        config.auto_scan_on_mouse_move = self.auto_scan_mouse_move_check.isChecked()
+
         if IS_WINDOWS:
             config.magpie_compatibility = self.magpie_check.isChecked()
         config.compact_mode = self.compact_check.isChecked()

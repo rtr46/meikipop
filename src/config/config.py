@@ -6,7 +6,7 @@ import sys
 logger = logging.getLogger(__name__)
 
 APP_NAME = "meikipop"
-APP_VERSION = "v.1.6.0"
+APP_VERSION = "v.1.7.0"
 MAX_DICT_ENTRIES = 10
 IS_LINUX = sys.platform.startswith('linux')
 IS_WINDOWS = sys.platform.startswith('win')
@@ -33,7 +33,7 @@ class Config:
                 'hotkey': 'shift',
                 'scan_region': 'region',
                 'max_lookup_length': '25',
-                'quality_mode': 'balanced',
+                'glens_low_bandwidth': 'false',
                 'ocr_provider': 'Google Lens',
                 'auto_scan_mode': 'false',
                 'auto_scan_mode_lookups_without_hotkey': 'true',
@@ -75,7 +75,7 @@ class Config:
         self.hotkey = config.get('Settings', 'hotkey')
         self.scan_region = config.get('Settings', 'scan_region')
         self.max_lookup_length = config.getint('Settings', 'max_lookup_length')
-        self.quality_mode = config.get('Settings', 'quality_mode')
+        self.glens_low_bandwidth = config.getboolean('Settings', 'glens_low_bandwidth')
         self.ocr_provider = config.get('Settings', 'ocr_provider')
         self.auto_scan_mode = config.getboolean('Settings', 'auto_scan_mode')
         self.auto_scan_mode_lookups_without_hotkey = config.getboolean('Settings',
@@ -108,7 +108,7 @@ class Config:
             'hotkey': self.hotkey,
             'scan_region': self.scan_region,
             'max_lookup_length': str(self.max_lookup_length),
-            'quality_mode': self.quality_mode,
+            'glens_low_bandwidth': str(self.glens_low_bandwidth).lower(),
             'ocr_provider': self.ocr_provider,
             'auto_scan_mode': str(self.auto_scan_mode).lower(),
             'auto_scan_mode_lookups_without_hotkey': str(self.auto_scan_mode_lookups_without_hotkey).lower(),
