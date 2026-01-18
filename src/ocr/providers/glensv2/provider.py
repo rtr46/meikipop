@@ -32,7 +32,7 @@ class GoogleLensOcrV2(OcrProvider):
         })
 
     def _process_image_for_upload(self, image: Image.Image) -> Tuple[bytes, int, int]:
-        if config.quality_mode == 'fast':
+        if config.glens_low_bandwidth:
             scale_factor = math.sqrt(0.5)
             new_width = int(image.width * scale_factor)
             new_height = int(image.height * scale_factor)
@@ -41,15 +41,10 @@ class GoogleLensOcrV2(OcrProvider):
             with io.BytesIO() as bio:
                 processed_image.save(bio, format='PNG')
                 return bio.getvalue(), new_width, new_height
-        elif config.quality_mode == 'balanced':
-            processed_image = image if image.mode == 'RGB' else image.convert('RGB')
-            with io.BytesIO() as bio:
-                processed_image.save(bio, format='JPEG', quality=90)
-                return bio.getvalue(), image.width, image.height
         else:
             processed_image = image if image.mode == 'RGB' else image.convert('RGB')
             with io.BytesIO() as bio:
-                processed_image.save(bio, format='PNG')
+                processed_image.save(bio, format='JPEG', quality=90)
                 return bio.getvalue(), image.width, image.height
 
     def scan(self, image: Image.Image) -> Optional[List[Paragraph]]:

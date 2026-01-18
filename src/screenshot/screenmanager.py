@@ -13,12 +13,14 @@ logger = logging.getLogger(__name__) # Get the logger
 
 # todo doesnt work when monitors change
 class ScreenManager(threading.Thread):
-    def __init__(self, shared_state):
+    def __init__(self, shared_state, input_loop):
         super().__init__(daemon=True, name="ScreenManager")
         self.shared_state = shared_state
         self.monitor = None
         self.last_ocr_put_time = 0.0
         self.last_screenshot = None
+        self.last_mouse_pos = None
+        self.input_loop = input_loop
         if config.scan_region == "region":
             self.set_scan_region()
         else:
@@ -42,11 +44,16 @@ class ScreenManager(threading.Thread):
                 if not self.shared_state.running: break
                 logger.debug("Screenshot: Triggered!")
 
+                # prevent multiple ocr runs during auto_scan_interval_seconds
                 seconds_since_last_ocr = time.perf_counter() - self.last_ocr_put_time
                 if config.auto_scan_mode and seconds_since_last_ocr < config.auto_scan_interval_seconds:
                     logger.debug(
                         f"...{seconds_since_last_ocr:.2f}s since last ocr, sleeping for another {config.auto_scan_interval_seconds - seconds_since_last_ocr:.2f}s")
                     self._sleep_and_handle_loop_exit(config.auto_scan_interval_seconds - seconds_since_last_ocr)
+                    continue
+
+                # prevent ocr runs without mouse movements for auto-on-mouse-move mode
+                if config.auto_scan_mode and config.auto_scan_on_mouse_move and self.last_mouse_pos == self.input_loop.get_mouse_pos():
                     continue
 
                 logger.debug("screenmanager acquiring lock...")
@@ -64,6 +71,7 @@ class ScreenManager(threading.Thread):
                     continue
 
                 self.last_screenshot = screenshot
+                self.last_mouse_pos = self.input_loop.get_mouse_pos()
                 img = Image.frombytes("RGB", screenshot.size, screenshot.bgra, "raw", "BGRX")
                 self.shared_state.ocr_queue.put(img)
                 self.last_ocr_put_time = time.perf_counter()
