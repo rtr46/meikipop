@@ -1,9 +1,10 @@
 # src/gui/settings_dialog.py
 from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QColor, QIcon
+from PyQt6.QtGui import QColor, QIcon, QFontDatabase
 from PyQt6.QtWidgets import (QWidget, QDialog, QFormLayout, QComboBox,
                              QSpinBox, QCheckBox, QPushButton, QColorDialog, QVBoxLayout, QHBoxLayout,
-                             QGroupBox, QDialogButtonBox, QLabel, QSlider, QLineEdit, QDoubleSpinBox)
+                             QGroupBox, QDialogButtonBox, QLabel, QSlider, QDoubleSpinBox,
+                             QTabWidget, QSizePolicy, QFontComboBox)
 
 from src.config.config import config, APP_NAME, IS_WINDOWS
 from src.gui.input import InputLoop
@@ -45,22 +46,40 @@ class SettingsDialog(QDialog):
 
         self.setWindowTitle(f"{APP_NAME} Settings")
         self.setWindowIcon(QIcon("icon.ico"))
-        layout = QVBoxLayout(self)
+        self.setMinimumWidth(400)
 
-        # --- General Settings Group ---
-        general_group = QGroupBox("General")
-        general_layout = QFormLayout()
+        # Keep track of all form layouts to unify their spacing later
+        self.form_layouts = []
+
+        # Main vertical layout for the Dialog
+        main_layout = QVBoxLayout(self)
+
+        # Create the Tab Widget
+        self.tabs = QTabWidget()
+
+        # ==========================================
+        # TAB 1: General
+        # ==========================================
+        self.tab_general = QWidget()
+        self.tab_general_layout = QVBoxLayout(self.tab_general)
+
+        # --- Group 1: Core Settings ---
+        core_group = QGroupBox("Core Settings")
+        core_layout = QFormLayout()
+        self.form_layouts.append(core_layout)
 
         self.hotkey_combo = QComboBox()
         self.hotkey_combo.addItems(['shift', 'ctrl', 'alt'])
         self.hotkey_combo.setCurrentText(config.hotkey)
-        general_layout.addRow("Hotkey:", self.hotkey_combo)
+        self._set_expanding(self.hotkey_combo)
+        core_layout.addRow("Hotkey:", self.hotkey_combo)
 
         self.ocr_provider_combo = QComboBox()
         self.ocr_provider_combo.addItems(self.ocr_processor.available_providers.keys())
         self.ocr_provider_combo.setCurrentText(config.ocr_provider)
         self.ocr_provider_combo.currentTextChanged.connect(self._update_glens_state)
-        general_layout.addRow("OCR Provider:", self.ocr_provider_combo)
+        self._set_expanding(self.ocr_provider_combo)
+        core_layout.addRow("OCR Provider:", self.ocr_provider_combo)
 
         # Google Lens specific option
         self.glens_compression_check_label = QLabel("Google Lens Compression:")
@@ -69,25 +88,26 @@ class SettingsDialog(QDialog):
         self.glens_compression_check.setToolTip(
             "Compresses screenshots before sending them to Google Lens\nSignificantly improves ocr latency on slow internet connections, but slightly worsens ocr accuracy and system load"
         )
-        general_layout.addRow(self.glens_compression_check_label, self.glens_compression_check)
+        core_layout.addRow(self.glens_compression_check_label, self.glens_compression_check)
 
         self.max_lookup_spin = QSpinBox()
         self.max_lookup_spin.setRange(5, 100)
         self.max_lookup_spin.setValue(config.max_lookup_length)
-        general_layout.addRow("Max Lookup Length:", self.max_lookup_spin)
+        core_layout.addRow("Max Lookup Length:", self.max_lookup_spin)
 
         if IS_WINDOWS:
             self.magpie_check = QCheckBox()
             self.magpie_check.setChecked(config.magpie_compatibility)
             self.magpie_check.setToolTip("Enable transformations for compatibility with Magpie game scaler.")
-            general_layout.addRow("Magpie Compatibility:", self.magpie_check)
+            core_layout.addRow("Magpie Compatibility:", self.magpie_check)
 
-        general_group.setLayout(general_layout)
-        layout.addWidget(general_group)
+        core_group.setLayout(core_layout)
+        self.tab_general_layout.addWidget(core_group)
 
-        # --- Auto Scan Settings Group ---
+        # --- Group 2: Auto Scan Mode ---
         auto_group = QGroupBox("Auto Scan Mode")
         auto_layout = QFormLayout()
+        self.form_layouts.append(auto_layout)
 
         self.auto_scan_check = QCheckBox()
         self.auto_scan_check.setChecked(config.auto_scan_mode)
@@ -120,16 +140,66 @@ class SettingsDialog(QDialog):
         auto_layout.addRow(self.auto_scan_no_hotkey_check_label, self.auto_scan_no_hotkey_check)
 
         auto_group.setLayout(auto_layout)
-        layout.addWidget(auto_group)
+        self.tab_general_layout.addWidget(auto_group)
 
-        # --- Theme/Popup Settings Group ---
-        theme_group = QGroupBox("Popup Appearance")
+        # --- Group 3: Popup Behavior ---
+        behavior_group = QGroupBox("Popup Behavior")
+        behavior_layout = QFormLayout()
+        self.form_layouts.append(behavior_layout)
+
+        self.popup_position_combo = QComboBox()
+        self.popup_position_combo.addItems(["Flip Both", "Flip Vertically", "Flip Horizontally", "Visual Novel Mode"])
+        self.popup_mode_map = {
+            "Flip Both": "flip_both",
+            "Flip Vertically": "flip_vertically",
+            "Flip Horizontally": "flip_horizontally",
+            "Visual Novel Mode": "visual_novel_mode"
+        }
+        current_friendly_name = next(
+            (k for k, v in self.popup_mode_map.items() if v == config.popup_position_mode), "Flip Vertically"
+        )
+        self.popup_position_combo.setCurrentText(current_friendly_name)
+        self._set_expanding(self.popup_position_combo)
+        behavior_layout.addRow("Position Mode:", self.popup_position_combo)
+
+        self.compact_check = QCheckBox()
+        self.compact_check.setChecked(config.compact_mode)
+        behavior_layout.addRow("Compact Mode:", self.compact_check)
+
+        self.show_deconj_check = QCheckBox()
+        self.show_deconj_check.setChecked(config.show_deconjugation)
+        behavior_layout.addRow("Show Deconjugation:", self.show_deconj_check)
+
+        self.show_pos_check = QCheckBox()
+        self.show_pos_check.setChecked(config.show_pos)
+        behavior_layout.addRow("Show Part of Speech:", self.show_pos_check)
+
+        self.show_tags_check = QCheckBox()
+        self.show_tags_check.setChecked(config.show_tags)
+        behavior_layout.addRow("Show Tags:", self.show_tags_check)
+
+        behavior_group.setLayout(behavior_layout)
+        self.tab_general_layout.addWidget(behavior_group)
+        self.tab_general_layout.addStretch()
+
+        # ==========================================
+        # TAB 2: Appearance
+        # ==========================================
+        self.tab_appearance = QWidget()
+        self.tab_appearance_layout = QVBoxLayout(self.tab_appearance)
+
+        # --- Group 1: Theme ---
+        theme_group = QGroupBox("Theme")
         theme_layout = QFormLayout()
+        self.form_layouts.append(theme_layout)
+
         self.theme_combo = QComboBox()
         self.theme_combo.addItems(THEMES.keys())
         self.theme_combo.setCurrentText(config.theme_name if config.theme_name in THEMES else "Custom")
         self.theme_combo.currentTextChanged.connect(self._apply_theme)
-        theme_layout.addRow("Theme:", self.theme_combo)
+        self._set_expanding(self.theme_combo)
+        theme_layout.addRow("Preset:", self.theme_combo)
+
         self.opacity_slider_container = QWidget()
         opacity_layout = QHBoxLayout(self.opacity_slider_container)
         opacity_layout.setContentsMargins(0, 0, 0, 0)
@@ -143,7 +213,47 @@ class SettingsDialog(QDialog):
         opacity_layout.addWidget(self.opacity_slider)
         opacity_layout.addWidget(self.opacity_label)
         theme_layout.addRow("Background Opacity:", self.opacity_slider_container)
-        theme_layout.addRow(QLabel("Customize Colors:"))
+
+        theme_group.setLayout(theme_layout)
+        self.tab_appearance_layout.addWidget(theme_group)
+
+        # --- Group 2: Typography ---
+        typo_group = QGroupBox("Typography")
+        typo_layout = QFormLayout()
+        self.form_layouts.append(typo_layout)
+
+        self.font_family_combo = QFontComboBox()
+        self.font_family_combo.setWritingSystem(QFontDatabase.WritingSystem.Japanese)
+        self._set_expanding(self.font_family_combo)
+        default_font_name = self.font().family()
+        if self.font_family_combo.findText(default_font_name) == -1:
+            self.font_family_combo.insertItem(0, default_font_name)
+        target_font_name = config.font_family if config.font_family else default_font_name
+        index = self.font_family_combo.findText(target_font_name)
+        if index != -1:
+            self.font_family_combo.setCurrentIndex(index)
+        else:
+            self.font_family_combo.setCurrentText(default_font_name)
+        typo_layout.addRow("Font Family:", self.font_family_combo)
+
+        self.font_size_header_spin = QSpinBox()
+        self.font_size_header_spin.setRange(8, 72)
+        self.font_size_header_spin.setValue(config.font_size_header)
+        typo_layout.addRow("Font Size (Header):", self.font_size_header_spin)
+
+        self.font_size_def_spin = QSpinBox()
+        self.font_size_def_spin.setRange(8, 72)
+        self.font_size_def_spin.setValue(config.font_size_definitions)
+        typo_layout.addRow("Font Size (Definitions):", self.font_size_def_spin)
+
+        typo_group.setLayout(typo_layout)
+        self.tab_appearance_layout.addWidget(typo_group)
+
+        # --- Group 3: Colors ---
+        color_group = QGroupBox("Colors")
+        color_layout = QFormLayout()
+        self.form_layouts.append(color_layout)
+
         self.color_widgets = {}
         color_settings_map = {"Background": "color_background", "Foreground": "color_foreground",
                               "Highlight Word": "color_highlight_word", "Highlight Reading": "color_highlight_reading"}
@@ -151,55 +261,60 @@ class SettingsDialog(QDialog):
             btn = QPushButton(getattr(config, key))
             btn.clicked.connect(lambda _, k=key, b=btn: self.pick_color(k, b))
             self.color_widgets[key] = btn
-            theme_layout.addRow(f"  {name}:", btn)
-        theme_layout.addRow(QLabel("Customize Layout:"))
-        self.popup_position_combo = QComboBox()
-        self.popup_position_combo.addItems(["Flip Both", "Flip Vertically", "Flip Horizontally", "Visual Novel Mode"])
-        self.popup_mode_map = {
-            "Flip Both": "flip_both",
-            "Flip Vertically": "flip_vertically",
-            "Flip Horizontally": "flip_horizontally",
-            "Visual Novel Mode": "visual_novel_mode"
-        }
-        # Find the friendly name for the current config value to set the combo box
-        current_friendly_name = next(
-            (k for k, v in self.popup_mode_map.items() if v == config.popup_position_mode), "Flip Vertically"
-        )
-        self.popup_position_combo.setCurrentText(current_friendly_name)
-        theme_layout.addRow("  Popup Position Mode:", self.popup_position_combo)
-        self.font_family_edit = QLineEdit(config.font_family)
-        theme_layout.addRow("  Font Family:", self.font_family_edit)
-        self.font_size_header_spin = QSpinBox();
-        self.font_size_header_spin.setRange(8, 72)
-        self.font_size_header_spin.setValue(config.font_size_header)
-        theme_layout.addRow("  Font Size (Header):", self.font_size_header_spin)
-        self.font_size_def_spin = QSpinBox()
-        self.font_size_def_spin.setRange(8, 72)
-        self.font_size_def_spin.setValue(config.font_size_definitions)
-        theme_layout.addRow("  Font Size (Definitions):", self.font_size_def_spin)
-        self.compact_check = QCheckBox()
-        self.compact_check.setChecked(config.compact_mode)
-        theme_layout.addRow("  Compact Mode:", self.compact_check)
-        self.show_deconj_check = QCheckBox()
-        self.show_deconj_check.setChecked(config.show_deconjugation)
-        theme_layout.addRow("  Show Deconjugation:", self.show_deconj_check)
-        self.show_pos_check = QCheckBox()
-        self.show_pos_check.setChecked(config.show_pos)
-        theme_layout.addRow("  Show Part of Speech:", self.show_pos_check)
-        self.show_tags_check = QCheckBox()
-        self.show_tags_check.setChecked(config.show_tags)
-        theme_layout.addRow("  Show Tags:", self.show_tags_check)
-        theme_group.setLayout(theme_layout)
-        layout.addWidget(theme_group)
+            color_layout.addRow(f"{name}:", btn)
+
+        color_group.setLayout(color_layout)
+        self.tab_appearance_layout.addWidget(color_group)
+        self.tab_appearance_layout.addStretch()
+
+        # Add tabs to main layout
+        self.tabs.addTab(self.tab_general, "General")
+        self.tabs.addTab(self.tab_appearance, "Appearance")
+        main_layout.addWidget(self.tabs)
+
+        # Buttons
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Save | QDialogButtonBox.StandardButton.Cancel)
         buttons.accepted.connect(self.save_and_accept)
         buttons.rejected.connect(self.reject)
-        layout.addWidget(buttons)
+        main_layout.addWidget(buttons)
+
+        # Calculate Layout Alignment
+        self._finalize_layout_styling()
 
         # Initialize UI States
         self._update_color_buttons()
         self._update_auto_scan_state(self.auto_scan_check.isChecked())
         self._update_glens_state(self.ocr_provider_combo.currentText())
+
+    def _set_expanding(self, widget):
+        """Helper to let a widget expand horizontally"""
+        widget.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+
+    def _finalize_layout_styling(self):
+        """ Sets all label columns to that width to align the controls perfectly"""
+        max_label_width = 0
+
+        # Pass 1: Measure largest label
+        for layout in self.form_layouts:
+            for i in range(layout.rowCount()):
+                item = layout.itemAt(i, QFormLayout.ItemRole.LabelRole)
+                if item and item.widget():
+                    max_label_width = max(max_label_width, item.widget().sizeHint().width())
+
+        # Add a little padding to be safe
+        max_label_width += 5
+
+        # Pass 2: Apply width and standard styling
+        for layout in self.form_layouts:
+            # Important: AllNonFixedFieldsGrow ensures combo boxes fill the space
+            layout.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow)
+            layout.setLabelAlignment(Qt.AlignmentFlag.AlignLeft)
+            layout.setHorizontalSpacing(15)  # Unified gap size
+
+            for i in range(layout.rowCount()):
+                item = layout.itemAt(i, QFormLayout.ItemRole.LabelRole)
+                if item and item.widget():
+                    item.widget().setMinimumWidth(max_label_width)
 
     def _update_auto_scan_state(self, is_checked):
         """Grays out auto scan options if the main toggle is off."""
@@ -269,7 +384,7 @@ class SettingsDialog(QDialog):
         config.popup_position_mode = self.popup_mode_map.get(selected_friendly_name, "flip_vertically")
         config.theme_name = self.theme_combo.currentText()
         config.background_opacity = self.opacity_slider.value()
-        config.font_family = self.font_family_edit.text()
+        config.font_family = self.font_family_combo.currentFont().family()
         config.font_size_header = self.font_size_header_spin.value()
         config.font_size_definitions = self.font_size_def_spin.value()
         config.save()

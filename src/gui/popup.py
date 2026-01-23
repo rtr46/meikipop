@@ -75,6 +75,7 @@ class Popup(QWidget):
         bg_color = QColor(config.color_background)
         r, g, b = bg_color.red(), bg_color.green(), bg_color.blue()
         a = config.background_opacity
+        self.probe_label.setFont(QFont(config.font_family))
         self.frame.setStyleSheet(f"""
             QFrame {{
                 background-color: rgba({r}, {g}, {b}, {a});
