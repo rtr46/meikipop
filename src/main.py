@@ -63,8 +63,7 @@ def main():
 
     for t in [lookup, hit_scanner, ocr_processor, screen_manager, input_loop]:
         t.start()
-        
-    signal.signal(signal.SIGINT, signal.SIG_DFL)
+
     ready_message = f"""
     --------------------------------------------------
     {APP_NAME}.{APP_VERSION} is running in the background.
@@ -77,6 +76,12 @@ def main():
     --------------------------------------------------
     """
     print(ready_message)
+
+    def signal_handler(sig, frame):
+        QApplication.quit()
+
+    signal.signal(signal.SIGINT, signal_handler)
+    signal.signal(signal.SIGTERM, signal_handler)
     exit_code = app.exec()
 
     shared_state.running = False
