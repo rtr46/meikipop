@@ -5,7 +5,7 @@ import sys
 from PyQt6.QtGui import QIcon, QAction, QActionGroup
 from PyQt6.QtWidgets import QSystemTrayIcon, QMenu, QApplication
 
-from src.config.config import APP_NAME, config
+from src.config.config import APP_NAME, config, IS_WINDOWS
 from src.gui.settings_dialog import SettingsDialog
 from src.ocr.ocr import OcrProcessor
 
@@ -122,6 +122,8 @@ class TrayIcon(QSystemTrayIcon):
         self.setContextMenu(self.menu)
         self.setToolTip(APP_NAME)
 
+        self.prevent_ghost_icon_on_win()
+
         self.show()
 
     def on_tray_activated(self, reason):
@@ -202,3 +204,21 @@ class TrayIcon(QSystemTrayIcon):
     def show_settings(self):
         settings_dialog = SettingsDialog(self.ocr_processor, self.popup_window, self.input_loop, self)
         settings_dialog.exec()
+
+    def prevent_ghost_icon_on_win(self):
+        if IS_WINDOWS:
+            import ctypes
+            from ctypes import wintypes
+            def win_console_handler(ctrl_type):
+                # 2 = CTRL_CLOSE_EVENT (Closing the console window)
+                if ctrl_type == 2:
+                    try:
+                        self.hide()
+                    except:
+                        pass
+                    return False
+                return False
+
+            HandlerRoutine = ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.DWORD)
+            self._win_handler_ref = HandlerRoutine(win_console_handler)
+            ctypes.windll.kernel32.SetConsoleCtrlHandler(self._win_handler_ref, True)
