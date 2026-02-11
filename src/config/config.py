@@ -6,7 +6,7 @@ import sys
 logger = logging.getLogger(__name__)
 
 APP_NAME = "meikipop"
-APP_VERSION = "v.1.7.2"
+APP_VERSION = "v.1.8.0"
 MAX_DICT_ENTRIES = 10
 IS_LINUX = sys.platform.startswith('linux')
 IS_WINDOWS = sys.platform.startswith('win')
@@ -50,6 +50,7 @@ class Config:
                 'show_deconjugation': 'false',
                 'show_pos': 'false',
                 'show_tags': 'false',
+                'show_kanji': 'true',
                 'color_background': '#2E2E2E',
                 'color_foreground': '#F0F0F0',
                 'color_highlight_word': '#88D8FF',
@@ -91,6 +92,7 @@ class Config:
         self.show_deconjugation = config.getboolean('Theme', 'show_deconjugation')
         self.show_pos = config.getboolean('Theme', 'show_pos')
         self.show_tags = config.getboolean('Theme', 'show_tags')
+        self.show_kanji = config.getboolean('Theme', 'show_kanji')
         self.color_background = config.get('Theme', 'color_background')
         self.color_foreground = config.get('Theme', 'color_foreground')
         self.color_highlight_word = config.get('Theme', 'color_highlight_word')
@@ -125,6 +127,7 @@ class Config:
             'show_deconjugation': str(self.show_deconjugation).lower(),
             'show_pos': str(self.show_pos).lower(),
             'show_tags': str(self.show_tags).lower(),
+            'show_kanji': str(self.show_kanji).lower(),
             'color_background': self.color_background,
             'color_foreground': self.color_foreground,
             'color_highlight_word': self.color_highlight_word,

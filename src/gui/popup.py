@@ -9,7 +9,7 @@ from PyQt6.QtGui import QColor, QCursor, QFont, QFontMetrics, QFontInfo
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel, QFrame, QApplication
 
 from src.config.config import config, MAX_DICT_ENTRIES, IS_MACOS
-from src.dictionary.lookup import DictionaryEntry
+from src.dictionary.lookup import DictionaryEntry, KanjiEntry
 from src.gui.magpie_manager import magpie_manager
 
 # macOS-specific imports for focus management
@@ -187,9 +187,44 @@ class Popup(QWidget):
         all_html_parts = []
         max_ratio = 0.0
 
-        for i, entry in enumerate(entries[:min(len(entries), MAX_DICT_ENTRIES)]):
+        for i, entry in enumerate(entries):
             if i > 0:
                 all_html_parts.append('<hr style="margin-top: 0px; margin-bottom: 0px;">')
+
+            if isinstance(entry, KanjiEntry):
+                header_text_calc = entry.character
+                if entry.readings:
+                    header_text_calc += f" [{', '.join(entry.readings)}]"
+                header_text_calc += " [字]"
+
+                header_ratio = len(header_text_calc) / self.header_chars_per_line
+                max_ratio = max(max_ratio, header_ratio)
+
+                char_html = f'<span style="color: {config.color_highlight_word}; font-size:{config.font_size_header}px;">{entry.character}</span>'
+
+                readings_html = ""
+                if entry.readings:
+                    readings_str = ", ".join(entry.readings)
+                    readings_html = f' <span style="color: {config.color_highlight_reading}; font-size:{config.font_size_header - 2}px;">[{readings_str}]</span>'
+
+                tag_html = f' <span style="font-size:{config.font_size_definitions}px;">[字]</span>'
+
+                header_html = f"{char_html}{readings_html}{tag_html}"
+
+                def_parts = []
+                for idx, m in enumerate(entry.meanings):
+                    def_parts.append(f"<b>({idx + 1})</b> {m}")
+
+                separator = "; " if config.compact_mode else "<br>"
+                full_def_html = separator.join(def_parts)
+
+                def_calc_text = "; ".join([f"({x + 1}) {m}" for x, m in enumerate(entry.meanings)])
+                def_ratio = len(def_calc_text) / self.def_chars_per_line
+                max_ratio = max(max_ratio, def_ratio)
+
+                final_html = f"{header_html}<div style='font-size:{config.font_size_definitions}px;'>{full_def_html}</div>"
+                all_html_parts.append(final_html)
+                continue
 
             header_text_calc = entry.written_form
             if entry.reading: header_text_calc += f" [{entry.reading}]"

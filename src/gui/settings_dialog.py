@@ -178,6 +178,10 @@ class SettingsDialog(QDialog):
         self.show_tags_check.setChecked(config.show_tags)
         behavior_layout.addRow("Show Tags:", self.show_tags_check)
 
+        self.show_kanji_check = QCheckBox()
+        self.show_kanji_check.setChecked(config.show_kanji)
+        behavior_layout.addRow("Show Kanji Entries:", self.show_kanji_check)
+
         behavior_group.setLayout(behavior_layout)
         self.tab_general_layout.addWidget(behavior_group)
         self.tab_general_layout.addStretch()
@@ -380,6 +384,7 @@ class SettingsDialog(QDialog):
         config.show_deconjugation = self.show_deconj_check.isChecked()
         config.show_pos = self.show_pos_check.isChecked()
         config.show_tags = self.show_tags_check.isChecked()
+        config.show_kanji = self.show_kanji_check.isChecked()
         selected_friendly_name = self.popup_position_combo.currentText()
         config.popup_position_mode = self.popup_mode_map.get(selected_friendly_name, "flip_vertically")
         config.theme_name = self.theme_combo.currentText()

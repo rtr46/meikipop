@@ -21,6 +21,10 @@ def main():
     os.remove('JMdict') # rm JMdict
     [os.remove(f) for f in glob.glob('JMdict*.json')] # rm JMdict*.json
 
+    print("processing kanjidic2...")
+    exec(open('scripts/process_kanji.py').read())
+    shutil.move('kanjidic2.json', os.path.join('data', 'kanjidic2.json'))
+
     print("Starting dictionary build process...")
     data_dir = 'data'
     output_path = 'jmdict_enhanced.pkl'
@@ -28,8 +32,9 @@ def main():
     jmdict_files = [os.path.join(data_dir, f) for f in os.listdir(data_dir) if f.startswith('JMdict') and f.endswith('.json')]
     deconjugator_path = os.path.join(data_dir, 'deconjugator.json')
     priority_path = os.path.join(data_dir, 'priority.json')
+    kanjidic_path = os.path.join(data_dir, 'kanjidic2.json')
 
-    if not all(os.path.exists(p) for p in jmdict_files + [deconjugator_path, priority_path]):
+    if not all(os.path.exists(p) for p in jmdict_files + [deconjugator_path, priority_path, kanjidic_path]):
         print(f"Error: Missing required dictionary files in '{data_dir}' folder.", file=sys.stderr)
         print("Please place JMdict*.json, deconjugator.json, and priority.json in the data folder.", file=sys.stderr)
         sys.exit(1)
@@ -43,6 +48,7 @@ def main():
     dictionary.import_jmdict_json(jmdict_files)
     dictionary.import_deconjugator(deconjugator_path)
     dictionary.import_priority(priority_path)
+    dictionary.import_kanjidic_json(kanjidic_path)
 
     duration = time.time() - start_time
     print(f"All data imported and processed in {duration:.2f} seconds.")
