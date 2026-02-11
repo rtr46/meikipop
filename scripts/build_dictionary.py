@@ -1,28 +1,29 @@
-# build_dictionary.py
 import glob
 import os
 import shutil
 import sys
 import time
+import subprocess
 
 import requests
-
 from src.dictionary.customdict import Dictionary
 
 
 def main():
+    python_exe = sys.executable
+
     print("downloading jmdict...")
     download_url = 'http://ftp.edrdg.org/pub/Nihongo/JMdict.gz'
     open('JMdict', 'wb').write(requests.get(download_url).content)
 
     print("processing jmdict -> json...")
-    exec(open('scripts/process.py').read()) # python scripts/process.py - see https://github.com/wareya/nazeka/blob/master/etc/process.py
-    [shutil.copy(f, os.path.join('data', os.path.basename(f))) for f in glob.glob('JMdict*.json')] # mv JMdict*.json data
-    os.remove('JMdict') # rm JMdict
-    [os.remove(f) for f in glob.glob('JMdict*.json')] # rm JMdict*.json
+    subprocess.run([python_exe, 'scripts/process.py'], check=True)
+    [shutil.copy(f, os.path.join('data', os.path.basename(f))) for f in glob.glob('JMdict*.json')]
+    os.remove('JMdict')
+    [os.remove(f) for f in glob.glob('JMdict*.json')]
 
     print("processing kanjidic2...")
-    exec(open('scripts/process_kanji.py').read())
+    subprocess.run([python_exe, 'scripts/process_kanji.py'], check=True)
     shutil.move('kanjidic2.json', os.path.join('data', 'kanjidic2.json'))
 
     print("Starting dictionary build process...")

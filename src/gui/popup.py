@@ -177,12 +177,57 @@ class Popup(QWidget):
         mouse_pos = QCursor.pos()
         self.move_to(mouse_pos.x(), mouse_pos.y())
 
+    def _render_kanji_entry(self, entry: KanjiEntry):
+        # Colors and sizes from config
+        c_word = config.color_highlight_word
+        c_read = config.color_highlight_reading
+        c_text = config.color_foreground
+        fs_head = config.font_size_header
+        fs_def = config.font_size_definitions
+
+        readings_str = ", ".join(entry.readings)
+        readings_str = f"[{readings_str}]"
+
+        meanings_str = ", ".join(entry.meanings)
+
+        header = f"""
+                    <span style="font-size:{fs_head}px; color:{c_word}; padding-right: 8px;">{entry.character}</span>
+                    <span style="font-size:{fs_head - 2}px; color:{c_read};"> {readings_str}</span>
+                    <span style="font-size:{fs_head - 2}px; color:{c_text};"> {meanings_str}</span>
+        """
+
+        ex_parts = []
+        for ex in entry.examples:
+            part = (f"<span style='font-size:{fs_head - 2}px; color:{c_word}'>{ex['w']}</span> "
+                    f"<span style='font-size:{fs_def}px; color:{c_read}'>[{ex['r']}]</span> "
+                    f"<span style='font-size:{fs_def}px; color:{c_text}'>{ex['m']}</span>")
+            ex_parts.append(part)
+
+        examples_html = ""
+        if ex_parts:
+            examples_html = f'<div>' \
+                            f'{"; ".join(ex_parts)}</div>'
+
+        comp_parts = []
+        for c in entry.components:
+            part = (f"<span style='font-size:{fs_def}px; color:{c_word}'>{c.get('c', '')}</span> "
+                    f"<span style='font-size:{fs_def}px; color:{c_text}'>{c.get('m', '')}</span>")
+            comp_parts.append(part)
+
+        components_html = f'<div>{", ".join(comp_parts)}</div>' if comp_parts else ''
+
+        return f"""
+        <div style="border: 1px solid {config.color_highlight_word};">
+            {header}
+            {examples_html}
+            {components_html}
+        </div>
+        """
+
     def _calculate_content_and_size_char_count(self, entries: Optional[List[DictionaryEntry]]) -> tuple[
         Optional[str], Optional[QSize]]:
         if not self.is_calibrated: return None, None
-
-        if not entries:
-            return None, None
+        if not entries: return None, None
 
         all_html_parts = []
         max_ratio = 0.0
@@ -192,38 +237,14 @@ class Popup(QWidget):
                 all_html_parts.append('<hr style="margin-top: 0px; margin-bottom: 0px;">')
 
             if isinstance(entry, KanjiEntry):
-                header_text_calc = entry.character
-                if entry.readings:
-                    header_text_calc += f" [{', '.join(entry.readings)}]"
-                header_text_calc += " [字]"
+                # Calculate width ratio based on character + meanings + readings
+                header_text_calc = f"{entry.character} {', '.join(entry.meanings)} {', '.join(entry.readings)}"
+                max_ratio = max(max_ratio, len(header_text_calc) / self.header_chars_per_line)
 
-                header_ratio = len(header_text_calc) / self.header_chars_per_line
-                max_ratio = max(max_ratio, header_ratio)
+                # Because the table uses width="100%", we should ensure a minimum reasonable width
+                max_ratio = max(max_ratio, 0.7)
 
-                char_html = f'<span style="color: {config.color_highlight_word}; font-size:{config.font_size_header}px;">{entry.character}</span>'
-
-                readings_html = ""
-                if entry.readings:
-                    readings_str = ", ".join(entry.readings)
-                    readings_html = f' <span style="color: {config.color_highlight_reading}; font-size:{config.font_size_header - 2}px;">[{readings_str}]</span>'
-
-                tag_html = f' <span style="font-size:{config.font_size_definitions}px;">[字]</span>'
-
-                header_html = f"{char_html}{readings_html}{tag_html}"
-
-                def_parts = []
-                for idx, m in enumerate(entry.meanings):
-                    def_parts.append(f"<b>({idx + 1})</b> {m}")
-
-                separator = "; " if config.compact_mode else "<br>"
-                full_def_html = separator.join(def_parts)
-
-                def_calc_text = "; ".join([f"({x + 1}) {m}" for x, m in enumerate(entry.meanings)])
-                def_ratio = len(def_calc_text) / self.def_chars_per_line
-                max_ratio = max(max_ratio, def_ratio)
-
-                final_html = f"{header_html}<div style='font-size:{config.font_size_definitions}px;'>{full_def_html}</div>"
-                all_html_parts.append(final_html)
+                all_html_parts.append(self._render_kanji_entry(entry))
                 continue
 
             header_text_calc = entry.written_form

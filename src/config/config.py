@@ -15,129 +15,77 @@ IS_MACOS = sys.platform.startswith('darwin')
 class Config:
     _instance = None
 
+    _SCHEMA = {
+        'Settings': {
+            'hotkey': 'shift',
+            'scan_region': 'region',
+            'max_lookup_length': 25,
+            'glens_low_bandwidth': False,
+            'ocr_provider': 'Google Lens',
+            'auto_scan_mode': False,
+            'auto_scan_mode_lookups_without_hotkey': True,
+            'auto_scan_interval_seconds': 0.0,
+            'auto_scan_on_mouse_move': False,
+            'magpie_compatibility': False
+        },
+        'Theme': {
+            'theme_name': 'Nazeka',
+            'font_family': '',
+            'font_size_definitions': 14,
+            'font_size_header': 18,
+            'compact_mode': True,
+            'show_deconjugation': False,
+            'show_pos': False,
+            'show_tags': False,
+            'show_kanji': True,
+            'color_background': '#2E2E2E',
+            'color_foreground': '#F0F0F0',
+            'color_highlight_word': '#88D8FF',
+            'color_highlight_reading': '#90EE90',
+            'background_opacity': 245,
+            'popup_position_mode': 'flip_vertically'
+        }
+    }
+
     def __new__(cls):
-        if cls._instance is None:
-            cls._instance = super(Config, cls).__new__(cls)
-            cls._instance._initialized = False
+        if not cls._instance:
+            cls._instance = super().__new__(cls)
+            cls._instance._load()
         return cls._instance
 
-    def __init__(self):
-        self._load()
-
     def _load(self):
-        config = configparser.ConfigParser()
+        parser = configparser.ConfigParser()
+        parser.read('config.ini', encoding='utf-8')
 
-        # Step 1: Set hardcoded defaults
-        defaults = {
-            'Settings': {
-                'hotkey': 'shift',
-                'scan_region': 'region',
-                'max_lookup_length': '25',
-                'glens_low_bandwidth': 'false',
-                'ocr_provider': 'Google Lens',
-                'auto_scan_mode': 'false',
-                'auto_scan_mode_lookups_without_hotkey': 'true',
-                'auto_scan_interval_seconds': '0.0',
-                'auto_scan_on_mouse_move': 'false',
-                'magpie_compatibility': 'false'
-            },
-            'Theme': {
-                'theme_name': 'Nazeka',
-                'font_family': '',
-                'font_size_definitions': '14',
-                'font_size_header': '18',
-                'compact_mode': 'true',
-                'show_deconjugation': 'false',
-                'show_pos': 'false',
-                'show_tags': 'false',
-                'show_kanji': 'true',
-                'color_background': '#2E2E2E',
-                'color_foreground': '#F0F0F0',
-                'color_highlight_word': '#88D8FF',
-                'color_highlight_reading': '#90EE90',
-                'background_opacity': '245',
-                'popup_position_mode': 'flip_vertically'
-            }
-        }
-        config.read_dict(defaults)
-
-        # Step 2: Load from config.ini, creating it if it doesn't exist
-        try:
-            if not config.read('config.ini'):
-                with open('config.ini', 'w', encoding='utf-8') as configfile:
-                    config.write(configfile)
-                logger.info("config.ini not found, created with default settings.")
-            else:
-                logger.info("Loaded settings from config.ini.")
-        except configparser.Error as e:
-            logger.warning(f"Warning: Could not parse config.ini. Using defaults. Error: {e}")
-
-        # Apply settings from the config object first
-        self.hotkey = config.get('Settings', 'hotkey')
-        self.scan_region = config.get('Settings', 'scan_region')
-        self.max_lookup_length = config.getint('Settings', 'max_lookup_length')
-        self.glens_low_bandwidth = config.getboolean('Settings', 'glens_low_bandwidth')
-        self.ocr_provider = config.get('Settings', 'ocr_provider')
-        self.auto_scan_mode = config.getboolean('Settings', 'auto_scan_mode')
-        self.auto_scan_mode_lookups_without_hotkey = config.getboolean('Settings',
-                                                                       'auto_scan_mode_lookups_without_hotkey')
-        self.auto_scan_interval_seconds = config.getfloat('Settings', 'auto_scan_interval_seconds')
-        self.auto_scan_on_mouse_move = config.getboolean('Settings', 'auto_scan_on_mouse_move')
-        self.magpie_compatibility = config.getboolean('Settings', 'magpie_compatibility')
-        self.theme_name = config.get('Theme', 'theme_name')
-        self.font_family = config.get('Theme', 'font_family')
-        self.font_size_definitions = config.getint('Theme', 'font_size_definitions')
-        self.font_size_header = config.getint('Theme', 'font_size_header')
-        self.compact_mode = config.getboolean('Theme', 'compact_mode')
-        self.show_deconjugation = config.getboolean('Theme', 'show_deconjugation')
-        self.show_pos = config.getboolean('Theme', 'show_pos')
-        self.show_tags = config.getboolean('Theme', 'show_tags')
-        self.show_kanji = config.getboolean('Theme', 'show_kanji')
-        self.color_background = config.get('Theme', 'color_background')
-        self.color_foreground = config.get('Theme', 'color_foreground')
-        self.color_highlight_word = config.get('Theme', 'color_highlight_word')
-        self.color_highlight_reading = config.get('Theme', 'color_highlight_reading')
-        self.background_opacity = config.getint('Theme', 'background_opacity')
-        self.popup_position_mode = config.get('Theme', 'popup_position_mode')
+        for section, settings in self._SCHEMA.items():
+            for key, default in settings.items():
+                if parser.has_option(section, key):
+                    if isinstance(default, bool):
+                        val = parser.getboolean(section, key)
+                    elif isinstance(default, int):
+                        val = parser.getint(section, key)
+                    elif isinstance(default, float):
+                        val = parser.getfloat(section, key)
+                    else:
+                        val = parser.get(section, key)
+                else:
+                    val = default
+                setattr(self, key, val)
 
         self.is_enabled = True
-
-        # todo command line args parsing
+        logger.info("Configuration loaded.")
 
     def save(self):
-        config = configparser.ConfigParser()
-        config['Settings'] = {
-            'hotkey': self.hotkey,
-            'scan_region': self.scan_region,
-            'max_lookup_length': str(self.max_lookup_length),
-            'glens_low_bandwidth': str(self.glens_low_bandwidth).lower(),
-            'ocr_provider': self.ocr_provider,
-            'auto_scan_mode': str(self.auto_scan_mode).lower(),
-            'auto_scan_mode_lookups_without_hotkey': str(self.auto_scan_mode_lookups_without_hotkey).lower(),
-            'auto_scan_interval_seconds': str(self.auto_scan_interval_seconds),
-            'auto_scan_on_mouse_move': str(self.auto_scan_on_mouse_move).lower(),
-            'magpie_compatibility': str(self.magpie_compatibility).lower()
-        }
-        config['Theme'] = {
-            'theme_name': self.theme_name,
-            'font_family': self.font_family,
-            'font_size_definitions': str(self.font_size_definitions),
-            'font_size_header': str(self.font_size_header),
-            'compact_mode': str(self.compact_mode).lower(),
-            'show_deconjugation': str(self.show_deconjugation).lower(),
-            'show_pos': str(self.show_pos).lower(),
-            'show_tags': str(self.show_tags).lower(),
-            'show_kanji': str(self.show_kanji).lower(),
-            'color_background': self.color_background,
-            'color_foreground': self.color_foreground,
-            'color_highlight_word': self.color_highlight_word,
-            'color_highlight_reading': self.color_highlight_reading,
-            'background_opacity': str(self.background_opacity),
-            'popup_position_mode': self.popup_position_mode
-        }
-        with open('config.ini', 'w', encoding='utf-8') as configfile:
-            config.write(configfile)
+        parser = configparser.ConfigParser()
+        for section, settings in self._SCHEMA.items():
+            parser.add_section(section)
+            for key in settings:
+                val = getattr(self, key)
+                parser.set(section, key, str(val).lower() if isinstance(val, bool) else str(val))
+
+        with open('config.ini', 'w', encoding='utf-8') as f:
+            parser.write(f)
         logger.info("Settings saved to config.ini.")
 
-# The singleton instance
+
 config = Config()

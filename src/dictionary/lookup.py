@@ -31,6 +31,8 @@ class KanjiEntry:
     character: str
     meanings: List[str]
     readings: List[str]
+    components: List[Dict[str, str]]
+    examples: List[Dict[str, str]]
 
 logger = logging.getLogger(__name__)
 
@@ -184,7 +186,9 @@ class Lookup(threading.Thread):
                 k_entry = KanjiEntry(
                     character=kanji_data['character'],
                     meanings=kanji_data['meanings'],
-                    readings=kanji_data['readings']
+                    readings=kanji_data['readings'],
+                    components=kanji_data.get('components', []),
+                    examples=kanji_data.get('examples', [])
                 )
                 final_results.append(k_entry)
 
