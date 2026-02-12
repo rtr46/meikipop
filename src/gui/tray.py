@@ -26,7 +26,7 @@ def get_resource_path(relative_path):
 
 
 class TrayIcon(QSystemTrayIcon):
-    def __init__(self, screen_manager, ocr_processor: OcrProcessor, popup_window, input_loop, parent=None):
+    def __init__(self, screen_manager, ocr_processor: OcrProcessor, popup_window, input_loop, lookup, parent=None):
         # Resolve icon paths using robust helper
         icon_path = get_resource_path('src/resources/icon.ico')
         icon_inactive_path = get_resource_path('src/resources/icon.inactive.ico')
@@ -47,6 +47,7 @@ class TrayIcon(QSystemTrayIcon):
         self.ocr_processor = ocr_processor
         self.popup_window = popup_window
         self.input_loop = input_loop
+        self.lookup = lookup
         self.scan_area_actions = []
 
         self.menu = QMenu()
@@ -202,7 +203,7 @@ class TrayIcon(QSystemTrayIcon):
                 break
 
     def show_settings(self):
-        settings_dialog = SettingsDialog(self.ocr_processor, self.popup_window, self.input_loop, self)
+        settings_dialog = SettingsDialog(self.ocr_processor, self.popup_window, self.input_loop, self.lookup, self)
         settings_dialog.exec()
 
     def prevent_ghost_icon_on_win(self):

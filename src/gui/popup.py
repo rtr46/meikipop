@@ -8,8 +8,8 @@ from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QColor, QCursor, QFont, QFontMetrics, QFontInfo
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel, QFrame, QApplication
 
-from src.config.config import config, MAX_DICT_ENTRIES, IS_MACOS
-from src.dictionary.lookup import DictionaryEntry
+from src.config.config import config, IS_MACOS
+from src.dictionary.lookup import DictionaryEntry, KanjiEntry
 from src.gui.magpie_manager import magpie_manager
 
 # macOS-specific imports for focus management
@@ -177,19 +177,81 @@ class Popup(QWidget):
         mouse_pos = QCursor.pos()
         self.move_to(mouse_pos.x(), mouse_pos.y())
 
+    def _render_kanji_entry(self, entry: KanjiEntry):
+        # Colors and sizes from config
+        c_word = config.color_highlight_word
+        c_read = config.color_highlight_reading
+        c_text = config.color_foreground
+        fs_head = config.font_size_header
+        fs_def = config.font_size_definitions
+        show_details = config.show_examples or config.show_components
+
+        readings_str = ", ".join(entry.readings)
+        readings_str = f"[{readings_str}]"
+
+        header_html = f"""
+                    <span style="font-size:{fs_head}px; color:{c_word}; padding-right: 8px;">{entry.character}</span>
+                    <span style="font-size:{fs_head - 2}px; color:{c_read};"> {readings_str}</span>
+        """
+
+        meanings_str = ", ".join(entry.meanings)
+        meanings_html = f'<span style="font-size:{fs_def}px; color:{c_text};"> {meanings_str}</span>'
+        if not show_details:
+            meanings_html = f'<span style="font-size:{fs_def}px; color:{c_text};"> [字]</span><div>{meanings_html}</div>'
+
+        examples_html = ""
+        if config.show_examples:
+            ex_parts = []
+            for ex in entry.examples:
+                part = (f"<span style='font-size:{fs_head - 2}px; color:{c_word}'>{ex['w']}</span> "
+                        f"<span style='font-size:{fs_def}px; color:{c_read}'>[{ex['r']}]</span> "
+                        f"<span style='font-size:{fs_def}px; color:{c_text}'>{ex['m']}</span>")
+                ex_parts.append(part)
+            if ex_parts:
+                examples_html = f'<div>' \
+                                f'{"; ".join(ex_parts)}</div>'
+
+        components_html = ""
+        if config.show_components:
+            comp_parts = []
+            for c in entry.components:
+                part = (f"<span style='font-size:{fs_def}px; color:{c_word}'>{c.get('c', '')}</span> "
+                        f"<span style='font-size:{fs_def}px; color:{c_text}'>{c.get('m', '')}</span>")
+                comp_parts.append(part)
+            if comp_parts:
+                components_html = f'<div>{", ".join(comp_parts)}</div>'
+
+        return f"""
+        <div style="border: 1px solid {config.color_highlight_word};">
+            {header_html}
+            {meanings_html}
+            {examples_html}
+            {components_html}
+        </div>
+        """
+
     def _calculate_content_and_size_char_count(self, entries: Optional[List[DictionaryEntry]]) -> tuple[
         Optional[str], Optional[QSize]]:
         if not self.is_calibrated: return None, None
-
-        if not entries:
-            return None, None
+        if not entries: return None, None
 
         all_html_parts = []
         max_ratio = 0.0
 
-        for i, entry in enumerate(entries[:min(len(entries), MAX_DICT_ENTRIES)]):
+        for i, entry in enumerate(entries):
             if i > 0:
                 all_html_parts.append('<hr style="margin-top: 0px; margin-bottom: 0px;">')
+
+            if isinstance(entry, KanjiEntry):
+                header_definition = ', '.join(
+                    entry.meanings) if config.show_examples or config.show_components else '[字]'
+                header_text_calc = f"{entry.character} {', '.join(entry.readings)} {header_definition}"
+                max_ratio = max(max_ratio, len(header_text_calc) / self.header_chars_per_line)
+
+                max_ratio = max(max_ratio, 0.7)
+
+                all_html_parts.append(self._render_kanji_entry(entry))
+                continue
 
             header_text_calc = entry.written_form
             if entry.reading: header_text_calc += f" [{entry.reading}]"

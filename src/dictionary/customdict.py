@@ -7,13 +7,15 @@ from collections import defaultdict
 
 from src.config.config import IS_WINDOWS
 
-logger = logging.getLogger(__name__) # Get the logger
+logger = logging.getLogger(__name__)  # Get the logger
+
 
 class Dictionary:
     def __init__(self):
         self.entries = []
         self.lookup_kan = defaultdict(list)
         self.lookup_kana = defaultdict(list)
+        self.kanji_entries = {}
         self.deconjugator_rules = []
         self.priority_map = {}
         self._is_loaded = False
@@ -36,13 +38,21 @@ class Dictionary:
                     senses_processed.append({'glosses': glosses, 'pos': [p.strip('&;') for p in pos]})
             if not (kebs or rebs) or not senses_processed:
                 continue
-            entry = {'id': entry_data['seq'], 'kebs': kebs, 'rebs': rebs, 'senses': senses_processed, 'raw_k_ele': entry_data.get('k_ele', []), 'raw_r_ele': entry_data.get('r_ele', []), 'raw_sense': entry_data.get('sense', [])}
+            entry = {'id': entry_data['seq'], 'kebs': kebs, 'rebs': rebs, 'senses': senses_processed,
+                     'raw_k_ele': entry_data.get('k_ele', []), 'raw_r_ele': entry_data.get('r_ele', []),
+                     'raw_sense': entry_data.get('sense', [])}
             self.entries.append(entry)
             entry_index = len(self.entries) - 1
             for keb in kebs:
                 self.lookup_kan[keb].append(entry_index)
             for reb in rebs:
                 self.lookup_kana[reb].append(entry_index)
+
+    def import_kanjidic_json(self, json_path: str):
+        with open(json_path, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+            for entry in data:
+                self.kanji_entries[entry['character']] = entry
 
     def import_deconjugator(self, json_path: str):
         with open(json_path, 'r', encoding='utf-8') as f:
@@ -57,7 +67,9 @@ class Dictionary:
                 self.priority_map[key] = item[2]
 
     def save_dictionary(self, file_path: str):
-        data_to_save = {'entries': self.entries, 'lookup_kan': self.lookup_kan, 'lookup_kana': self.lookup_kana, 'deconjugator_rules': self.deconjugator_rules, 'priority_map': self.priority_map}
+        data_to_save = {'entries': self.entries, 'lookup_kan': self.lookup_kan, 'lookup_kana': self.lookup_kana,
+                        'kanji_entries': self.kanji_entries, 'deconjugator_rules': self.deconjugator_rules,
+                        'priority_map': self.priority_map}
         with open(file_path, 'wb') as f:
             pickle.dump(data_to_save, f, protocol=pickle.HIGHEST_PROTOCOL)
 
@@ -74,6 +86,7 @@ class Dictionary:
             self.lookup_kana = data['lookup_kana']
             self.deconjugator_rules = data['deconjugator_rules']
             self.priority_map = data['priority_map']
+            self.kanji_entries = data.get('kanji_entries', {})
             self._is_loaded = True
             duration = time.perf_counter() - start_time
             logger.info(f"Dictionary loaded in {duration:.2f} seconds.")

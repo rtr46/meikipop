@@ -26,6 +26,14 @@ class DictionaryEntry:
     priority: float = 0.0
 
 
+@dataclass
+class KanjiEntry:
+    character: str
+    meanings: List[str]
+    readings: List[str]
+    components: List[Dict[str, str]]
+    examples: List[Dict[str, str]]
+
 logger = logging.getLogger(__name__)
 
 class Lookup(threading.Thread):
@@ -43,6 +51,9 @@ class Lookup(threading.Thread):
         self.deconjugator = Deconjugator(self.dictionary.deconjugator_rules)
 
         self.CACHE_SIZE = 500
+
+    def clear_cache(self):
+        self.lookup_cache = OrderedDict()
 
     def run(self):
         logger.debug("Lookup thread started.")
@@ -170,12 +181,25 @@ class Lookup(threading.Thread):
                         all_found_entries[entry['id']] = (entry, form, match_len, matched_variant)
 
         results = self._format_and_sort_results(list(all_found_entries.values()), truncated_lookup)
+        final_results = results[:MAX_DICT_ENTRIES]
 
-        self.lookup_cache[truncated_lookup] = results[:MAX_DICT_ENTRIES]
+        if config.show_kanji and truncated_lookup and KANJI_REGEX.match(truncated_lookup[0]):
+            kanji_data = self.dictionary.kanji_entries.get(truncated_lookup[0])
+            if kanji_data:
+                k_entry = KanjiEntry(
+                    character=kanji_data['character'],
+                    meanings=kanji_data['meanings'],
+                    readings=kanji_data['readings'],
+                    components=kanji_data.get('components', []),
+                    examples=kanji_data.get('examples', [])
+                )
+                final_results.append(k_entry)
+
+        self.lookup_cache[truncated_lookup] = final_results
         if len(self.lookup_cache) > self.CACHE_SIZE:
             self.lookup_cache.popitem(last=False)
 
-        return results[:MAX_DICT_ENTRIES]
+        return final_results
 
     def _is_kana_only(self, text: str) -> bool:
         return not KANJI_REGEX.search(text)

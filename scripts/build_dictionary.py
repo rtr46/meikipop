@@ -4,22 +4,28 @@ import os
 import shutil
 import sys
 import time
+import subprocess
 
 import requests
-
 from src.dictionary.customdict import Dictionary
 
 
 def main():
+    python_exe = sys.executable
+
     print("downloading jmdict...")
     download_url = 'http://ftp.edrdg.org/pub/Nihongo/JMdict.gz'
     open('JMdict', 'wb').write(requests.get(download_url).content)
 
     print("processing jmdict -> json...")
-    exec(open('scripts/process.py').read()) # python scripts/process.py - see https://github.com/wareya/nazeka/blob/master/etc/process.py
-    [shutil.copy(f, os.path.join('data', os.path.basename(f))) for f in glob.glob('JMdict*.json')] # mv JMdict*.json data
-    os.remove('JMdict') # rm JMdict
-    [os.remove(f) for f in glob.glob('JMdict*.json')] # rm JMdict*.json
+    subprocess.run([python_exe, 'scripts/process.py'], check=True)
+    [shutil.copy(f, os.path.join('data', os.path.basename(f))) for f in glob.glob('JMdict*.json')]
+    os.remove('JMdict')
+    [os.remove(f) for f in glob.glob('JMdict*.json')]
+
+    print("processing kanjidic2...")
+    subprocess.run([python_exe, 'scripts/process_kanji.py'], check=True)
+    shutil.move('kanjidic2.json', os.path.join('data', 'kanjidic2.json'))
 
     print("Starting dictionary build process...")
     data_dir = 'data'
@@ -28,8 +34,9 @@ def main():
     jmdict_files = [os.path.join(data_dir, f) for f in os.listdir(data_dir) if f.startswith('JMdict') and f.endswith('.json')]
     deconjugator_path = os.path.join(data_dir, 'deconjugator.json')
     priority_path = os.path.join(data_dir, 'priority.json')
+    kanjidic_path = os.path.join(data_dir, 'kanjidic2.json')
 
-    if not all(os.path.exists(p) for p in jmdict_files + [deconjugator_path, priority_path]):
+    if not all(os.path.exists(p) for p in jmdict_files + [deconjugator_path, priority_path, kanjidic_path]):
         print(f"Error: Missing required dictionary files in '{data_dir}' folder.", file=sys.stderr)
         print("Please place JMdict*.json, deconjugator.json, and priority.json in the data folder.", file=sys.stderr)
         sys.exit(1)
@@ -43,6 +50,7 @@ def main():
     dictionary.import_jmdict_json(jmdict_files)
     dictionary.import_deconjugator(deconjugator_path)
     dictionary.import_priority(priority_path)
+    dictionary.import_kanjidic_json(kanjidic_path)
 
     duration = time.time() - start_time
     print(f"All data imported and processed in {duration:.2f} seconds.")
