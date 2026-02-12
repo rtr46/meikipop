@@ -6,7 +6,7 @@ from PyQt6.QtWidgets import (QWidget, QDialog, QFormLayout, QComboBox,
                              QGroupBox, QDialogButtonBox, QLabel, QSlider, QDoubleSpinBox,
                              QTabWidget, QSizePolicy, QFontComboBox)
 
-from dictionary.lookup import Lookup
+from src.dictionary.lookup import Lookup
 from src.config.config import config, APP_NAME, IS_WINDOWS
 from src.gui.input import InputLoop
 from src.gui.popup import Popup
