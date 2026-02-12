@@ -6,6 +6,7 @@ from PyQt6.QtWidgets import (QWidget, QDialog, QFormLayout, QComboBox,
                              QGroupBox, QDialogButtonBox, QLabel, QSlider, QDoubleSpinBox,
                              QTabWidget, QSizePolicy, QFontComboBox)
 
+from dictionary.lookup import Lookup
 from src.config.config import config, APP_NAME, IS_WINDOWS
 from src.gui.input import InputLoop
 from src.gui.popup import Popup
@@ -37,12 +38,14 @@ THEMES = {
 
 
 class SettingsDialog(QDialog):
-    def __init__(self, ocr_processor: OcrProcessor, popup_window: Popup, input_loop: InputLoop, tray_icon, parent=None):
+    def __init__(self, ocr_processor: OcrProcessor, popup_window: Popup, input_loop: InputLoop, lookup: Lookup,
+                 tray_icon, parent=None):
         super().__init__(parent)
         self.ocr_processor = ocr_processor
         self.popup_window = popup_window
         self.input_loop = input_loop
         self.tray_icon = tray_icon
+        self.lookup = lookup
 
         self.setWindowTitle(f"{APP_NAME} Settings")
         self.setWindowIcon(QIcon("icon.ico"))
@@ -166,28 +169,60 @@ class SettingsDialog(QDialog):
         self.compact_check.setChecked(config.compact_mode)
         behavior_layout.addRow("Compact Mode:", self.compact_check)
 
-        self.show_deconj_check = QCheckBox()
-        self.show_deconj_check.setChecked(config.show_deconjugation)
-        behavior_layout.addRow("Show Deconjugation:", self.show_deconj_check)
-
-        self.show_pos_check = QCheckBox()
-        self.show_pos_check.setChecked(config.show_pos)
-        behavior_layout.addRow("Show Part of Speech:", self.show_pos_check)
-
-        self.show_tags_check = QCheckBox()
-        self.show_tags_check.setChecked(config.show_tags)
-        behavior_layout.addRow("Show Tags:", self.show_tags_check)
-
-        self.show_kanji_check = QCheckBox()
-        self.show_kanji_check.setChecked(config.show_kanji)
-        behavior_layout.addRow("Show Kanji Entries:", self.show_kanji_check)
-
         behavior_group.setLayout(behavior_layout)
         self.tab_general_layout.addWidget(behavior_group)
         self.tab_general_layout.addStretch()
 
         # ==========================================
-        # TAB 2: Appearance
+        # TAB 2: Popup Content
+        # ==========================================
+        self.tab_content = QWidget()
+        self.tab_content_layout = QVBoxLayout(self.tab_content)
+
+        # --- Group 1: Vocab Entry Content ---
+        vocab_group = QGroupBox("Vocab Entry Content")
+        vocab_layout = QFormLayout()
+        self.form_layouts.append(vocab_layout)
+
+        self.show_deconj_check = QCheckBox()
+        self.show_deconj_check.setChecked(config.show_deconjugation)
+        vocab_layout.addRow("Show Deconjugation:", self.show_deconj_check)
+
+        self.show_pos_check = QCheckBox()
+        self.show_pos_check.setChecked(config.show_pos)
+        vocab_layout.addRow("Show Part of Speech:", self.show_pos_check)
+
+        self.show_tags_check = QCheckBox()
+        self.show_tags_check.setChecked(config.show_tags)
+        vocab_layout.addRow("Show Tags:", self.show_tags_check)
+
+        vocab_group.setLayout(vocab_layout)
+        self.tab_content_layout.addWidget(vocab_group)
+
+        # --- Group 2: Kanji Entry Content ---
+        kanji_group = QGroupBox("Kanji Entry Content")
+        kanji_layout = QFormLayout()
+        self.form_layouts.append(kanji_layout)
+
+        self.show_kanji_check = QCheckBox()
+        self.show_kanji_check.setChecked(config.show_kanji)
+        self.show_kanji_check.toggled.connect(self._update_kanji_options_state)
+        kanji_layout.addRow("Show Kanji Entries:", self.show_kanji_check)
+
+        self.show_examples_check = QCheckBox()
+        self.show_examples_check.setChecked(config.show_examples)
+        kanji_layout.addRow("Show Examples:", self.show_examples_check)
+
+        self.show_components_check = QCheckBox()
+        self.show_components_check.setChecked(config.show_components)
+        kanji_layout.addRow("Show Components:", self.show_components_check)
+
+        kanji_group.setLayout(kanji_layout)
+        self.tab_content_layout.addWidget(kanji_group)
+        self.tab_content_layout.addStretch()
+
+        # ==========================================
+        # TAB 3: Popup Appearance
         # ==========================================
         self.tab_appearance = QWidget()
         self.tab_appearance_layout = QVBoxLayout(self.tab_appearance)
@@ -273,7 +308,8 @@ class SettingsDialog(QDialog):
 
         # Add tabs to main layout
         self.tabs.addTab(self.tab_general, "General")
-        self.tabs.addTab(self.tab_appearance, "Appearance")
+        self.tabs.addTab(self.tab_content, "Popup Content")
+        self.tabs.addTab(self.tab_appearance, "Popup Appearance")
         main_layout.addWidget(self.tabs)
 
         # Buttons
@@ -289,6 +325,7 @@ class SettingsDialog(QDialog):
         self._update_color_buttons()
         self._update_auto_scan_state(self.auto_scan_check.isChecked())
         self._update_glens_state(self.ocr_provider_combo.currentText())
+        self._update_kanji_options_state(self.show_kanji_check.isChecked())
 
     def _set_expanding(self, widget):
         """Helper to let a widget expand horizontally"""
@@ -334,6 +371,12 @@ class SettingsDialog(QDialog):
         is_glens = "Google Lens" in current_provider
         self.glens_compression_check.setEnabled(is_glens)
         self.glens_compression_check_label.setEnabled(is_glens)
+
+    def _update_kanji_options_state(self, is_checked):
+        """Enables/Disables kanji specific sub-options."""
+        self.show_examples_check.setEnabled(is_checked)
+        self.show_components_check.setEnabled(is_checked)
+        self.lookup.clear_cache()
 
     def _mark_as_custom(self):
         if self.theme_combo.currentText() != "Custom":
@@ -385,6 +428,9 @@ class SettingsDialog(QDialog):
         config.show_pos = self.show_pos_check.isChecked()
         config.show_tags = self.show_tags_check.isChecked()
         config.show_kanji = self.show_kanji_check.isChecked()
+        config.show_examples = self.show_examples_check.isChecked()
+        config.show_components = self.show_components_check.isChecked()
+
         selected_friendly_name = self.popup_position_combo.currentText()
         config.popup_position_mode = self.popup_mode_map.get(selected_friendly_name, "flip_vertically")
         config.theme_name = self.theme_combo.currentText()

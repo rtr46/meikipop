@@ -52,6 +52,9 @@ class Lookup(threading.Thread):
 
         self.CACHE_SIZE = 500
 
+    def clear_cache(self):
+        self.lookup_cache = OrderedDict()
+
     def run(self):
         logger.debug("Lookup thread started.")
         while self.shared_state.running:

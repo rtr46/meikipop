@@ -38,6 +38,8 @@ class Config:
             'show_pos': False,
             'show_tags': False,
             'show_kanji': True,
+            'show_examples': False,
+            'show_components': False,
             'color_background': '#2E2E2E',
             'color_foreground': '#F0F0F0',
             'color_highlight_word': '#88D8FF',
