@@ -62,7 +62,7 @@ def run_process():
         parts = line.split(',')
         if len(parts) >= 2:
             try:
-                word_to_rank[parts[0]] = int(parts[1])
+                word_to_rank[parts[0]] = int(parts[2])
             except:
                 continue
 
