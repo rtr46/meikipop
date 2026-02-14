@@ -196,7 +196,7 @@ class Popup(QWidget):
 
         meanings_str = ", ".join(entry.meanings)
         meanings_html = f'<span style="font-size:{fs_def}px; color:{c_text};"> {meanings_str}</span>'
-        if not show_details:
+        if not config.compact_mode:
             meanings_html = f'<span style="font-size:{fs_def}px; color:{c_text};"> [字]</span><div>{meanings_html}</div>'
 
         examples_html = ""
@@ -273,10 +273,13 @@ class Popup(QWidget):
             def_text_parts_calc = []
             def_text_parts_html = []
             for idx, sense in enumerate(entry.senses):
-                glosses_str = '; '.join(sense.get('glosses', []))
+                glosses = sense.get('glosses', [])
+                glosses_str = ""
+                if glosses:
+                    glosses_str = ", ".join(glosses) if config.show_all_glosses else sense.get('glosses')[0]
                 pos_list = sense.get('pos', [])
-                sense_calc = f"({idx + 1})"
-                sense_html = f"<b>({idx + 1})</b> "
+                sense_calc = f"({idx + 1})" if config.show_all_glosses else ""
+                sense_html = f"<b>({idx + 1})</b> " if config.show_all_glosses else ""
                 if config.show_pos and pos_list:
                     pos_str = f' ({", ".join(pos_list)})'
                     sense_calc += pos_str
@@ -298,7 +301,7 @@ class Popup(QWidget):
                     def_ratio = len(def_text_calc) / self.def_chars_per_line
                     max_ratio = max(max_ratio, def_ratio)
 
-            definitions_html_final = f'<div style="font-size:{config.font_size_definitions}px;">{full_def_text_html}</div>'
+            definitions_html_final = f'{" " if config.compact_mode else "<br>"}<span style="font-size:{config.font_size_definitions}px;">{full_def_text_html}</span>'
             all_html_parts.append(f"{header_html}{definitions_html_final}")
 
         optimal_content_width = self.max_content_width * min(1.0, max_ratio)
