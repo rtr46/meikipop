@@ -80,12 +80,11 @@ class Lookup(threading.Thread):
         logger.info(f"Looking up: {lookup_string}")  # keep at info level so people know whats up
 
         cleaned_lookup_string = lookup_string.strip()
-        for i, char in enumerate(cleaned_lookup_string):
-            if char in JAPANESE_SEPARATORS:
-                cleaned_lookup_string = cleaned_lookup_string[:i]
-                break
-
         truncated_lookup = cleaned_lookup_string[:config.max_lookup_length]
+        for i, char in enumerate(truncated_lookup):
+            if char in JAPANESE_SEPARATORS:
+                truncated_lookup = truncated_lookup[:i]
+                break
 
         if truncated_lookup in self.lookup_cache:
             self.lookup_cache.move_to_end(truncated_lookup)

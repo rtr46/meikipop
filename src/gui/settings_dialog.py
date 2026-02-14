@@ -184,6 +184,10 @@ class SettingsDialog(QDialog):
         vocab_layout = QFormLayout()
         self.form_layouts.append(vocab_layout)
 
+        self.show_glosses_check = QCheckBox()
+        self.show_glosses_check.setChecked(config.show_all_glosses)
+        vocab_layout.addRow("Show All Glosses:", self.show_glosses_check)
+
         self.show_deconj_check = QCheckBox()
         self.show_deconj_check.setChecked(config.show_deconjugation)
         vocab_layout.addRow("Show Deconjugation:", self.show_deconj_check)
@@ -424,6 +428,7 @@ class SettingsDialog(QDialog):
         if IS_WINDOWS:
             config.magpie_compatibility = self.magpie_check.isChecked()
         config.compact_mode = self.compact_check.isChecked()
+        config.show_all_glosses = self.show_glosses_check.isChecked()
         config.show_deconjugation = self.show_deconj_check.isChecked()
         config.show_pos = self.show_pos_check.isChecked()
         config.show_tags = self.show_tags_check.isChecked()

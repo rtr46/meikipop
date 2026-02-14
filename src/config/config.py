@@ -6,7 +6,7 @@ import sys
 logger = logging.getLogger(__name__)
 
 APP_NAME = "meikipop"
-APP_VERSION = "v.1.8.0"
+APP_VERSION = "v.1.9.0"
 MAX_DICT_ENTRIES = 10
 IS_LINUX = sys.platform.startswith('linux')
 IS_WINDOWS = sys.platform.startswith('win')
@@ -34,6 +34,7 @@ class Config:
             'font_size_definitions': 14,
             'font_size_header': 18,
             'compact_mode': True,
+            'show_all_glosses': False,
             'show_deconjugation': False,
             'show_pos': False,
             'show_tags': False,
