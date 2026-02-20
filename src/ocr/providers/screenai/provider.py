@@ -180,8 +180,8 @@ class ScreenAiOcr(OcrProvider):
 
             is_vertical = (line_box.direction == 3)  # DIRECTION_TOP_TO_BOTTOM
 
-            meiki_words = []
-
+            words_in_line = []
+            full_line_text = ""
             for word_box in line_box.words:
                 for symbol in word_box.symbols:
                     wr = symbol.bounding_box
@@ -191,15 +191,16 @@ class ScreenAiOcr(OcrProvider):
                         width=wr.width / img_w,
                         height=wr.height / img_h
                     )
-                    meiki_words.append(Word(
+                    words_in_line.append(Word(
                         text=symbol.utf8_string,
                         separator='',
                         box=w_bbox
                     ))
+                    full_line_text += symbol.utf8_string
 
             raw_lines.append(Paragraph(
-                full_text=line_box.utf8_string,
-                words=meiki_words,
+                full_text=full_line_text,
+                words=words_in_line,
                 box=line_bbox,
                 is_vertical=is_vertical
             ))
