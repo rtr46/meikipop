@@ -6,7 +6,7 @@ import sys
 logger = logging.getLogger(__name__)
 
 APP_NAME = "meikipop"
-APP_VERSION = "v.1.9.0"
+APP_VERSION = "v.1.10.0"
 MAX_DICT_ENTRIES = 10
 IS_LINUX = sys.platform.startswith('linux')
 IS_WINDOWS = sys.platform.startswith('win')
@@ -21,7 +21,7 @@ class Config:
             'scan_region': 'region',
             'max_lookup_length': 25,
             'glens_low_bandwidth': False,
-            'ocr_provider': 'Google Lens',
+            'ocr_provider': 'Google Lens (remote)',
             'auto_scan_mode': False,
             'auto_scan_mode_lookups_without_hotkey': True,
             'auto_scan_interval_seconds': 0.0,

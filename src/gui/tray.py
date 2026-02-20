@@ -184,8 +184,6 @@ class TrayIcon(QSystemTrayIcon):
         provider_name = action.text()
         if provider_name != config.ocr_provider:
             self.ocr_processor.switch_provider(provider_name)
-            config.ocr_provider = provider_name
-            config.save()
 
     def reapply_settings(self):
         """Updates the tray menu's checkmarks to reflect the current config."""

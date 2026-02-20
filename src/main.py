@@ -57,7 +57,7 @@ def main():
     screen_manager = ScreenManager(shared_state, input_loop)  # trigger region selection
     lookup = Lookup(shared_state, popup_window)  # load dictionary
 
-    ocr_processor = OcrProcessor(shared_state)
+    ocr_processor = OcrProcessor(shared_state, screen_manager)
     hit_scanner = HitScanner(shared_state, input_loop, screen_manager)
     tray_icon = TrayIcon(screen_manager, ocr_processor, popup_window, input_loop, lookup)
 
@@ -90,6 +90,7 @@ def main():
     shared_state.hit_scan_queue.put((False, None))
     shared_state.lookup_queue.put(None)
     sys.exit(exit_code)
+
 
 if __name__ == '__main__':
     main()

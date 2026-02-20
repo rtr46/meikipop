@@ -70,15 +70,11 @@ class HitScanner(threading.Thread):
                 continue
 
             target_word = None
-            para_box_abs_w = para.box.width * img_w
-            para_box_abs_h = para.box.height * img_h
-            is_vertical = para.is_vertical or para_box_abs_h > para_box_abs_w
             words = list(para.words)
-
             for i, word in enumerate(words):
                 box_before = words[i - 1].box if i > 0 else None
                 box_after = words[i + 1].box if i < len(words) - 1 else None
-                if is_in_box_ex((norm_x, norm_y), box_before, word.box, box_after, is_vertical):
+                if is_in_box_ex((norm_x, norm_y), box_before, word.box, box_after, para.is_vertical):
                     target_word = word
                     break
 
@@ -87,7 +83,7 @@ class HitScanner(threading.Thread):
 
             char_offset = 0
 
-            if is_vertical:
+            if para.is_vertical:
                 if target_word.box.height > 0:
                     top_edge = target_word.box.center_y - (target_word.box.height / 2)
                     relative_y_in_box = norm_y - top_edge
@@ -122,7 +118,7 @@ class HitScanner(threading.Thread):
 
         if hit_scan_result:
             text, char_pos, char, lookup_string = hit_scan_result
-            truncated_text = (text[:40] + '...') if len(text) > 40 else text
+        #    truncated_text = (text[:40] + '...') if len(text) > 40 else text
         #     config.user_log(f"  -> Looking up '{char}' at pos {char_pos} in text: \"{truncated_text}\"")
         # else:
         #     config.user_log("hit scan unsuccessful")
