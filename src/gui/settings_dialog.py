@@ -372,7 +372,7 @@ class SettingsDialog(QDialog):
 
     def _update_glens_state(self, current_provider):
         """Grays out Google Lens options if another provider is selected."""
-        is_glens = "Google Lens" in current_provider
+        is_glens = "Google Lens (remote)" in current_provider
         self.glens_compression_check.setEnabled(is_glens)
         self.glens_compression_check_label.setEnabled(is_glens)
 
@@ -414,7 +414,6 @@ class SettingsDialog(QDialog):
         selected_provider = self.ocr_provider_combo.currentText()
         if selected_provider != config.ocr_provider:
             self.ocr_processor.switch_provider(selected_provider)
-        config.ocr_provider = selected_provider
 
         # Update all other config values
         config.hotkey = self.hotkey_combo.currentText()

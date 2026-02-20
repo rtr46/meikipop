@@ -15,9 +15,10 @@ from src.ocr.providers.glensv2 import GoogleLensOcrV2
 logger = logging.getLogger(__name__)  # Get the logger
 
 class OcrProcessor(threading.Thread):
-    def __init__(self, shared_state):
+    def __init__(self, shared_state, screen_manager):
         super().__init__(daemon=True, name="OcrProcessor")
         self.shared_state = shared_state
+        self.screen_manager = screen_manager
         self.ocr_backend: Optional[OcrProvider] = None
 
         self.available_providers = self._discover_providers()
@@ -61,12 +62,19 @@ class OcrProcessor(threading.Thread):
             try:
                 self.ocr_backend = provider_class()
                 logger.info(f"Successfully switched OCR provider to '{self.ocr_backend.NAME}'")
+                config.ocr_provider = self.ocr_backend.NAME
+                config.save()  # todo fix tray showing wrong provider
                 if config.auto_scan_mode:
                     self.shared_state.hit_scan_queue.put((True, None))
+                    self.screen_manager.force_screenshot_trigger()
                     self.shared_state.screenshot_trigger_event.set()
             except Exception as e:
                 logger.error(f"Failed to instantiate provider '{provider_name}': {e}", exc_info=True)
-                self.ocr_backend = None
+                if self.ocr_backend:
+                    logger.info(f"Reverting to previous provider '{self.ocr_backend.NAME}'.")
+                    config.ocr_provider = self.ocr_backend.NAME
+                    config.save()  # todo fix tray showing wrong provider
+
         else:
             logger.error(f"Attempted to switch to an unknown provider: '{provider_name}'")
 
@@ -99,8 +107,11 @@ class OcrProcessor(threading.Thread):
             logger.info(f"Initialized OCR with '{self.ocr_backend.NAME}' provider.")
         except Exception as e:
             logger.critical(f"Failed to instantiate provider '{provider_to_load_name}' on startup: {e}", exc_info=True)
-            self.ocr_backend = None
-            sys.exit(1)
+            try:
+                self.switch_provider(default_provider_name)
+            except Exception as e:
+                self.ocr_backend = None
+                sys.exit(1)
 
     def _discover_providers(self) -> Dict[str, Type[OcrProvider]]:
         providers: Dict[str, Type[OcrProvider]] = {}

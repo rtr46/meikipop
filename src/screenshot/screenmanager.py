@@ -110,6 +110,10 @@ class ScreenManager(threading.Thread):
             return 0, 0, 0, 0
         return self.monitor["left"], self.monitor["top"], self.monitor["width"], self.monitor["height"]
 
+    def force_screenshot_trigger(self):
+        self.last_screenshot = None
+        self.last_mouse_pos = None
+
     def _sleep_and_handle_loop_exit(self, interval):
         if config.auto_scan_mode:
             time.sleep(interval)
