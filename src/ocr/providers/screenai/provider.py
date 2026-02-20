@@ -1,6 +1,7 @@
 import ctypes
 import logging
 import os
+import re
 import sys
 import time
 from contextlib import contextmanager
@@ -12,6 +13,8 @@ from .chrome_screen_ai_pb2 import VisualAnnotation
 
 from src.ocr.interface import OcrProvider, Paragraph, Word, BoundingBox
 from src.ocr.providers.postprocessing import group_lines_into_paragraphs
+
+JAPANESE_REGEX = re.compile(r'[\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FAF]')
 
 logger = logging.getLogger(__name__)
 
@@ -164,6 +167,9 @@ class ScreenAiOcr(OcrProvider):
     def _transform(self, response: VisualAnnotation, img_w: int, img_h: int) -> List[Paragraph]:
         raw_lines = []
         for line_box in response.lines:
+            line_has_japanese = any(JAPANESE_REGEX.search(w.utf8_string) for w in line_box.words)
+            if not line_has_japanese:
+                continue
             r = line_box.bounding_box
             line_bbox = BoundingBox(
                 center_x=(r.x + r.width / 2) / img_w,
