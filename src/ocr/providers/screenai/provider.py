@@ -88,7 +88,11 @@ class ScreenAiOcr(OcrProvider):
             _fields_ = [('fPixelRef', ctypes.c_void_p), ('fPixmap', SkPixmap), ('fFlags', ctypes.c_uint32)]
 
         self.SkBitmap = SkBitmap
-        self.lib = ctypes.CDLL(str(self.dll_path))
+        # linux fails to load lib without RTLD_LAZY
+        if hasattr(os, 'RTLD_LAZY'):
+            self.lib = ctypes.CDLL(str(self.dll_path), mode=os.RTLD_LAZY)
+        else:
+            self.lib = ctypes.CDLL(str(self.dll_path))
 
         @ctypes.CFUNCTYPE(ctypes.c_uint32, ctypes.c_char_p)
         def get_file_content_size(p):
