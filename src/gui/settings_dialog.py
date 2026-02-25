@@ -72,7 +72,7 @@ class SettingsDialog(QDialog):
         self.form_layouts.append(core_layout)
 
         self.hotkey_combo = QComboBox()
-        self.hotkey_combo.addItems(['shift', 'ctrl', 'alt'])
+        self.hotkey_combo.addItems(['ctrl', 'shift', 'alt', 'ctrl+shift', 'ctrl+alt', 'shift+alt', 'ctrl+shift+alt'])
         self.hotkey_combo.setCurrentText(config.hotkey)
         self._set_expanding(self.hotkey_combo)
         core_layout.addRow("Hotkey:", self.hotkey_combo)

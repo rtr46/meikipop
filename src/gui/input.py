@@ -33,34 +33,48 @@ class LinuxX11KeyboardController:
             sys.exit(1)
 
     def _setup_keycodes(self):
-        self.keycodes_to_check = set()
+        self.modifier_groups = []
         modifier_map = {
             'shift': ['Shift_L', 'Shift_R'],
             'ctrl': ['Control_L', 'Control_R'],
             'alt': ['Alt_L', 'Alt_R']
         }
-        target_keysyms = modifier_map.get(self.hotkey_str)
-        if not target_keysyms:
-            logger.critical(f"Unsupported hotkey '{self.hotkey_str}' for Linux/X11. Use 'shift', 'ctrl', or 'alt'.")
-            sys.exit(1)
-        for keysym_str in target_keysyms:
-            keysym = XK.string_to_keysym(keysym_str)
-            if keysym:
-                keycode = self.display.keysym_to_keycode(keysym)
-                if keycode:
-                    self.keycodes_to_check.add(keycode)
-        if not self.keycodes_to_check:
-            logger.critical(f"Could not find keycodes for hotkey '{self.hotkey_str}'.")
-            sys.exit(1)
+        hotkeys = self.hotkey_str.split('+')
+
+        for key in hotkeys:
+            target_keysyms = modifier_map.get(key)
+            if not target_keysyms:
+                logger.critical(f"Unsupported hotkey '{key}' for Linux/X11. Use 'shift', 'ctrl', or 'alt'.")
+                sys.exit(1)
+            group_keycodes = set()
+            for keysym_str in target_keysyms:
+                keysym = XK.string_to_keysym(keysym_str)
+                if keysym:
+                    keycode = self.display.keysym_to_keycode(keysym)
+                    if keycode:
+                        group_keycodes.add(keycode)
+
+            if not group_keycodes:
+                logger.critical(f"Could not find keycodes for hotkey '{key}'.")
+                sys.exit(1)
+
+            self.modifier_groups.append(group_keycodes)
+
     def is_hotkey_pressed(self) -> bool:
         try:
             key_map = self.display.query_keymap()
-            for keycode in self.keycodes_to_check:
-                if (key_map[keycode // 8] >> (keycode % 8)) & 1:
-                    return True
-            return False
+            for group in self.modifier_groups:
+                group_is_pressed = False
+                for keycode in group:
+                    if (key_map[keycode // 8] >> (keycode % 8)) & 1:
+                        group_is_pressed = True
+                        break
+                if not group_is_pressed:
+                    return False
+            return True
         except XError:
             return False
+
 
 class WindowsKeyboardController:
     def __init__(self, hotkey_str):
@@ -75,12 +89,12 @@ class WindowsKeyboardController:
         except Exception:
             return False
 
+
 class MacOSKeyboardController:
     def __init__(self, hotkey_str):
         self.hotkey_str = hotkey_str.lower()
-        self._setup_keycodes()
+        self.modifiers = self.hotkey_str.split('+')
 
-    def _setup_keycodes(self):
         # Map common hotkey strings to macOS key codes
         key_mapping = {
             'shift': [56, 60],  # Left and Right Shift
@@ -88,26 +102,34 @@ class MacOSKeyboardController:
             'alt': [58, 61],    # Left and Right Option/Alt
             'cmd': [55, 54],    # Left and Right Command
         }
-        self.keycodes_to_check = key_mapping.get(self.hotkey_str, [])
-        if not self.keycodes_to_check:
-            logger.critical(f"Unsupported hotkey '{self.hotkey_str}' for macOS. Use 'shift', 'ctrl', 'alt', or 'cmd'.")
-            sys.exit(1)
+
+        for mod in self.modifiers:
+            self.keycodes_to_check = key_mapping.get(mod, [])
+            if not self.keycodes_to_check:
+                logger.critical(
+                    f"Unsupported hotkey '{self.hotkey_str}' for macOS. Use 'shift', 'ctrl', 'alt', or 'cmd'.")
+                sys.exit(1)
 
     def is_hotkey_pressed(self) -> bool:
         try:
             # Get current modifier flags
             flags = NSEvent.modifierFlags()
 
-            # Check if any of our target keys are pressed
-            if self.hotkey_str == 'shift':
-                return bool(flags & (1 << 17) or flags & (1 << 18))  # NSShiftKeyMask
-            elif self.hotkey_str == 'ctrl':
-                return bool(flags & (1 << 12))  # NSControlKeyMask
-            elif self.hotkey_str == 'alt':
-                return bool(flags & (1 << 19))  # NSAlternateKeyMask
-            elif self.hotkey_str == 'cmd':
-                return bool(flags & (1 << 20))  # NSCommandKeyMask
-            return False
+            # Iterate through all required modifiers in the combo
+            for mod in self.modifiers:
+                if mod == 'shift':
+                    if not (flags & (1 << 17) or flags & (1 << 18)):
+                        return False
+                elif mod == 'ctrl':
+                    if not (flags & (1 << 12)):
+                        return False
+                elif mod == 'alt':
+                    if not (flags & (1 << 19)):
+                        return False
+                elif mod == 'cmd':
+                    if not (flags & (1 << 20)):
+                        return False
+            return True
         except Exception as e:
             logger.warning(f"Error checking hotkey state: {e}")
             return False
