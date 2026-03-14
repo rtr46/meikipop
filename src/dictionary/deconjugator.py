@@ -2,6 +2,8 @@
 from dataclasses import dataclass, field
 from typing import Set
 
+MAX_DECONJ_ITERATIONS = 10
+
 @dataclass(frozen=True)
 class Form:
     text: str
@@ -26,7 +28,7 @@ class Deconjugator:
         iteration = 0
         while novel:
             iteration += 1
-            if iteration > 15: break
+            if iteration > MAX_DECONJ_ITERATIONS: break
 
             new_novel: Set[Form] = set()
             for form in novel:

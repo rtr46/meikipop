@@ -1,5 +1,4 @@
 # customdict.py
-import json
 import logging
 import pickle
 import time
@@ -7,95 +6,61 @@ from collections import defaultdict
 
 from src.config.config import IS_WINDOWS
 
-logger = logging.getLogger(__name__)  # Get the logger
+logger = logging.getLogger(__name__)
 
+# MapEntry tuple field indices. value: (written_form, reading, freq, entry_id)
+WRITTEN_FORM_INDEX = 0
+READING_INDEX = 1
+FREQUENCY_INDEX = 2
+ENTRY_ID_INDEX = 3
 
 class Dictionary:
     def __init__(self):
-        self.entries = []
-        self.lookup_kan = defaultdict(list)
-        self.lookup_kana = defaultdict(list)
-        self.kanji_entries = {}
-        self.deconjugator_rules = []
-        self.priority_map = {}
+        # Core entries: {entry_id: [sense, ...]}
+        # Each sense: {'glosses': [...], 'pos': [...], 'misc': [...]}
+        self.entries: dict[int, list] = {}
+
+        # kanji_map: keb_surface → [(written_form, reading, freq, entry_id), ...]
+        # kana_map:  reb_surface → [(written_form, reading_or_None, freq, entry_id), ...]
+        self.kanji_map: dict[str, list] = defaultdict(list)
+        self.kana_map:  dict[str, list] = defaultdict(list)
+
+        # Kanji character entries from kanjidic2: {character: {...}}
+        self.kanji_entries: dict[str, dict] = {}
+
+        # Deconjugation rules consumed by Deconjugator at runtime
+        self.deconjugator_rules: list[dict] = []
+
         self._is_loaded = False
-
-    def import_jmdict_json(self, json_paths: list[str]):
-        all_jmdict_entries = []
-        for path in sorted(json_paths):
-            with open(path, 'r', encoding='utf-8') as f:
-                all_jmdict_entries.extend(json.load(f))
-        for entry_data in all_jmdict_entries:
-            kebs = [k['keb'] for k in entry_data.get('k_ele', [])]
-            rebs = [r['reb'] for r in entry_data.get('r_ele', [])]
-            senses_processed = []
-            last_pos = []
-            for sense in entry_data.get('sense', []):
-                glosses = [g for g in sense.get('gloss', [])]
-                pos = sense.get('pos', last_pos)
-                last_pos = pos
-                if glosses:
-                    senses_processed.append({'glosses': glosses, 'pos': [p.strip('&;') for p in pos]})
-            if not (kebs or rebs) or not senses_processed:
-                continue
-            entry = {'id': entry_data['seq'], 'kebs': kebs, 'rebs': rebs, 'senses': senses_processed,
-                     'raw_k_ele': entry_data.get('k_ele', []), 'raw_r_ele': entry_data.get('r_ele', []),
-                     'raw_sense': entry_data.get('sense', [])}
-            self.entries.append(entry)
-            entry_index = len(self.entries) - 1
-            for keb in kebs:
-                self.lookup_kan[keb].append(entry_index)
-            for reb in rebs:
-                self.lookup_kana[reb].append(entry_index)
-
-    def import_kanjidic_json(self, json_path: str):
-        with open(json_path, 'r', encoding='utf-8') as f:
-            data = json.load(f)
-            for entry in data:
-                self.kanji_entries[entry['character']] = entry
-
-    def import_deconjugator(self, json_path: str):
-        with open(json_path, 'r', encoding='utf-8') as f:
-            rules = json.load(f)
-            self.deconjugator_rules = [r for r in rules if isinstance(r, dict)]
-
-    def import_priority(self, json_path: str):
-        with open(json_path, 'r', encoding='utf-8') as f:
-            priority_data = json.load(f)
-            for item in priority_data:
-                key = (item[0], item[1])
-                self.priority_map[key] = item[2]
-
-    def save_dictionary(self, file_path: str):
-        data_to_save = {'entries': self.entries, 'lookup_kan': self.lookup_kan, 'lookup_kana': self.lookup_kana,
-                        'kanji_entries': self.kanji_entries, 'deconjugator_rules': self.deconjugator_rules,
-                        'priority_map': self.priority_map}
-        with open(file_path, 'wb') as f:
-            pickle.dump(data_to_save, f, protocol=pickle.HIGHEST_PROTOCOL)
 
     def load_dictionary(self, file_path: str) -> bool:
         if self._is_loaded:
             return True
-        logger.info("Loading dictionary from file...")
-        start_time = time.perf_counter()
+        logger.info("Loading dictionary ...")
+        start = time.perf_counter()
         try:
             with open(file_path, 'rb') as f:
                 data = pickle.load(f)
-            self.entries = data['entries']
-            self.lookup_kan = data['lookup_kan']
-            self.lookup_kana = data['lookup_kana']
-            self.deconjugator_rules = data['deconjugator_rules']
-            self.priority_map = data['priority_map']
-            self.kanji_entries = data.get('kanji_entries', {})
+            self.entries            = data['entries']
+            self.kanji_map          = data['kanji_map']
+            self.kana_map           = data['kana_map']
+            self.kanji_entries      = data.get('kanji_entries', {})
+            self.deconjugator_rules = data.get('deconjugator_rules', [])
             self._is_loaded = True
-            duration = time.perf_counter() - start_time
-            logger.info(f"Dictionary loaded in {duration:.2f} seconds.")
+            n_kanji = sum(len(v) for v in self.kanji_map.values())
+            n_kana = sum(len(v) for v in self.kana_map.values())
+            logger.info(
+                f"Dictionary loaded in {time.perf_counter() - start:.2f}s  "
+                f"({len(self.entries)} core entries, "
+                f"{n_kanji} kanji refs, {n_kana} kana refs)"
+            )
             return True
         except FileNotFoundError:
-            script_extension = "bat" if IS_WINDOWS else "sh"
             logger.error(
-                f"ERROR: Dictionary file '{file_path}' not found. Add the file or try running the build.dictonary.{script_extension} script in the repo.")
+                f"Dictionary file '{file_path}' not found. "
+                f"Run build_dictionary.{"bat" if IS_WINDOWS else "sh"} to create it."
+            )
             return False
         except Exception as e:
-            logger.error(f"ERROR: Failed to load dictionary from {file_path}: {e}")
+            logger.error(f"Failed to load dictionary from '{file_path}': {e}")
             return False
