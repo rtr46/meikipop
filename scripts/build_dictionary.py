@@ -101,7 +101,8 @@ def load_freq_map(csv_bytes: bytes) -> dict:
         parts = line.split(',')
         if len(parts) >= 3:
             try:
-                result[(parts[0], parts[1])] = int(parts[2])
+                if result.get((parts[0], parts[1])) is None: # avoid redundant entries
+                    result[(parts[0], parts[1])] = int(parts[2])
             except ValueError:
                 pass
     print(f"  {len(result)} frequency entries loaded")
@@ -215,9 +216,10 @@ def build_jmdict_data(root, freq_map: dict):
             continue
 
         # Canonical forms: first form not marked search-only
+        # None when all kanji forms are search-only — treat entry as kana-only for display
         canonical_keb = next(
             (keb for keb, flags in k_data if 'sK' not in flags),
-            k_data[0][0] if k_data else None
+            None
         )
         canonical_reb = next(
             (reb for reb, _, _, flags in r_data if 'sk' not in flags),
@@ -231,9 +233,13 @@ def build_jmdict_data(root, freq_map: dict):
         form_pairs = []
         if not k_data:
             for reb, _, _, r_flags in r_data:
+                if 'ok' in r_flags:
+                    continue
                 form_pairs.append((None, frozenset(), reb, r_flags, False))
         else:
             for reb, no_kanji, restr, r_flags in r_data:
+                if 'ok' in r_flags:
+                    continue
                 if no_kanji:
                     form_pairs.append((None, frozenset(), reb, r_flags, False))
                 elif restr:
@@ -289,7 +295,7 @@ def build_jmdict_data(root, freq_map: dict):
                         kanji_map[keb].append((display_keb, display_reb, freq, entry_id))
 
                 # ── kana map ──────────────────────────────────────────────────
-                if all_uk or keb is None:
+                if all_uk or keb is None or canonical_keb is None:
                     written_form = display_reb
                     reading = None
                 elif is_restr:

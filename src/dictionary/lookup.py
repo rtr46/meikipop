@@ -25,9 +25,9 @@ logger = logging.getLogger(__name__)
 class DictionaryEntry:
     id: int
     written_form: str
-    reading: str # empty, when written_form is kana
+    reading: str  # empty when written_form is already kana
     senses: list
-    tags: Set[str]
+    freq: int
     deconjugation_process: tuple
     priority: float = 0.0
 
@@ -219,31 +219,30 @@ class Lookup(threading.Thread):
             entry_id = map_entry[ENTRY_ID_INDEX]
 
             entry_senses = self.dictionary.entries.get(entry_id, [])
-            tags         = {tag for sense in entry_senses for tag in sense['tags']}
             priority     = self._calculate_priority(written, freq, form, match_len, original_lookup)
 
             key = (written, reading)
             if key not in merged:
                 merged[key] = {
-                    'id':                   entry_id,
-                    'written_form':         written,
-                    'reading':              reading,
-                    'senses':               list(entry_senses),
-                    'tags':                 tags,
+                    'id':                    entry_id,
+                    'written_form':          written,
+                    'reading':               reading,
+                    'senses':                list(entry_senses),
+                    'freq':                  freq,
                     'deconjugation_process': form.process,
-                    'priority':             priority,
-                    'match_len':            match_len,
+                    'priority':              priority,
+                    'match_len':             match_len,
                 }
             else:
                 cur = merged[key]
-                # Extend senses from different entry IDs (e.g. synthetic variants)
                 if entry_id != cur['id']:
                     cur['senses'].extend(entry_senses)
-                    cur['tags'].update(tags)
                 if priority > cur['priority']:
-                    cur['priority']             = priority
-                    cur['id']                   = entry_id
+                    cur['priority']              = priority
+                    cur['id']                    = entry_id
                     cur['deconjugation_process'] = form.process
+                if freq < cur['freq']:
+                    cur['freq'] = freq
                 if match_len > cur['match_len']:
                     cur['match_len'] = match_len
 
@@ -260,7 +259,7 @@ class Lookup(threading.Thread):
                 written_form=d['written_form'],
                 reading=d['reading'],
                 senses=d['senses'],
-                tags=d['tags'],
+                freq=d['freq'],
                 deconjugation_process=d['deconjugation_process'],
                 priority=d['priority'],
             ))
