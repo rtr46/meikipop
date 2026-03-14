@@ -169,26 +169,16 @@ def _applicable_sense_indices(senses: list, keb: Optional[str], reb: str) -> tup
 def build_jmdict_data(root, freq_map: dict):
     """
     Walk the parsed JMdict root and produce:
-      entries   – {entry_id: [sense, ...]}
-      kanji_map – {keb_surface: [MapEntry, ...]}
-      kana_map  – {reb_surface: [MapEntry, ...]}
+      entries    – {entry_id: [sense, ...]}
+      lookup_map – {surface_form: [MapEntry, ...]}
 
     MapEntry = (written_form, reading_or_None, freq, entry_id)
 
-    kanji_map:
-      key          = actual surface keb (enables lookup of rare/old/search-only forms)
-      written_form = canonical display keb
-      reading      = canonical display reb
-
-    kana_map:
-      key          = actual surface reb
-      written_form = canonical display keb, OR reb itself when all_uk / no kanji
-      reading      = canonical display reb, OR None when written_form is already kana
+    lookup_map keys are keb or reb surface strings
     """
-    entries   = {}
-    kanji_map = defaultdict(list)
-    kana_map  = defaultdict(list)
-    syn_id    = count(SYNTHETIC_ID_START)
+    entries    = {}
+    lookup_map = defaultdict(list)
+    syn_id     = count(SYNTHETIC_ID_START)
 
     for entry_elem in root.iter('entry'):
         seq    = int(entry_elem.find('ent_seq').text)
@@ -277,24 +267,31 @@ def build_jmdict_data(root, freq_map: dict):
                 for i in sense_indices_of_sense_group
             ]
 
-            seen_kanji: set = set()
-            seen_kana:  set = set()
+            seen_lookup: set = set()
 
+            # ── kanji entries: one per surface keb ───────────────────────────
+            for keb, k_flags, reb, r_flags, _ in form_pairs_of_sense_group:
+                if keb is None:
+                    continue
+                display_reb = canonical_reb if 'sk' in r_flags else reb
+                display_keb = canonical_keb if 'sK' in k_flags else keb
+
+                dedup = (keb, display_keb, display_reb, entry_id)
+                if dedup not in seen_lookup:
+                    seen_lookup.add(dedup)
+                    freq = freq_map.get((keb, display_reb), DEFAULT_FREQ)
+                    lookup_map[keb].append((display_keb, display_reb, freq, entry_id))
+
+            # ── kana entries: one per surface reb ────────────────────────────
+            seen_rebs: set = set()
             for keb, k_flags, reb, r_flags, is_restr in form_pairs_of_sense_group:
+                if reb in seen_rebs:
+                    continue
+                seen_rebs.add(reb)
 
-                # Resolve search-only surface forms to their canonical display forms
                 display_reb = canonical_reb if 'sk' in r_flags else reb
                 display_keb = canonical_keb if (keb is not None and 'sK' in k_flags) else keb
 
-                # ── kanji map ─────────────────────────────────────────────────
-                if keb is not None:
-                    kanji_dedup = (keb, display_keb, display_reb, entry_id)
-                    if kanji_dedup not in seen_kanji:
-                        seen_kanji.add(kanji_dedup)
-                        freq = freq_map.get((keb, display_reb), DEFAULT_FREQ)
-                        kanji_map[keb].append((display_keb, display_reb, freq, entry_id))
-
-                # ── kana map ──────────────────────────────────────────────────
                 if all_uk or keb is None or canonical_keb is None:
                     written_form = display_reb
                     reading = None
@@ -305,16 +302,15 @@ def build_jmdict_data(root, freq_map: dict):
                     written_form = canonical_keb
                     reading = display_reb
 
-                kana_dedup = (reb, written_form, reading, entry_id)
-                if kana_dedup not in seen_kana:
-                    seen_kana.add(kana_dedup)
+                dedup = (reb, written_form, reading, entry_id)
+                if dedup not in seen_lookup:
+                    seen_lookup.add(dedup)
                     freq = freq_map.get((reb, display_reb), DEFAULT_FREQ)
-                    kana_map[reb].append((written_form, reading, freq, entry_id))
+                    lookup_map[reb].append((written_form, reading, freq, entry_id))
 
-    n_kanji = sum(len(v) for v in kanji_map.values())
-    n_kana  = sum(len(v) for v in kana_map.values())
-    print(f"  {len(entries)} core entries | {n_kanji} kanji refs | {n_kana} kana refs")
-    return entries, kanji_map, kana_map
+    n_refs = sum(len(v) for v in lookup_map.values())
+    print(f"  {len(entries)} core entries | {n_refs} lookup refs")
+    return entries, lookup_map
 
 
 # ── Kanjidic + IDS ─────────────────────────────────────────────────────────────
@@ -520,7 +516,7 @@ def main():
     print("\n[3/5] Parsing JMdict_e ...")
     t0 = time.time()
     jmdict_root = parse_jmdict_root(jmdict_gz)
-    entries, kanji_map, kana_map = build_jmdict_data(jmdict_root, freq_map)
+    entries, lookup_map = build_jmdict_data(jmdict_root, freq_map)
     print(f"  Done in {time.time() - t0:.1f}s")
 
     print("\n[4/5] Building kanjidic data ...")
@@ -532,8 +528,7 @@ def main():
     t0 = time.time()
     payload = {
         'entries':            entries,
-        'kanji_map':          dict(kanji_map),
-        'kana_map':           dict(kana_map),
+        'lookup_map':         dict(lookup_map),
         'kanji_entries':      kanji_entries,
         'deconjugator_rules': deconjugator_rules,
     }

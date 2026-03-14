@@ -1,5 +1,6 @@
 # lookup.py
 import logging
+import math
 import re
 import threading
 from collections import OrderedDict
@@ -7,7 +8,7 @@ from dataclasses import dataclass
 from typing import Dict, List, Optional, Set, Tuple
 
 from src.config.config import config, MAX_DICT_ENTRIES
-from src.dictionary.customdict import Dictionary, WRITTEN_FORM_INDEX, READING_INDEX, FREQUENCY_INDEX, ENTRY_ID_INDEX
+from src.dictionary.customdict import Dictionary, WRITTEN_FORM_INDEX, READING_INDEX, FREQUENCY_INDEX, ENTRY_ID_INDEX, DEFAULT_FREQ
 from src.dictionary.deconjugator import Deconjugator, Form
 
 KANJI_REGEX = re.compile(r'[\u4e00-\u9faf]')
@@ -179,8 +180,8 @@ class Lookup(threading.Thread):
 
     def _get_map_entries(self, text: str) -> List[tuple]:
         """
-        Look up `text` in kanji_map or kana_map (with hira↔kata fallback).
-        Returns a flat list of map entry tuples.
+        Look up `text` in lookup_map with hira↔kata fallback.
+        Kanji and kana strings never share keys so a single map suffices.
         """
         results = []
         candidates = {text}
@@ -193,10 +194,7 @@ class Lookup(threading.Thread):
             candidates.add(hira)
 
         for candidate in candidates:
-            if KANJI_REGEX.search(candidate):
-                results.extend(self.dictionary.kanji_map.get(candidate, []))
-            else:
-                results.extend(self.dictionary.kana_map.get(candidate, []))
+            results.extend(self.dictionary.lookup_map.get(candidate, []))
 
         return results
 
@@ -234,6 +232,9 @@ class Lookup(threading.Thread):
                     'match_len':             match_len,
                 }
             else:
+                # Same (written_form, reading) reached via a different deconjugation path
+                # or from a different entry ID (genuine homograph with identical display forms).
+                # Merge senses from the other entry and keep the best freq/priority/match_len.
                 cur = merged[key]
                 if entry_id != cur['id']:
                     cur['senses'].extend(entry_senses)
@@ -275,10 +276,10 @@ class Lookup(threading.Thread):
     ) -> float:
         priority = float(match_len)
 
-        # Frequency: map rank 1..999_999 to a ~0..10 bonus
-        # rank 1 → ~10, rank 1000 → ~7, rank 50000 → ~3, DEFAULT_FREQ → 0
-        if freq < 999_999:
-            priority += max(0.0, 10.0 - (freq ** 0.4) / 10.0)
+        # Frequency: log scale maps rank 1..999_999 evenly to ~0..10
+        # rank 1 → ~10, rank 1000 → ~5, rank 50000 → ~2.8, rank 999_999 → 0
+        if freq < DEFAULT_FREQ:
+            priority += 10.0 * (1.0 - math.log(freq) / math.log(DEFAULT_FREQ))
 
         # Kana vs kanji preference
         original_is_kana = not KANJI_REGEX.search(original_lookup)

@@ -8,6 +8,8 @@ from src.config.config import IS_WINDOWS
 
 logger = logging.getLogger(__name__)
 
+DEFAULT_FREQ = 999_999
+
 # MapEntry tuple field indices. value: (written_form, reading, freq, entry_id)
 WRITTEN_FORM_INDEX = 0
 READING_INDEX = 1
@@ -20,10 +22,8 @@ class Dictionary:
         # Each sense: {'glosses': [...], 'pos': [...], 'misc': [...]}
         self.entries: dict[int, list] = {}
 
-        # kanji_map: keb_surface → [(written_form, reading, freq, entry_id), ...]
-        # kana_map:  reb_surface → [(written_form, reading_or_None, freq, entry_id), ...]
-        self.kanji_map: dict[str, list] = defaultdict(list)
-        self.kana_map:  dict[str, list] = defaultdict(list)
+        # lookup_map: surface_form → [(written_form, reading_or_None, freq, entry_id), ...]
+        self.lookup_map: dict[str, list] = defaultdict(list)
 
         # Kanji character entries from kanjidic2: {character: {...}}
         self.kanji_entries: dict[str, dict] = {}
@@ -42,17 +42,14 @@ class Dictionary:
             with open(file_path, 'rb') as f:
                 data = pickle.load(f)
             self.entries            = data['entries']
-            self.kanji_map          = data['kanji_map']
-            self.kana_map           = data['kana_map']
+            self.lookup_map         = data['lookup_map']
             self.kanji_entries      = data.get('kanji_entries', {})
             self.deconjugator_rules = data.get('deconjugator_rules', [])
             self._is_loaded = True
-            n_kanji = sum(len(v) for v in self.kanji_map.values())
-            n_kana = sum(len(v) for v in self.kana_map.values())
+            n_refs = sum(len(v) for v in self.lookup_map.values())
             logger.info(
                 f"Dictionary loaded in {time.perf_counter() - start:.2f}s  "
-                f"({len(self.entries)} core entries, "
-                f"{n_kanji} kanji refs, {n_kana} kana refs)"
+                f"({len(self.entries)} core entries, {n_refs} lookup refs)"
             )
             return True
         except FileNotFoundError:
