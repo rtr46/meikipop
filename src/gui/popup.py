@@ -255,21 +255,18 @@ class Popup(QWidget):
 
             header_text_calc = entry.written_form
             if entry.reading: header_text_calc += f" [{entry.reading}]"
-            if config.show_tags and entry.tags:
-                header_text_calc += f' [{", ".join(sorted(list(entry.tags)))}]'
             header_ratio = len(header_text_calc) / self.header_chars_per_line
             max_ratio = max(max_ratio, header_ratio)
 
             # --- HTML construction ---
             header_html = f'<span style="color: {config.color_highlight_word}; font-size:{config.font_size_header}px;">{entry.written_form}</span>'
             if entry.reading: header_html += f' <span style="color: {config.color_highlight_reading}; font-size:{config.font_size_header - 2}px;">[{entry.reading}]</span>'
-            if config.show_tags and entry.tags:
-                tags_str = ", ".join(sorted(list(entry.tags)))
-                header_html += f' <span style="color:{config.color_foreground}; font-size:{config.font_size_definitions - 2}px; opacity:0.7;">[{tags_str}]</span>'
             if entry.deconjugation_process and config.show_deconjugation:
                 deconj_str = " ← ".join(p for p in entry.deconjugation_process if p)
                 if deconj_str:
                     header_html += f' <span style="color:{config.color_foreground}; font-size:{config.font_size_definitions - 2}px; opacity:0.8;">({deconj_str})</span>'
+            if config.show_frequency and entry.freq < 999_999:
+                header_html += f' <span style="color:{config.color_foreground}; font-size:{config.font_size_definitions - 2}px; opacity:0.6;">#{entry.freq}</span>'
             def_text_parts_calc = []
             def_text_parts_html = []
             for idx, sense in enumerate(entry.senses):
@@ -277,13 +274,18 @@ class Popup(QWidget):
                 glosses_str = ""
                 if glosses:
                     glosses_str = ", ".join(glosses) if config.show_all_glosses else sense.get('glosses')[0]
-                pos_list = sense.get('pos', [])
+                pos_list  = sense.get('pos', [])
+                tags_list = sense.get('tags', [])
                 sense_calc = f"({idx + 1})" if config.show_all_glosses else ""
                 sense_html = f"<b>({idx + 1})</b> " if config.show_all_glosses else ""
                 if config.show_pos and pos_list:
                     pos_str = f' ({", ".join(pos_list)})'
                     sense_calc += pos_str
                     sense_html += f'<span style="color:{config.color_foreground}; opacity:0.7;"><i>{pos_str}</i></span> '
+                if config.show_tags and tags_list:
+                    tags_str = f' [{", ".join(tags_list)}]'
+                    sense_calc += tags_str
+                    sense_html += f'<span style="color:{config.color_foreground}; font-size:{config.font_size_definitions - 2}px; opacity:0.7;">{tags_str}</span> '
                 sense_calc += glosses_str
                 sense_html += glosses_str
                 def_text_parts_calc.append(sense_calc)

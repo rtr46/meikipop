@@ -1,27 +1,34 @@
-# src/dictionary/lookup.py
+# lookup.py
 import logging
+import math
 import re
 import threading
 from collections import OrderedDict
 from dataclasses import dataclass
-from typing import Set, Dict, Tuple, List
+from typing import Dict, List, Optional, Set, Tuple
 
 from src.config.config import config, MAX_DICT_ENTRIES
-from src.dictionary.customdict import Dictionary
+from src.dictionary.customdict import Dictionary, WRITTEN_FORM_INDEX, READING_INDEX, FREQUENCY_INDEX, ENTRY_ID_INDEX, DEFAULT_FREQ
 from src.dictionary.deconjugator import Deconjugator, Form
 
 KANJI_REGEX = re.compile(r'[\u4e00-\u9faf]')
-JAPANESE_SEPARATORS = {"、", "。", "「", "」", "｛", "｝", "（", "）", "【", "】", "『", "』", "〈", "〉", "《", "》", "：", "・", "／",
-                       "…", "︙", "‥", "︰", "＋", "＝", "－", "÷", "？", "！", "．", "～", "―", "!", "?"}
+JAPANESE_SEPARATORS = {
+    "、", "。", "「", "」", "｛", "｝", "（", "）", "【", "】",
+    "『", "』", "〈", "〉", "《", "》", "：", "・", "／",
+    "…", "︙", "‥", "︰", "＋", "＝", "－", "÷", "？", "！",
+    "．", "～", "―", "!", "?",
+}
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
 class DictionaryEntry:
     id: int
     written_form: str
-    reading: str
+    reading: str  # empty when written_form is already kana
     senses: list
-    tags: Set[str]
+    freq: int
     deconjugation_process: tuple
     priority: float = 0.0
 
@@ -34,7 +41,6 @@ class KanjiEntry:
     components: List[Dict[str, str]]
     examples: List[Dict[str, str]]
 
-logger = logging.getLogger(__name__)
 
 class Lookup(threading.Thread):
     def __init__(self, shared_state, popup_window):
@@ -44,13 +50,12 @@ class Lookup(threading.Thread):
         self.last_hit_result = None
 
         self.dictionary = Dictionary()
-        self.lookup_cache = OrderedDict()
+        self.lookup_cache: OrderedDict = OrderedDict()
+        self.CACHE_SIZE = 500
 
-        if not self.dictionary.load_dictionary('jmdict_enhanced.pkl'):
+        if not self.dictionary.load_dictionary('dictionary.pkl'):
             raise RuntimeError("Failed to load dictionary.")
         self.deconjugator = Deconjugator(self.dictionary.deconjugator_rules)
-
-        self.CACHE_SIZE = 500
 
     def clear_cache(self):
         self.lookup_cache = OrderedDict()
@@ -74,297 +79,235 @@ class Lookup(threading.Thread):
                 logger.exception("An unexpected error occurred in the lookup loop. Continuing...")
         logger.debug("Lookup thread stopped.")
 
-    def lookup(self, lookup_string):
+    def lookup(self, lookup_string: str) -> List:
         if not lookup_string:
             return []
         logger.info(f"Looking up: {lookup_string}")  # keep at info level so people know whats up
 
-        cleaned_lookup_string = lookup_string.strip()
-        truncated_lookup = cleaned_lookup_string[:config.max_lookup_length]
-        for i, char in enumerate(truncated_lookup):
-            if char in JAPANESE_SEPARATORS:
-                truncated_lookup = truncated_lookup[:i]
+        text = lookup_string.strip()
+        text = text[:config.max_lookup_length]
+        for i, ch in enumerate(text):
+            if ch in JAPANESE_SEPARATORS:
+                text = text[:i]
                 break
+        if not text:
+            return []
 
-        if truncated_lookup in self.lookup_cache:
-            self.lookup_cache.move_to_end(truncated_lookup)
-            return self.lookup_cache[truncated_lookup]
+        if text in self.lookup_cache:
+            self.lookup_cache.move_to_end(text)
+            return self.lookup_cache[text]
 
-        all_found_entries: Dict[int, Tuple[dict, Form, int, str]] = {}
-        found_primary_match = False
+        results = self._do_lookup(text)
 
-        logger.trace(f"--- STARTING LOOKUP FOR: '{truncated_lookup}' ---")
+        # Append kanji entry for the first character if applicable
+        if config.show_kanji and KANJI_REGEX.match(text[0]):
+            kd = self.dictionary.kanji_entries.get(text[0])
+            if kd:
+                results.append(KanjiEntry(
+                    character=kd['character'],
+                    meanings=kd['meanings'],
+                    readings=kd['readings'],
+                    components=kd.get('components', []),
+                    examples=kd.get('examples', []),
+                ))
 
-        for i in range(len(truncated_lookup), 0, -1):
-            prefix = truncated_lookup[:i]
-            if not prefix: continue
-
-            logger.trace(f"  [Lookup] Checking prefix: '{prefix}'")
-            deconjugated_forms = self.deconjugator.deconjugate(prefix)
-            deconjugated_forms.add(Form(text=prefix))
-
-            if len(deconjugated_forms) > 1:
-                deconjugated_forms_text = {f.text for f in deconjugated_forms}
-                logger.trace(f"    [Decon] for '{prefix}' returned: {deconjugated_forms_text}")
-
-            current_prefix_results = []
-
-            for form in deconjugated_forms:
-                matched_variant = ""
-                entry_indices = self._get_raw_indices(form.text)
-                if entry_indices:
-                    matched_variant = form.text
-                if not entry_indices:
-                    kata_text = self._hira_to_kata(form.text)
-                    if kata_text != form.text:
-                        entry_indices = self._get_raw_indices(kata_text)
-                        if entry_indices:
-                            matched_variant = kata_text
-                if not entry_indices:
-                    hira_text = self._kata_to_hira(form.text)
-                    if hira_text != form.text:
-                        entry_indices = self._get_raw_indices(hira_text)
-                        if entry_indices:
-                            matched_variant = hira_text
-
-                # After getting potential entries, filter them based on Part of Speech tags
-                validated_indices = []
-                for index in entry_indices:
-                    entry = self.dictionary.entries[index]
-
-                    # If the form has no tags, it's a direct match, always valid.
-                    if not form.tags:
-                        validated_indices.append(index)
-                        continue
-
-                    # If the form has tags, the entry must contain that tag as a part of speech.
-                    required_pos = form.tags[-1]
-                    all_pos_for_entry = {pos for sense in entry['senses'] for pos in sense['pos']}
-                    if required_pos in all_pos_for_entry:
-                        validated_indices.append(index)
-                    else:
-                        logger.trace(
-                            f"      - Pruning Entry ID {entry['id']} ('{entry['kebs'][0] if entry['kebs'] else entry['rebs'][0]}'). Deconj required POS '{required_pos}', but entry only has {all_pos_for_entry}")
-
-                entry_indices = validated_indices
-
-                # strict_alternatives logic
-                if found_primary_match and self._is_kana_only(prefix):
-                    filtered_indices = []
-                    logger.trace(f"    [Filter ACTIVE] for prefix '{prefix}'")
-                    for index in entry_indices:
-                        entry = self.dictionary.entries[index]
-                        misc_tags = self._get_misc_tags(entry)
-
-                        passes_filter = not entry['kebs'] or 'uk' in misc_tags or 'ek' in misc_tags
-                        written_form_for_log = entry['kebs'][0] if entry['kebs'] else entry['rebs'][0]
-                        logger.trace(f"      - Checking Entry ID {entry['id']} ('{written_form_for_log}')")
-                        logger.trace(f"        - Has Kanji ('kebs'): {bool(entry['kebs'])}")
-                        logger.trace(f"        - Misc Tags: {misc_tags}")
-                        logger.trace(f"        - Filter Result: {'PASS' if passes_filter else 'BLOCK'}")
-
-                        if passes_filter:
-                            filtered_indices.append(index)
-                    entry_indices = filtered_indices
-
-                for index in set(entry_indices):
-                    current_prefix_results.append((self.dictionary.entries[index], form, len(prefix), matched_variant))
-
-            if current_prefix_results:
-                if not found_primary_match:
-                    logger.trace(f"  [Lookup] Found primary match with prefix: '{prefix}'")
-                    found_primary_match = True
-
-                for entry, form, match_len, matched_variant in current_prefix_results:
-                    if entry['id'] not in all_found_entries:
-                        all_found_entries[entry['id']] = (entry, form, match_len, matched_variant)
-
-        results = self._format_and_sort_results(list(all_found_entries.values()), truncated_lookup)
-        final_results = results[:MAX_DICT_ENTRIES]
-
-        if config.show_kanji and truncated_lookup and KANJI_REGEX.match(truncated_lookup[0]):
-            kanji_data = self.dictionary.kanji_entries.get(truncated_lookup[0])
-            if kanji_data:
-                k_entry = KanjiEntry(
-                    character=kanji_data['character'],
-                    meanings=kanji_data['meanings'],
-                    readings=kanji_data['readings'],
-                    components=kanji_data.get('components', []),
-                    examples=kanji_data.get('examples', [])
-                )
-                final_results.append(k_entry)
-
-        self.lookup_cache[truncated_lookup] = final_results
+        self.lookup_cache[text] = results
         if len(self.lookup_cache) > self.CACHE_SIZE:
             self.lookup_cache.popitem(last=False)
+        return results
 
-        return final_results
+    def _do_lookup(self, text: str) -> List[DictionaryEntry]:
+        """
+        Scan all prefixes of `text` (longest first), deconjugate each, then
+        look up every resulting form in the kanji / kana maps.
 
-    def _is_kana_only(self, text: str) -> bool:
-        return not KANJI_REGEX.search(text)
+        Collected results are keyed by (written_form, reading) to merge duplicate
+        map entries that resolve to the same display pair. The final list is
+        sorted by (match_length DESC, priority DESC).
+        """
+        # entry_id -> (map_entry, form, match_len)
+        collected: Dict[int, Tuple[tuple, Form, int]] = {}
+        found_primary_match = False
 
-    def _get_misc_tags(self, entry: dict) -> Set[str]:
-        tags = set()
-        for sense in entry.get('raw_sense', []):
-            for misc in sense.get('misc', []):
-                tags.add(misc.strip('&;'))
-        return tags
+        for prefix_len in range(len(text), 0, -1):
+            prefix = text[:prefix_len]
 
-    def _prefers_kana(self, misc_tags: Set[str]) -> bool:
-        return 'uk' in misc_tags or 'ek' in misc_tags
+            forms = self.deconjugator.deconjugate(prefix)
+            forms.add(Form(text=prefix))
 
-    def _prefers_kanji(self, misc_tags: Set[str]) -> bool:
-        return 'uK' in misc_tags or 'eK' in misc_tags
+            prefix_hits = []
 
-    def _is_irregular(self, entry: dict, reading: str, spelling: str) -> bool:
-        for r_ele in entry.get('raw_r_ele', []):
-            if r_ele['reb'] == reading:
-                for info in r_ele.get('inf', []):
-                    if info.strip('&;') in {'ik', 'ok', 'io'}: return True
-        for k_ele in entry.get('raw_k_ele', []):
-            if k_ele['keb'] == spelling:
-                for info in k_ele.get('inf', []):
-                    if info.strip('&;') in {'iK', 'oK'}: return True
-        return False
+            for form in forms:
+                map_entries = self._get_map_entries(form.text)
+                if not map_entries:
+                    continue
 
-    def _has_priority(self, entry: dict) -> bool:
-        if any(k.get('pri') for k in entry.get('raw_k_ele', [])): return True
-        if any(r.get('pri') for r in entry.get('raw_r_ele', [])): return True
-        return False
+                for map_entry in map_entries:
+                    written = map_entry[WRITTEN_FORM_INDEX]
+                    entry_id = map_entry[ENTRY_ID_INDEX]
 
-    def _all_senses_have_tag(self, entry: dict, tags_to_check: Set[str]) -> bool:
-        senses = entry.get('raw_sense', [])
-        if not senses: return False
-        for sense in senses:
-            sense_misc = {m.strip('&;') for m in sense.get('misc', [])}
-            if not sense_misc.intersection(tags_to_check):
-                return False
-        return True
+                    # POS validation: if the deconjugator tagged this form,
+                    # the entry must contain that part-of-speech.
+                    if form.tags:
+                        required_pos = form.tags[-1]
+                        entry_senses = self.dictionary.entries.get(entry_id, [])
+                        all_pos = {p for s in entry_senses for p in s['pos']}
+                        if required_pos not in all_pos:
+                            logger.debug(
+                                f"Pruning id={entry_id} ({written}): "
+                                f"required POS '{required_pos}' not in {all_pos}"
+                            )
+                            continue
 
-    def _format_and_sort_results(self, entries_with_forms: list, original_lookup: str) -> List[DictionaryEntry]:
-        merged_entries: Dict[Tuple[str, str], Dict] = {}
-        for entry_data, form, match_len, matched_variant in entries_with_forms:
-            matched_reading = ""
-            primary_keb = ""
-            if self._is_kana_only(matched_variant):
-                matched_reading = matched_variant
-                for k in entry_data['raw_k_ele']:
-                    restrs = k.get('restr', [])
-                    if not restrs or matched_reading in restrs:
-                        primary_keb = k['keb']
-                        break
-                if not primary_keb and entry_data['kebs']:
-                    primary_keb = entry_data['kebs'][0]
-            else:
-                primary_keb = matched_variant
-                for r in entry_data['raw_r_ele']:
-                    restrs = r.get('restr', [])
-                    if not restrs or primary_keb in restrs:
-                        matched_reading = r['reb']
-                        break
-                if not matched_reading and entry_data['rebs']:
-                    matched_reading = entry_data['rebs'][0]
+                    # Kana-only prefix filter: once a primary match with kanji
+                    # exists, suppress kana-path entries that have a kanji form
+                    if found_primary_match and not KANJI_REGEX.search(prefix):
+                        if written and KANJI_REGEX.search(written):
+                            continue
 
-            written_form = primary_keb if primary_keb else matched_reading
-            reading_to_display = matched_reading if primary_keb else ""
+                    prefix_hits.append((map_entry, form))
 
-            priority = self._calculate_priority(entry_data, form, match_len, original_lookup, written_form,
-                                                matched_reading)
+            if prefix_hits:
+                if not found_primary_match:
+                    found_primary_match = True
 
-            merge_key = (written_form, reading_to_display)
-            if merge_key not in merged_entries:
-                merged_entries[merge_key] = {
-                    "id": entry_data['id'],
-                    "written_form": written_form,
-                    "reading": reading_to_display,
-                    "senses": list(entry_data['senses']),
-                    "tags": self._get_misc_tags(entry_data),
-                    "deconjugation_process": form.process,
-                    "priority": priority,
-                    "match_len": match_len
+                for map_entry, form in prefix_hits:
+                    entry_id = map_entry[ENTRY_ID_INDEX]
+                    if entry_id not in collected:
+                        collected[entry_id] = (map_entry, form, prefix_len)
+
+        return self._format_and_sort(list(collected.values()), text)
+
+    def _get_map_entries(self, text: str) -> List[tuple]:
+        """
+        Look up `text` in lookup_map with hira↔kata fallback.
+        Kanji and kana strings never share keys so a single map suffices.
+        """
+        results = []
+        candidates = {text}
+
+        kata = self._hira_to_kata(text)
+        if kata != text:
+            candidates.add(kata)
+        hira = self._kata_to_hira(text)
+        if hira != text:
+            candidates.add(hira)
+
+        for candidate in candidates:
+            results.extend(self.dictionary.lookup_map.get(candidate, []))
+
+        return results
+
+    def _format_and_sort(
+        self,
+        raw: List[Tuple[tuple, Form, int]],
+        original_lookup: str,
+    ) -> List[DictionaryEntry]:
+        """
+        Merge map entries that share (written_form, reading) across different
+        deconjugation paths, compute priority, then sort and return DictionaryEntry list.
+        """
+        # Key: (written_form, reading)  Value: accumulated data dict
+        merged: Dict[Tuple[str, str], dict] = {}
+
+        for map_entry, form, match_len in raw:
+            written  = map_entry[WRITTEN_FORM_INDEX]
+            reading  = map_entry[READING_INDEX] or ''
+            freq     = map_entry[FREQUENCY_INDEX]
+            entry_id = map_entry[ENTRY_ID_INDEX]
+
+            entry_senses = self.dictionary.entries.get(entry_id, [])
+            priority     = self._calculate_priority(written, freq, form, match_len, original_lookup)
+
+            key = (written, reading)
+            if key not in merged:
+                merged[key] = {
+                    'id':                    entry_id,
+                    'written_form':          written,
+                    'reading':               reading,
+                    'senses':                list(entry_senses),
+                    'freq':                  freq,
+                    'deconjugation_process': form.process,
+                    'priority':              priority,
+                    'match_len':             match_len,
                 }
             else:
-                current_entry = merged_entries[merge_key]
-                current_entry['senses'].extend(entry_data['senses'])
-                current_entry['tags'].update(self._get_misc_tags(entry_data))
-                if priority > current_entry['priority']:
-                    current_entry['priority'] = priority
-                    current_entry['id'] = entry_data['id']
-                    current_entry['deconjugation_process'] = form.process
+                # Same (written_form, reading) reached via a different deconjugation path
+                # or from a different entry ID (genuine homograph with identical display forms).
+                # Merge senses from the other entry and keep the best freq/priority/match_len.
+                cur = merged[key]
+                if entry_id != cur['id']:
+                    cur['senses'].extend(entry_senses)
+                if priority > cur['priority']:
+                    cur['priority']              = priority
+                    cur['id']                    = entry_id
+                    cur['deconjugation_process'] = form.process
+                if freq < cur['freq']:
+                    cur['freq'] = freq
+                if match_len > cur['match_len']:
+                    cur['match_len'] = match_len
 
-        final_results_as_dicts = list(merged_entries.values())
-        final_results_as_dicts.sort(key=lambda x: (x['match_len'], x['priority']), reverse=True)
-        final_results = []
-        for val in final_results_as_dicts:
-            del val['match_len']
-            final_results.append(DictionaryEntry(**val))
-        return final_results
+        sorted_entries = sorted(
+            merged.values(),
+            key=lambda x: (x['match_len'], x['priority']),
+            reverse=True,
+        )
 
-    def _calculate_priority(self, entry_data, form, match_len, original_lookup, written_form, reading) -> float:
-        is_original_lookup_kana = self._is_kana_only(original_lookup)
-        priority = float(entry_data['id']) / -10000000.0
-        priority += match_len
+        results = []
+        for d in sorted_entries[:MAX_DICT_ENTRIES]:
+            results.append(DictionaryEntry(
+                id=d['id'],
+                written_form=d['written_form'],
+                reading=d['reading'],
+                senses=d['senses'],
+                freq=d['freq'],
+                deconjugation_process=d['deconjugation_process'],
+                priority=d['priority'],
+            ))
+        return results
 
-        is_kana_only_entry = not entry_data['kebs']
-        is_exact_match = len(form.process) == 0
-        if is_original_lookup_kana and is_kana_only_entry and is_exact_match:
-            priority += 100
+    def _calculate_priority(
+        self,
+        written_form: str,
+        freq: int,
+        form: Form,
+        match_len: int,
+        original_lookup: str,
+    ) -> float:
+        priority = float(match_len)
 
-        misc_tags = self._get_misc_tags(entry_data)
-        if is_original_lookup_kana:
-            if self._prefers_kana(misc_tags): priority += 10
-            if self._prefers_kanji(misc_tags): priority -= 12
-        else:
-            if self._prefers_kana(misc_tags): priority -= 10
-            if self._prefers_kanji(misc_tags): priority += 12
+        # Frequency: log scale maps rank 1..999_999 evenly to ~0..10
+        # rank 1 → ~10, rank 1000 → ~5, rank 50000 → ~2.8, rank 999_999 → 0
+        if freq < DEFAULT_FREQ:
+            priority += 10.0 * (1.0 - math.log(freq) / math.log(DEFAULT_FREQ))
 
-        if self._is_irregular(entry_data, reading, written_form):
-            priority -= 50
-        if self._has_priority(entry_data):
-            priority += 30
-        if self._all_senses_have_tag(entry_data, {'obs', 'rare', 'obsc'}):
-            priority -= 5
-        if len(entry_data['senses']) >= 3:
-            priority += 3
+        # Kana vs kanji preference
+        original_is_kana = not KANJI_REGEX.search(original_lookup)
+        written_is_kana = not KANJI_REGEX.search(written_form) if written_form else True
 
-        bonus = 0
-        bonus_reading = self.dictionary.priority_map.get(("", reading), 0)
-        bonus_written = self.dictionary.priority_map.get((written_form, reading), 0) if written_form else 0
-        bonus = max(bonus_reading, bonus_written)
+        if original_is_kana:
+            # Kana-only entry looked up via kana: small bonus
+            if written_is_kana and not form.process:
+                priority += 3.0
 
-        priority += bonus
+        # Deconjugation cost
         priority -= len(form.process)
+
         return priority
 
     def _hira_to_kata(self, text: str) -> str:
-        """Converts Hiragana to Katakana (Nazeka equivalent)."""
         res = []
-        for char in text:
-            code = ord(char)
-            if 0x3041 <= code <= 0x3096:
-                res.append(chr(code + 0x60))
-            else:
-                res.append(char)
-        return "".join(res)
+        for c in text:
+            code = ord(c)
+            res.append(chr(code + 0x60) if 0x3041 <= code <= 0x3096 else c)
+        return ''.join(res)
 
     def _kata_to_hira(self, text: str) -> str:
-        """Converts Katakana to Hiragana (Nazeka equivalent)."""
         res = []
-        for char in text:
-            code = ord(char)
-            if 0x30A1 <= code <= 0x30F6:
-                res.append(chr(code - 0x60))
-            elif code == 0x30FD:  # ヽ -> ゝ
-                res.append(chr(0x309D))
-            elif code == 0x30FE:  # ヾ -> ゞ
-                res.append(chr(0x309E))
-            else:
-                res.append(char)
-        return "".join(res)
-
-    def _get_raw_indices(self, text: str) -> List[int]:
-        """Helper to get raw dictionary indices for a string without processing."""
-        if self._is_kana_only(text):
-            return self.dictionary.lookup_kana.get(text, [])
-        else:
-            return self.dictionary.lookup_kan.get(text, [])
+        for c in text:
+            code = ord(c)
+            if   0x30A1 <= code <= 0x30F6: res.append(chr(code - 0x60))
+            elif code == 0x30FD:           res.append('\u309D')  # ヽ → ゝ
+            elif code == 0x30FE:           res.append('\u309E')  # ヾ → ゞ
+            else:                          res.append(c)
+        return ''.join(res)

@@ -19,4 +19,4 @@ build/
 # Local project/user files
 data/
 config.ini
-jmdict_enhanced.pkl
+dictionary.pkl
