@@ -4,8 +4,6 @@ instantly look up japanese words anywhere on your screen. meikipop uses optical 
 
 https://github.com/user-attachments/assets/a1834197-3059-438c-a2dc-716e8ec9078f
 
-https://github.com/user-attachments/assets/ad0fa0ce-0f5f-4d1d-a99b-22e67e5fb80b
-
 
 
 ## features
@@ -16,8 +14,7 @@ https://github.com/user-attachments/assets/ad0fa0ce-0f5f-4d1d-a99b-22e67e5fb80b
 *   **simple & intuitive:** just point your mouse and press a hotkey. that's it.
 *   **highly customizable:** change the hotkey, theme, colors, and layout to create your perfect reading experience.
 *   **region or fullscreen:** scan your entire screen or select a specific region (like a game window or manga page) to improve performance.
-* **pluggable ocr backend:** comes with a great default ocr, but allows users to integrate owocr or their own ocr
-  engines.
+*   **pluggable ocr backend:** lets you choose whatever ocr suits you best. whether you want the highest accuracy remote ocr, that runs great even on low-end hardware or you want blazingly fast and private local ocr.
 
 ## philosophy & limitations
 
@@ -27,8 +24,8 @@ it is heavily inspired by the philosophy of [Nazeka](https://github.com/wareya/n
 
 to maintain this focus, there are a few things meikipop is **not**:
 
-*   **it is not an srs-mining tool.** meikipop does not include functionality to automatically create flashcards for programs like Anki.
-*   **it is not a multi-dictionary tool.** while technically possible to adapt, the lookup logic is highly optimized for the structure and tags of the JMdict dictionary.
+*   **it is not an srs-mining tool.** meikipop does not include functionality to automatically create flashcards for programs like anki.
+*   **it is not a multi-dictionary tool.** while meikipops lets you import yomitan dictionaries, it is designed to run best with a single, semi-custom jmdict+kanjidic dictionary. 
 
 ## installation
 
@@ -70,7 +67,7 @@ if you want to develop or use custom ocr provider, modify meikipop's behaviour, 
 4.  **press and hold the hotkey** (**shift** by default). a popup with dictionary entries will appear. depending on your internet connection this may take a while the first time...
 5.  keep holding the key and move your mouse to look up any additional words.
 6.  release the hotkey to hide the popup.
-7.  **right-click the system tray icon** to open the settings, reselect the scan region, change to full screen mode or quit the application.
+7.  **right-click the system tray icon** to open the settings, reselect the scan region, change the ocr provider or quit the application.
 8.  make sure you try the **auto scan mode**. it continuously scans your screen to provide you with dictionary entries as fast as possible and without the need to press a hotkey.
 
 ## configuration
@@ -81,22 +78,23 @@ changes are saved to `config.ini` in the same folder as the application.
 
 ## using alternative ocr backends...
 
-while meikipop's default google ocr backend is powerful, fast and platform independent, you may want to use a different
-ocr backend for reasons like privacy or offline capabilities. meikipop's architecture allows you to choose whatever ocr
-suits your use case best.
+meikipop's architecture allows you to choose whatever ocr suits your use case best:
+- google lens (default/remote): fast and platform independent, but every scan shares your screen with google.
+- meikiocr (local): possibly the fastest local ocr worth using on cpu and can run even faster on nvidia gpus. primarily designed for video games with horizontal text. poor accuracy for vertical text.
+- chrome screen ai (local): alternative local ocr worth checking out if meikiocr does not fit your use case. requires additional setup ((instructions)[https://github.com/rtr46/meikipop/releases/tag/v1.10.0])
+- owocr: owocr lets you choose from even more ocr backends (see below)
+- custom ocr provider: if you are running from source it is very simple to integrate any ocr provider on your own (see below) 
 
 ### ...via owocr provider
 
-the easiest way to change the ocr backend is by running a
-local [owocr](https://github.com/AuroraWright/owocr/tree/master/owocr) instance and selecting the owocr ocr provider
-from meikipop's system tray menu.
+owocr lets you run any relevant ocr engine and lets meikipop use it. just run a local [owocr](https://github.com/AuroraWright/owocr/tree/master/owocr) instance and select the owocr ocr provider from meikipop's system tray menu.
 
 make sure you:
 
 * use owocr 1.15.0 or newer
 * enable reading from and writing to websockets
 * choose the json output format
-* and use an ocr backend that supports coordinates (currently oneocr, apple live text, google lens and bing)
+* and use an ocr backend that supports coordinates (most do)
     ```bash
     pip install -U "owocr>=1.15"
     owocr -r websocket -w websocket -of json -e glens # replace glens with your favorite owocr backend
@@ -108,17 +106,19 @@ you can develop your own ocr provider. to get started, you can copy the `dummy` 
 
 for a complete guide, see: [how to create a custom ocr provider](docs/CUSTOM_OCR_PROVIDER.md)
 
-**note that this feature is not available in the bundled windows executable for now**
-
 ## building your own dictionary (optional)
 
-you can find a bundled archive that contains meikipop src + a prebuilt dictionary in the releases. if you really want to build your own dictionary however, you can do that:
+in case you want to update your dictionary you can simply run:
 
 ```bash
 python -m scripts.build_dictionary
 ```
 
-for more details, you can look here: [Nazeka](https://github.com/wareya/nazeka)
+if you want to import a yomitan dictionary that is possible as well. you can import multiple yomitan dictionaries at once, but be aware that this will overwrite your default dictionary:
+
+```bash
+python -m scripts.import_yomitan_dict my_yomitan_dict.zip
+```
 
 ## license
 
