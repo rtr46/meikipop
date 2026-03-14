@@ -52,7 +52,7 @@ class Lookup(threading.Thread):
         self.lookup_cache: OrderedDict = OrderedDict()
         self.CACHE_SIZE = 500
 
-        if not self.dictionary.load_dictionary('jmdict_enhanced.pkl'):
+        if not self.dictionary.load_dictionary('dictionary.pkl'):
             raise RuntimeError("Failed to load dictionary.")
         self.deconjugator = Deconjugator(self.dictionary.deconjugator_rules)
 
@@ -160,13 +160,9 @@ class Lookup(threading.Thread):
 
                     # Kana-only prefix filter: once a primary match with kanji
                     # exists, suppress kana-path entries that have a kanji form
-                    # unless the entry genuinely prefers kana (uk/ek).
                     if found_primary_match and not KANJI_REGEX.search(prefix):
                         if written and KANJI_REGEX.search(written):
-                            entry_senses = self.dictionary.entries.get(entry_id, [])
-                            misc = {t for s in entry_senses for t in s['misc']}
-                            if 'uk' not in misc:
-                                continue
+                            continue
 
                     prefix_hits.append((map_entry, form))
 
@@ -223,7 +219,7 @@ class Lookup(threading.Thread):
             entry_id = map_entry[ENTRY_ID_INDEX]
 
             entry_senses = self.dictionary.entries.get(entry_id, [])
-            misc_tags    = {tag for sense in entry_senses for tag in sense['misc']}
+            tags         = {tag for sense in entry_senses for tag in sense['tags']}
             priority     = self._calculate_priority(written, freq, form, match_len, original_lookup)
 
             key = (written, reading)
@@ -233,7 +229,7 @@ class Lookup(threading.Thread):
                     'written_form':         written,
                     'reading':              reading,
                     'senses':               list(entry_senses),
-                    'tags':                 misc_tags,
+                    'tags':                 tags,
                     'deconjugation_process': form.process,
                     'priority':             priority,
                     'match_len':            match_len,
@@ -243,7 +239,7 @@ class Lookup(threading.Thread):
                 # Extend senses from different entry IDs (e.g. synthetic variants)
                 if entry_id != cur['id']:
                     cur['senses'].extend(entry_senses)
-                    cur['tags'].update(misc_tags)
+                    cur['tags'].update(tags)
                 if priority > cur['priority']:
                     cur['priority']             = priority
                     cur['id']                   = entry_id

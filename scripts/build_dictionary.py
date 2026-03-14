@@ -1,6 +1,6 @@
 """
 build_dictionary.py
-Builds jmdict_enhanced.pkl from downloaded source files.
+Builds dictionary.pkl from downloaded source files.
 Downloaded source files are cached in ./cache/ and reused on subsequent runs.
 """
 
@@ -23,7 +23,7 @@ from lxml import etree
 # ── Constants ──────────────────────────────────────────────────────────────────
 
 DATA_DIR           = 'data'
-OUTPUT_PATH        = 'jmdict_enhanced.pkl'
+OUTPUT_PATH        = 'dictionary.pkl'
 DECONJUGATOR_PATH  = os.path.join(DATA_DIR, 'deconjugator.json')
 SYNTHETIC_ID_START = 10_000_000  # safely above any real JMdict seq number
 DEFAULT_FREQ       = 999_999
@@ -135,17 +135,17 @@ def _process_senses(entry_elem) -> list:
         pos_raw = [e.text.strip('&;') for e in sense.findall('pos') if e.text]
         if pos_raw:
             last_pos = pos_raw
-        misc    = [e.text.strip('&;') for e in sense.findall('misc') if e.text]
+        tags    = [e.text.strip('&;') for e in sense.findall('misc') if e.text]
         glosses = [g.text for g in sense.findall('gloss')
                    if g.get(XML_LANG, 'eng') == 'eng' and g.text]
         if not glosses:
             continue
-        s = {'glosses': glosses, 'pos': list(last_pos), 'misc': misc}
+        normalized_sense = {'glosses': glosses, 'pos': list(last_pos), 'tags': tags}
         if stagk:
-            s['stagk'] = stagk
+            normalized_sense['stagk'] = stagk
         if stagr:
-            s['stagr'] = stagr
-        senses.append(s)
+            normalized_sense['stagr'] = stagr
+        senses.append(normalized_sense)
     return senses
 
 
@@ -225,7 +225,7 @@ def build_jmdict_data(root, freq_map: dict):
         )
 
         # all_uk: every sense prefers kana — kana-path lookups show kana as written form
-        all_uk = bool(senses) and all('uk' in s['misc'] for s in senses)
+        all_uk = bool(senses) and all('uk' in s['tags'] for s in senses)
 
         # Build all valid (keb_or_None, k_flags, reb, r_flags, is_restr_pair) tuples.
         form_pairs = []
@@ -267,7 +267,7 @@ def build_jmdict_data(root, freq_map: dict):
             entries[entry_id] = [
                 {'glosses': senses[i]['glosses'],
                  'pos':     senses[i]['pos'],
-                 'misc':    senses[i]['misc']}
+                 'tags':    senses[i]['tags']}
                 for i in sense_indices_of_sense_group
             ]
 

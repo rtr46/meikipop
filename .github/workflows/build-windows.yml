@@ -41,7 +41,7 @@ jobs:
       - name: build windows archive
         run: |
           mkdir dist/meikipop
-          mv jmdict_enhanced.pkl dist/meikipop/
+          mv dictionary.pkl dist/meikipop/
           mv dist/meikipop.exe dist/meikipop/
           powershell -Command "Compress-Archive -Path dist/meikipop -DestinationPath dist/meikipop.windows.x64.zip"
 
