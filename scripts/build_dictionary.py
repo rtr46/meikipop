@@ -274,13 +274,18 @@ def build_jmdict_data(root, freq_map: dict):
                 if keb is None:
                     continue
                 display_reb = canonical_reb if 'sk' in r_flags else reb
-                display_keb = canonical_keb if 'sK' in k_flags else keb
+                if canonical_keb is None:
+                    written_form = canonical_reb
+                    reading = None
+                else:
+                    written_form = canonical_keb if 'sK' in k_flags else keb
+                    reading = display_reb
 
-                dedup = (keb, display_keb, display_reb, entry_id)
+                dedup = (keb, written_form, reading, entry_id)
                 if dedup not in seen_lookup:
                     seen_lookup.add(dedup)
                     freq = freq_map.get((keb, display_reb), DEFAULT_FREQ)
-                    lookup_map[keb].append((display_keb, display_reb, freq, entry_id))
+                    lookup_map[keb].append((written_form, reading, freq, entry_id))
 
             # ── kana entries: one per surface reb ────────────────────────────
             seen_rebs: set = set()

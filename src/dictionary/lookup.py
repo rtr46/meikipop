@@ -146,6 +146,10 @@ class Lookup(threading.Thread):
                     written = map_entry[WRITTEN_FORM_INDEX]
                     entry_id = map_entry[ENTRY_ID_INDEX]
 
+                    if written is None and KANJI_REGEX.search(form.text):
+                        logger.warning(f"Skipping malformed dictionary entry: kanji key '{form.text}'")
+                        continue
+
                     # POS validation: if the deconjugator tagged this form,
                     # the entry must contain that part-of-speech.
                     if form.tags:
@@ -215,13 +219,6 @@ class Lookup(threading.Thread):
             reading  = map_entry[READING_INDEX] or ''
             freq     = map_entry[FREQUENCY_INDEX]
             entry_id = map_entry[ENTRY_ID_INDEX]
-
-            # todo fix properly:
-            #  this is a hotfix for wrongly formatted entries returned by _get_map_entries
-            #  that dont have a reading, but written_form == None
-            if not written:
-                written = reading
-                reading = ''
 
             entry_senses = self.dictionary.entries.get(entry_id, [])
             priority     = self._calculate_priority(written, freq, form, match_len, original_lookup)
