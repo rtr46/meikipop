@@ -1,5 +1,5 @@
 """
-import_yomitan_dict.py
+import_yomitan_dict_text.py
 Imports one or more Yomitan/Yomichan dictionary zip files and produces a
 dictionary.pkl in the same format as build_dictionary.py.
 
@@ -8,6 +8,8 @@ Usage:
 
 Multiple zips are merged into one pickle.  Entry IDs are namespaced by
 dictionary index to avoid collisions.
+
+Structured-content definitions are flattened to raw text at import time
 """
 
 import argparse
