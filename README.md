@@ -117,7 +117,10 @@ python -m scripts.build_dictionary
 if you want to import a yomitan dictionary that is possible as well. you can import multiple yomitan dictionaries at once, but be aware that this will overwrite your default dictionary:
 
 ```bash
-python -m scripts.import_yomitan_dict my_yomitan_dict.zip
+# try to keep as much of the dictionary's original formatting
+python -m scripts.import_yomitan_dict_html my_yomitan_dict.zip
+# or create a compact, text only dictionary
+python -m scripts.import_yomitan_dict_text my_yomitan_dict.zip
 ```
 
 ## license
