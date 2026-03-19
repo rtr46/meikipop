@@ -55,6 +55,7 @@ class ScreenManager(threading.Thread):
                 # prevent ocr runs without mouse movements for auto-on-mouse-move mode
                 if config.auto_scan_mode and config.auto_scan_on_mouse_move and self.last_mouse_pos == self.input_loop.get_mouse_pos():
                     continue
+                self.last_mouse_pos = self.input_loop.get_mouse_pos()
 
                 logger.debug("screenmanager acquiring lock...")
                 with self.shared_state.screen_lock:
