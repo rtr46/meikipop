@@ -187,20 +187,20 @@ class Lookup(threading.Thread):
         Look up `text` in lookup_map with hira↔kata fallback.
         Kanji and kana strings never share keys so a single map suffices.
         """
-        results = []
-        candidates = {text}
-
+        result = self.dictionary.lookup_map.get(text, [])
+        if result:
+            return list(result)
         kata = self._hira_to_kata(text)
         if kata != text:
-            candidates.add(kata)
+            result = self.dictionary.lookup_map.get(kata, [])
+            if result:
+                return list(result)
         hira = self._kata_to_hira(text)
         if hira != text:
-            candidates.add(hira)
-
-        for candidate in candidates:
-            results.extend(self.dictionary.lookup_map.get(candidate, []))
-
-        return results
+            result = self.dictionary.lookup_map.get(hira, [])
+            if result:
+                return list(result)
+        return []
 
     def _format_and_sort(
         self,
