@@ -1,6 +1,7 @@
 # meikipop/config/config.py
 import configparser
 import logging
+import os
 import sys
 
 from meikipop.utils.paths import paths
@@ -13,6 +14,11 @@ MAX_DICT_ENTRIES = 10
 IS_LINUX = sys.platform.startswith('linux')
 IS_WINDOWS = sys.platform.startswith('win')
 IS_MACOS = sys.platform.startswith('darwin')
+IS_WAYLAND = IS_LINUX and os.environ.get('XDG_SESSION_TYPE', '').lower() == 'wayland'
+
+# Force xwayland so windows can pop up in arbitary locations
+if IS_WAYLAND:
+    os.environ['QT_QPA_PLATFORM'] = 'xcb'
 
 CONFIG_PATH = paths.config_path
 DICT_PATH = paths.dictionary_path
