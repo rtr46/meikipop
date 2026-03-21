@@ -1,6 +1,7 @@
 # src/config/config.py
 import configparser
 import logging
+import os
 import sys
 
 logger = logging.getLogger(__name__)
@@ -11,6 +12,12 @@ MAX_DICT_ENTRIES = 10
 IS_LINUX = sys.platform.startswith('linux')
 IS_WINDOWS = sys.platform.startswith('win')
 IS_MACOS = sys.platform.startswith('darwin')
+IS_X11 = IS_LINUX and os.environ.get('XDG_SESSION_TYPE', '').lower() == 'x11'
+IS_WAYLAND = IS_LINUX and os.environ.get('XDG_SESSION_TYPE', '').lower() == 'wayland'
+
+# Force xwayland so windows can pop up in arbitary locations
+if IS_WAYLAND:
+    os.environ['QT_QPA_PLATFORM'] = 'xcb'
 
 class Config:
     _instance = None
