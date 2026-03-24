@@ -35,6 +35,7 @@ jobs:
             libxcb-shm0 \
             libxcb-xfixes0 \
             libxcb-cursor0 \
+            libgirepository1.0-dev
             xvfb
 
       - uses: actions/checkout@v4
