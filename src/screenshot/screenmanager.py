@@ -3,13 +3,20 @@ import logging
 import threading
 import time
 
-import mss
 from PIL import Image
 
-from src.config.config import config
+from src.config.config import IS_WAYLAND, config
 from src.gui.region_selector import RegionSelector
 
-logger = logging.getLogger(__name__) # Get the logger
+if IS_WAYLAND:
+    from . import wayland_mss_shim
+
+    mss = wayland_mss_shim.MSSModuleShim()
+else:
+    import mss
+
+logger = logging.getLogger(__name__)  # Get the logger
+
 
 # todo doesnt work when monitors change
 class ScreenManager(threading.Thread):
