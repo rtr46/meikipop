@@ -29,39 +29,37 @@ to maintain this focus, there are a few things meikipop is **not**:
 
 ## installation
 
-### windows + linux (x11): prepackaged binaries + dictionary
+### pip (recommended)
+
+```bash
+pip install meikipop
+meikipop  # run the application
+```
+
+The dictionary and config files are stored in a platform-specific user data directory:
+- Windows: `%LOCALAPPDATA%\meikipop\`
+- Linux: `~/.config/meikipop/` (XDG compliant)
+- macOS: `~/Library/Application Support/meikipop/`
+
+To build dictionary: `meikipop build-dict` (or `python -m meikipop.scripts.build_dictionary`)
+
+### Prepackaged binaries
 
 this is the easiest way to run meikipop on windows and linux and is recommended for most users. no python installation required. just download, unpack and start the executable binary:
 * https://github.com/rtr46/meikipop/releases/latest
 
-### windows + linux (x11) + macos (beta): run from source
+### From source
 
-if you want to develop or use custom ocr provider, modify meikipop's behaviour, want to debug an error or prefer to run from source for any other reason, this is the way to go. for windows + linux ignore the macos specific parts.
+if you want to develop or modify meikipop:
 
-(note that meikipop is in beta for macos. the tray and therefore the settings menu may or may not show up - you should still be able to configure meikipop through the config.ini. if you notice meikipop breaking with a new release, feel free to let us know via an issue and we will try to fix it.)
-
-1.  **prerequisites:**
-    * python 3.10+
-  
-2. **set required permissions (macos only)**
-    * go to **System Preferences** > **Security & Privacy** > **Privacy**
-    * add/enable your terminal app in **Input Monitoring**, **Screen Recording** and **Accessibility**
-
-3.  **download the latest release that includes a prebuilt dictionary:**
-    * git clone https://github.com/rtr46/meikipop.git
-    * or simply download and unpack the source archive: https://github.com/rtr46/meikipop/archive/refs/heads/main.zip
-
-4.  **install python dependencies, build a dictionary and run:**
-    ```bash
-    pip install -r requirements.txt
-    pip install lxml # needed for the build_dictionary script
-    python -m scripts.build_dictionary # you can alternatively use the dictionary from one of the binary distributions 
-    python -m src.main # run meikipop
-    ```
+1. Clone the repository: `git clone https://github.com/rtr46/meikipop.git`
+2. Install: `pip install -e .`
+3. Build dictionary: `meikipop build-dict`
+4. Run: `meikipop` or `python -m meikipop.main`
 
 ## how to use
 
-1.  run the application (`python -m src.main`). an icon will appear in your system tray.
+1.  run the application (`meikipop` or `python -m meikipop.main`). an icon will appear in your system tray.
 2.  the first time you run the app in `region` mode, you will be prompted to select an area of your screen to scan (the scanned area will be send to google ocr).
 3.  move your mouse over any japanese text on your screen.
 4.  **press and hold the hotkey** (**shift** by default). a popup with dictionary entries will appear. depending on your internet connection this may take a while the first time...
@@ -74,7 +72,10 @@ if you want to develop or use custom ocr provider, modify meikipop's behaviour, 
 
 you can fully customize meikipop's behavior and appearance. right-click the tray icon and choose "settings" to open the configuration gui.
 
-changes are saved to `config.ini` in the same folder as the application.
+changes are saved to a platform-specific user data directory:
+- Windows: `%LOCALAPPDATA%\meikipop\config.ini`
+- Linux: `~/.config/meikipop/config.ini`
+- macOS: `~/Library/Application Support/meikipop/config.ini`
 
 ## using alternative ocr backends...
 
@@ -111,16 +112,16 @@ for a complete guide, see: [how to create a custom ocr provider](docs/CUSTOM_OCR
 in case you want to update your dictionary you can simply run:
 
 ```bash
-python -m scripts.build_dictionary
+meikipop build-dict
 ```
 
 if you want to import a yomitan dictionary that is possible as well. you can import multiple yomitan dictionaries at once, but be aware that this will overwrite your default dictionary:
 
 ```bash
 # try to keep as much of the dictionary's original formatting
-python -m scripts.import_yomitan_dict_html my_yomitan_dict.zip
+meikipop import-yomitan-dict-html my_yomitan_dict.zip
 # or create a compact, text only dictionary
-python -m scripts.import_yomitan_dict_text my_yomitan_dict.zip
+meikipop import-yomitan-dict-text my_yomitan_dict.zip
 ```
 
 ## license

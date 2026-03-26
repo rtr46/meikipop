@@ -36,7 +36,7 @@ jobs:
         run: pyinstaller meikipop.win.x64.spec
 
       - name: build dictionary
-        run: python -m scripts.build_dictionary
+        run: python -m meikipop.scripts.build_dictionary
 
       - name: build windows archive
         run: |

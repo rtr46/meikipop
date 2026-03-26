@@ -59,7 +59,7 @@ jobs:
           xvfb-run pyinstaller meikipop.linux.x64.spec
 
       - name: build dictionary
-        run: python -m scripts.build_dictionary
+        run: python -m meikipop.scripts.build_dictionary
 
       - name: build linux archive
         run: |
