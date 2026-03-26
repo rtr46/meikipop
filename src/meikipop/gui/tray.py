@@ -12,10 +12,10 @@ from meikipop.ocr.ocr import OcrProcessor
 
 def get_resource_path(relative_path):
     """Get absolute path to resource"""
-    try:
-        # PyInstaller creates a temp folder and stores path in _MEIPASS
-        base_path = sys._MEIPASS
-    except Exception:
+    if getattr(sys, 'frozen', False):
+        # PyInstaller bundle - resources are in meikipop subfolder
+        base_path = os.path.join(sys._MEIPASS, 'meikipop')
+    else:
         # Development or pip install - use package directory
         import meikipop
         base_path = os.path.dirname(meikipop.__file__)
@@ -29,8 +29,8 @@ def get_resource_path(relative_path):
 class TrayIcon(QSystemTrayIcon):
     def __init__(self, screen_manager, ocr_processor: OcrProcessor, popup_window, input_loop, lookup, parent=None):
         # Resolve icon paths using robust helper
-        icon_path = get_resource_path('resources/icon.ico')
-        icon_inactive_path = get_resource_path('resources/icon.inactive.ico')
+        icon_path = get_resource_path('meikipop/resources/icon.ico')
+        icon_inactive_path = get_resource_path('meikipop/resources/icon.inactive.ico')
 
         if os.path.exists(icon_path):
             self.icon = QIcon(icon_path)
