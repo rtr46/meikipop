@@ -20,3 +20,4 @@ build/
 data/
 config.ini
 dictionary.pkl
+/src/meikipop.egg-info/

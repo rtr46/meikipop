@@ -20,21 +20,27 @@ from meikipop.utils.logger import setup_logging
 
 
 def qt_message_handler(mode, context, message):
+    # Check if the message is the specific warning we want to suppress.
     if "QWindowsWindow::setGeometry" in message and "Unable to set geometry" in message:
-        return
+        return  # Silently ignore this specific warning.
     if original_handler:
         original_handler(mode, context, message)
 
+# This global variable will hold the original message handler.
 original_handler = None
 
 
 class SharedState:
     def __init__(self):
         self.running = True
+
+        # events and queues
         self.screenshot_trigger_event = threading.Event()
         self.ocr_queue = LatestValueQueue()
         self.hit_scan_queue = LatestValueQueue()
         self.lookup_queue = LatestValueQueue()
+
+        # screen lock - used by screen manager and popup
         self.screen_lock = threading.RLock()
 
 
@@ -51,8 +57,8 @@ def run_gui():
     input_loop = InputLoop(shared_state)
     popup_window = Popup(shared_state, input_loop)
 
-    screen_manager = ScreenManager(shared_state, input_loop)
-    lookup = Lookup(shared_state, popup_window)
+    screen_manager = ScreenManager(shared_state, input_loop)  # trigger region selection
+    lookup = Lookup(shared_state, popup_window)  # load dictionary
 
     ocr_processor = OcrProcessor(shared_state, screen_manager)
     hit_scanner = HitScanner(shared_state, input_loop, screen_manager)

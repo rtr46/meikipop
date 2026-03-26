@@ -29,7 +29,30 @@ to maintain this focus, there are a few things meikipop is **not**:
 
 ## installation
 
-### pip (recommended)
+### windows + linux (x11): prepackaged binaries + dictionary
+
+this is the easiest way to run meikipop on windows and linux and is recommended for most users. no python installation required. just download, unpack and start the executable binary:
+* https://github.com/rtr46/meikipop/releases/latest
+
+### windows + linux (x11) + macos (beta): run from source
+
+if you want to develop or use custom ocr provider, modify meikipop's behaviour, want to debug an error or prefer to run from source for any other reason, this is the way to go. for windows + linux ignore the macos specific parts.
+
+(note that meikipop is in beta for macos. the tray and therefore the settings menu may or may not show up - you should still be able to configure meikipop through the config.ini. if you notice meikipop breaking with a new release, feel free to let us know via an issue and we will try to fix it.)
+
+1.  **prerequisites:**
+    * python 3.10+
+  
+2. **set required permissions (macos only)**
+    * go to **System Preferences** > **Security & Privacy** > **Privacy**
+    * add/enable your terminal app in **Input Monitoring**, **Screen Recording** and **Accessibility**
+
+3.  **install python dependencies, build a dictionary and run:**
+    ```bash
+    pipx install meikipop
+    meikipop build-dict
+    meikipop
+    ```
 
 ```bash
 pip install meikipop
@@ -59,7 +82,7 @@ if you want to develop or modify meikipop:
 
 ## how to use
 
-1.  run the application (`meikipop` or `python -m meikipop.main`). an icon will appear in your system tray.
+1.  run the application (`meikipop`). an icon will appear in your system tray.
 2.  the first time you run the app in `region` mode, you will be prompted to select an area of your screen to scan (the scanned area will be send to google ocr).
 3.  move your mouse over any japanese text on your screen.
 4.  **press and hold the hotkey** (**shift** by default). a popup with dictionary entries will appear. depending on your internet connection this may take a while the first time...
