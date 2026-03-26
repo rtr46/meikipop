@@ -23,10 +23,23 @@ from lxml import etree
 from meikipop.paths import paths
 
 
+# ── Path Resolution ───────────────────────────────────────────────────────────────
+
+def get_output_dir():
+    """Get the output directory for dictionary.pkl."""
+    if getattr(sys, 'frozen', False):
+        # Running as PyInstaller bundle - save next to executable
+        return os.path.dirname(sys.executable)
+    else:
+        # Running from source or pip install - use user data directory
+        return paths.user_data_dir
+
+
 # ── Constants ──────────────────────────────────────────────────────────────────
 
-DATA_DIR = paths.user_cache_dir  # Use user cache directory for downloaded files
-OUTPUT_PATH = os.path.join(paths.user_data_dir, 'dictionary.pkl')
+OUTPUT_DIR = get_output_dir()
+OUTPUT_PATH = os.path.join(OUTPUT_DIR, 'dictionary.pkl')
+DATA_DIR = paths.user_cache_dir  # Cache stays in user cache directory
 DECONJUGATOR_PATH = os.path.join(os.path.dirname(__file__), 'deconjugator.json')
 SYNTHETIC_ID_START = 10_000_000  # safely above any real JMdict seq number
 DEFAULT_FREQ       = 999_999

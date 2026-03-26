@@ -15,8 +15,19 @@ IS_LINUX = sys.platform.startswith('linux')
 IS_WINDOWS = sys.platform.startswith('win')
 IS_MACOS = sys.platform.startswith('darwin')
 
-CONFIG_PATH = os.path.join(paths.user_config_dir, 'config.ini')
-DICT_PATH = os.path.join(paths.user_data_dir, 'dictionary.pkl')
+# Determine base directory based on how the app is running
+if getattr(sys, 'frozen', False):
+    # Running as PyInstaller bundle - use executable directory
+    base_dir = os.path.dirname(sys.executable)
+    config_path = os.path.join(base_dir, 'config.ini')
+    dict_path = os.path.join(base_dir, 'dictionary.pkl')
+else:
+    # Running from source or pip install - use platformdirs user directories
+    config_path = os.path.join(paths.user_config_dir, 'config.ini')
+    dict_path = os.path.join(paths.user_data_dir, 'dictionary.pkl')
+
+CONFIG_PATH = config_path
+DICT_PATH = dict_path
 
 class Config:
     _instance = None

@@ -23,8 +23,7 @@ jobs:
       - name: install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          pip install lxml
+          pip install -e .
           pip install pyinstaller
 
       - name: clean previous builds
