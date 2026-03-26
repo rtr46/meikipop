@@ -65,7 +65,7 @@ jobs:
           mv dist/meikipop dist/meikipop.elf
           mkdir dist/meikipop/
           mv dist/meikipop.elf dist/meikipop/meikipop
-          mv dictionary.pkl dist/meikipop/
+          cp /home/runner/.local/share/meikipop/dictionary.pkl dist/meikipop/
           tar -czvf dist/meikipop.linux.x64.tar.gz -C dist/ meikipop
 
       - name: upload linux artifact
