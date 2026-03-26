@@ -55,13 +55,6 @@ class MeikiPaths:
         """Location of dictionary.pkl"""
         if self.is_frozen:
             return os.path.join(os.path.dirname(sys.executable), 'dictionary.pkl')
-        # Check legacy paths for backwards compatibility
-        for legacy in [
-            os.path.join(os.path.expanduser('~'), 'dictionary.pkl'),
-            os.path.join(self.user_data_dir, 'dictionary.pkl'),
-        ]:
-            if os.path.exists(legacy):
-                return legacy
         return os.path.join(self.user_data_dir, 'dictionary.pkl')
     
     @property

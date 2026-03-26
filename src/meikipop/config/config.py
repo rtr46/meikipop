@@ -1,7 +1,6 @@
 # meikipop/config/config.py
 import configparser
 import logging
-import os
 import sys
 
 from meikipop.paths import paths
