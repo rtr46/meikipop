@@ -28,7 +28,7 @@ from typing import Optional
 from meikipop.paths import paths
 
 DATA_DIR = 'data'
-DEFAULT_OUTPUT = os.path.join(paths.user_data_dir, 'dictionary.pkl')
+DEFAULT_OUTPUT = paths.dictionary_path
 DECONJUGATOR_PATH = os.path.join(os.path.dirname(__file__), 'deconjugator.json')
 DEFAULT_FREQ = 999_999
 ID_NAMESPACE = 10_000_000

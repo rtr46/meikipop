@@ -1,6 +1,5 @@
 # meikipop/gui/tray.py
 import os
-import sys
 
 from PyQt6.QtGui import QIcon, QAction, QActionGroup
 from PyQt6.QtWidgets import QSystemTrayIcon, QMenu, QApplication
@@ -8,29 +7,14 @@ from PyQt6.QtWidgets import QSystemTrayIcon, QMenu, QApplication
 from meikipop.config.config import APP_NAME, config, IS_WINDOWS
 from meikipop.gui.settings_dialog import SettingsDialog
 from meikipop.ocr.ocr import OcrProcessor
-
-
-def get_resource_path(relative_path):
-    """Get absolute path to resource"""
-    if getattr(sys, 'frozen', False):
-        # PyInstaller bundle - resources are in meikipop subfolder
-        base_path = os.path.join(sys._MEIPASS, 'meikipop')
-    else:
-        # Development or pip install - use package directory
-        import meikipop
-        base_path = os.path.dirname(meikipop.__file__)
-    
-    full_path = os.path.join(base_path, relative_path)
-    # Optional: Uncomment for debugging
-    # print(f"[DEBUG] Resolved resource path: {full_path}")
-    return full_path
+from meikipop.paths import paths
 
 
 class TrayIcon(QSystemTrayIcon):
     def __init__(self, screen_manager, ocr_processor: OcrProcessor, popup_window, input_loop, lookup, parent=None):
-        # Resolve icon paths using robust helper
-        icon_path = get_resource_path('meikipop/resources/icon.ico')
-        icon_inactive_path = get_resource_path('meikipop/resources/icon.inactive.ico')
+        # Resolve icon paths using
+        icon_path = paths.get_resource_path('resources/icon.ico')
+        icon_inactive_path = paths.get_resource_path('resources/icon.inactive.ico')
 
         if os.path.exists(icon_path):
             self.icon = QIcon(icon_path)

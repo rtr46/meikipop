@@ -10,7 +10,6 @@ import json
 import os
 import pickle
 import re
-import sys
 import time
 from collections import Counter, defaultdict
 from itertools import count
@@ -23,23 +22,10 @@ from lxml import etree
 from meikipop.paths import paths
 
 
-# ── Path Resolution ───────────────────────────────────────────────────────────────
-
-def get_output_dir():
-    """Get the output directory for dictionary.pkl."""
-    if getattr(sys, 'frozen', False):
-        # Running as PyInstaller bundle - save next to executable
-        return os.path.dirname(sys.executable)
-    else:
-        # Running from source or pip install - use user data directory
-        return paths.user_data_dir
-
-
 # ── Constants ──────────────────────────────────────────────────────────────────
 
-OUTPUT_DIR = get_output_dir()
-OUTPUT_PATH = os.path.join(OUTPUT_DIR, 'dictionary.pkl')
-DATA_DIR = paths.user_cache_dir  # Cache stays in user cache directory
+DATA_DIR = paths.cache_dir
+OUTPUT_PATH = paths.dictionary_path
 DECONJUGATOR_PATH = os.path.join(os.path.dirname(__file__), 'deconjugator.json')
 SYNTHETIC_ID_START = 10_000_000  # safely above any real JMdict seq number
 DEFAULT_FREQ       = 999_999
