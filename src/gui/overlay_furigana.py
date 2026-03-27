@@ -85,6 +85,14 @@ class OverlayFurigana(QWidget):
         self._items = items
         self.update()  # thread-safe repaint request
 
+    def update_furigana_safe(self, items: List[FuriganaItem]):
+        """
+        Thread-safe version of set_furigana + show_overlay for calling from non-main threads.
+        Use via QMetaObject.invokeMethod with Qt.QueuedConnection.
+        """
+        self.set_furigana(items)
+        self.show_overlay()
+
     # ------------------------------------------------------------------
     # Painting
     # ------------------------------------------------------------------

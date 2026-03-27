@@ -17,10 +17,15 @@
 #     → _update_virtual_cursor()   (sets input_loop.virtual_mouse_pos)
 #     → _trigger_lookup()           (puts lookup_string on lookup_queue)
 #     → _update_selection_overlay() (repaints the highlight box)
+#
+# Thread Safety:
+#   All public methods may be called from the GamepadController thread.
+#   Qt widget operations are queued to the main thread via signals.
 
 import logging
 from typing import List, Optional, Tuple, Dict
 
+from PyQt6.QtCore import QObject, pyqtSignal
 from src.ocr.interface import Paragraph, Word
 
 logger = logging.getLogger(__name__)
@@ -34,27 +39,35 @@ logger = logging.getLogger(__name__)
 _CharEntry = Tuple[str, int, Paragraph, Word, int, int]
 
 
-class NavigationState:
+class NavigationState(QObject):
     """
     Coordinates between the gamepad controller and the rest of the app.
 
-    Must be constructed on the main (Qt) thread because it calls Qt
-    overlay methods, but its public methods (step_char / step_word /
-    toggle_furigana) are called from the GamepadController thread and
-    must therefore only call Qt-safe operations (update(), show(), hide()
-    are all thread-safe in Qt6 when called via queued connections; here
-    we rely on the overlay widgets not doing unsafe GL/paint work in the
-    non-main thread, which is acceptable for simple QWidget::update()).
+    Uses Qt signals to ensure all Qt widget operations happen on the main thread.
     """
+
+    # Signals for thread-safe communication with overlays
+    # Each carries the data needed by the respective overlay method
+    selection_changed = pyqtSignal(object, int, int, int, int)  # box, off_x, off_y, img_w, img_h
+    furigana_updated = pyqtSignal(list)  # list of furigana items
+    furigana_hidden = pyqtSignal()
+    selection_hidden = pyqtSignal()
 
     def __init__(self, shared_state, input_loop,
                  overlay_selection, overlay_furigana,
                  screen_manager):
+        super().__init__()
         self.shared_state = shared_state
         self.input_loop = input_loop
         self.overlay_selection = overlay_selection
         self.overlay_furigana = overlay_furigana
         self.screen_manager = screen_manager
+
+        # Connect signals to overlay slots for thread-safe communication
+        self.selection_changed.connect(self._on_selection_changed)
+        self.furigana_updated.connect(self._on_furigana_updated)
+        self.furigana_hidden.connect(self._on_furigana_hidden)
+        self.selection_hidden.connect(self._on_selection_hidden)
 
         # Set by HitScanner whenever a new OCR result arrives
         self._paragraphs: Optional[List[Paragraph]] = None
@@ -73,6 +86,27 @@ class NavigationState:
 
         # Whether the furigana overlay should be shown in nav mode
         self._furigana_active: bool = False
+
+    # ------------------------------------------------------------------
+    # Signal handlers (slots) - these run on the main thread
+    # ------------------------------------------------------------------
+
+    def _on_selection_changed(self, box, off_x, off_y, img_w, img_h):
+        """Slot: handle selection change on main thread"""
+        self.overlay_selection.set_selection(box, off_x, off_y, img_w, img_h)
+
+    def _on_furigana_updated(self, items):
+        """Slot: handle furigana update on main thread"""
+        self.overlay_furigana.set_furigana(items)
+        self.overlay_furigana.show_overlay()
+
+    def _on_furigana_hidden(self):
+        """Slot: handle furigana hide on main thread"""
+        self.overlay_furigana.hide_overlay()
+
+    def _on_selection_hidden(self):
+        """Slot: handle selection hide on main thread"""
+        self.overlay_selection.hide_overlay()
 
     # ------------------------------------------------------------------
     # Public interface called by GamepadController
@@ -112,11 +146,10 @@ class NavigationState:
 
     def on_exit(self):
         """Called by GamepadController when the user exits navigation mode."""
-        self.overlay_selection.hide_overlay()
+        # Emit signals for thread-safe Qt operations
+        self.selection_hidden.emit()
         if self._furigana_active:
-            # Keep furigana up if the popup is still showing; let popup
-            # hide it via its own hide_popup() → overlay_furigana.hide_overlay()
-            pass
+            self.furigana_hidden.emit()
         # Clear the virtual cursor so normal mouse control resumes
         self.input_loop.virtual_mouse_pos = None
 
@@ -166,7 +199,8 @@ class NavigationState:
         if self._furigana_active:
             self._refresh_furigana_overlay()
         else:
-            self.overlay_furigana.hide_overlay()
+            # Emit signal for thread-safe Qt operation
+            self.furigana_hidden.emit()
 
     # ------------------------------------------------------------------
     # Internal: char map construction
@@ -320,7 +354,7 @@ class NavigationState:
         return best_idx
 
     # ------------------------------------------------------------------
-    # Internal: overlay updates
+    # Internal: overlay updates (thread-safe Qt invocation)
     # ------------------------------------------------------------------
 
     def _update_selection_overlay(self):
@@ -329,7 +363,8 @@ class NavigationState:
             return
         _, _, para, word, _, _ = self._char_map[self._char_index]
         off_x, off_y, img_w, img_h = self.screen_manager.get_scan_geometry()
-        self.overlay_selection.set_selection(word.box, off_x, off_y, img_w, img_h)
+        # Emit signal for thread-safe Qt operation
+        self.selection_changed.emit(word.box, off_x, off_y, img_w, img_h)
 
     def _refresh_furigana_overlay(self):
         """
@@ -378,5 +413,5 @@ class NavigationState:
                         )
                         break
 
-        self.overlay_furigana.set_furigana(furigana_items)
-        self.overlay_furigana.show_overlay()
+        # Emit signal for thread-safe Qt operation
+        self.furigana_updated.emit(furigana_items)

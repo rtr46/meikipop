@@ -82,6 +82,15 @@ class OverlaySelection(QWidget):
         self._has_selection = False
         self.hide()
 
+    def set_selection_safe(self, box: BoundingBox,
+                          off_x: int, off_y: int,
+                          img_w: int, img_h: int):
+        """
+        Thread-safe version of set_selection() for calling from non-main threads.
+        Use via QMetaObject.invokeMethod with Qt.QueuedConnection.
+        """
+        self.set_selection(box, off_x, off_y, img_w, img_h)
+
     # ------------------------------------------------------------------
     # Internal
     # ------------------------------------------------------------------
