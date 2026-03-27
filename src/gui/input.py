@@ -208,6 +208,10 @@ class InputLoop(threading.Thread):
                 time.sleep(0.01)
         logger.debug("Input thread stopped.")
 
+    def trigger_screenshot(self):
+        """Trigger a screenshot from external code (e.g., after gamepad nav exits)."""
+        self.shared_state.screenshot_trigger_event.set()
+
     def is_virtual_hotkey_down(self):
         # In gamepad navigation mode the popup should stay visible even
         # though no keyboard hotkey is being held.

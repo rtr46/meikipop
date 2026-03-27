@@ -86,6 +86,9 @@ def main():
                 screen_manager=screen_manager,
             )
 
+            # Set popup reference for thread-safe hiding
+            navigation.set_popup(popup_window)
+
             # Wire up the HitScanner so NavigationState is notified on new OCR
             hit_scanner.set_ocr_update_callback(navigation.on_new_ocr_result)
 

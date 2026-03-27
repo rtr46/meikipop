@@ -33,6 +33,7 @@ class ScreenManager(threading.Thread):
 
     def run(self):
         logger.debug("Screenshot thread started.")
+        self._last_nav_active = False  # For logging state changes
         while self.shared_state.running:
             try:
                 if config.auto_scan_mode and not config.is_enabled:
@@ -48,7 +49,11 @@ class ScreenManager(threading.Thread):
                 # While the user is navigating with the gamepad, block new
                 # screenshots.  The existing OCR result is sufficient and
                 # re-scanning would interfere with the navigation overlay.
-                if self.input_loop.gamepad_navigation_active:
+                is_nav = self.input_loop.gamepad_navigation_active
+                if is_nav != self._last_nav_active:
+                    logger.debug(f"Screenshot: gamepad_navigation_active changed: {self._last_nav_active} -> {is_nav}")
+                    self._last_nav_active = is_nav
+                if is_nav:
                     logger.debug("Screenshot: skipped (gamepad navigation active).")
                     continue
 

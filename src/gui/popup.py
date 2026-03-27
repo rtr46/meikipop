@@ -177,7 +177,17 @@ class Popup(QWidget):
             self.setFixedSize(new_size)
         self._last_latest_data = latest_data
 
-        if self._latest_data and self.input_loop.is_virtual_hotkey_down():
+        # Check if we should show or hide the popup
+        should_show = self.input_loop.is_virtual_hotkey_down() and self._latest_data
+        
+        # Prevent immediate re-show after hide (ghost popup fix)
+        # If we just hid and are now being asked to show, check cooldown
+        if should_show and hasattr(self, '_hide_cooldown_end'):
+            import time as time_module
+            if time_module.time() < self._hide_cooldown_end:
+                should_show = False
+        
+        if should_show:
             self.show_popup()
         else:
             self.hide_popup()
@@ -187,11 +197,16 @@ class Popup(QWidget):
         # character's bounding box centre) instead of the real mouse.
         if self.input_loop.gamepad_navigation_active and self.input_loop.virtual_mouse_pos:
             vx, vy = self.input_loop.virtual_mouse_pos
+            # Convert from physical pixels to Qt logical pixels
+            screen = QApplication.primaryScreen()
+            ratio = screen.devicePixelRatio() if screen else 1
+            vx = int(vx / ratio)
+            vy = int(vy / ratio)
             cursor_pos = QPoint(vx, vy)
+            self.move_to(cursor_pos.x(), cursor_pos.y(), apply_magpie_transform=False)
         else:
             cursor_pos = QCursor.pos()
-
-        self.move_to(cursor_pos.x(), cursor_pos.y())
+            self.move_to(cursor_pos.x(), cursor_pos.y())
 
     def _render_kanji_entry(self, entry: KanjiEntry):
         # Colors and sizes from config
@@ -338,15 +353,16 @@ class Popup(QWidget):
         final_size = QSize(int(optimal_content_width) + horizontal_padding, final_height + vertical_padding)
         return full_html, final_size
 
-    def move_to(self, x, y):
+    def move_to(self, x, y, apply_magpie_transform=True):
         cursor_point = QPoint(x, y)
         screen = QApplication.screenAt(cursor_point) or QApplication.primaryScreen()
         screen_geo = screen.geometry()
         popup_size = self.size()
         offset = 15
 
-        ratio = screen.devicePixelRatio()
-        x, y = magpie_manager.transform_raw_to_visual((int(x), int(y)), ratio)
+        if apply_magpie_transform:
+            ratio = screen.devicePixelRatio()
+            x, y = magpie_manager.transform_raw_to_visual((int(x), int(y)), ratio)
 
         # --- Positioning logic based on mode ---
         mode = config.popup_position_mode
@@ -421,8 +437,14 @@ class Popup(QWidget):
     def hide_popup(self):
         if not self.is_visible:
             return
+        was_visible = self.is_visible
         self.hide()
         self.is_visible = False
+        if was_visible != self.is_visible:
+            logger.debug(f"Popup visibility changed: {was_visible} -> {self.is_visible}")
+        # Set cooldown to prevent ghost popup (immediate re-show)
+        import time as time_module
+        self._hide_cooldown_end = time_module.time() + 0.2  # 200ms cooldown
         QTimer.singleShot(50, lambda: self._release_lock_safely())
         self._restore_focus_on_mac()
 
@@ -438,9 +460,12 @@ class Popup(QWidget):
     def show_popup(self):
         if self.is_visible:
             return
+        was_visible = self.is_visible
         logger.debug("show_popup acquiring lock...")
         self.shared_state.screen_lock.acquire()
         logger.debug("...successfully acquired lock by show_popup")
+        if was_visible != self.is_visible:
+            logger.debug(f"Popup visibility changed: {was_visible} -> {self.is_visible}")
 
         self._store_active_window_on_mac()
         self.show()

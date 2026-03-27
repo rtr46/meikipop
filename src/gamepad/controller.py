@@ -256,8 +256,14 @@ class GamepadController(threading.Thread):
 
     def _exit_nav_mode(self):
         logger.debug("Exiting gamepad navigation mode.")
+        # Set flag FIRST to prevent race condition with popup timer
+        # Popup's timer checks this flag every 10ms - must be False
+        # BEFORE we call on_exit() which emits queued signals
         self.input_loop.gamepad_navigation_active = False
+        # Then hide popup and overlays
         self.navigation.on_exit()
+        # Trigger a fresh screenshot to restart OCR loop
+        self.input_loop.trigger_screenshot()
         # Clean slate for the virtual pad when returning to the game
         if self._virtual_pad:
             try:

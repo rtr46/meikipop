@@ -52,6 +52,8 @@ class NavigationState(QObject):
     furigana_updated = pyqtSignal(list)  # list of furigana items
     furigana_hidden = pyqtSignal()
     selection_hidden = pyqtSignal()
+    virtual_cursor_changed = pyqtSignal(object)  # (x, y) tuple or None
+    popup_hidden = pyqtSignal()  # signal to hide popup on exit
 
     def __init__(self, shared_state, input_loop,
                  overlay_selection, overlay_furigana,
@@ -62,12 +64,15 @@ class NavigationState(QObject):
         self.overlay_selection = overlay_selection
         self.overlay_furigana = overlay_furigana
         self.screen_manager = screen_manager
+        self._popup = None  # Will be set by main.py
 
         # Connect signals to overlay slots for thread-safe communication
         self.selection_changed.connect(self._on_selection_changed)
         self.furigana_updated.connect(self._on_furigana_updated)
         self.furigana_hidden.connect(self._on_furigana_hidden)
         self.selection_hidden.connect(self._on_selection_hidden)
+        self.virtual_cursor_changed.connect(self._on_virtual_cursor_changed)
+        self.popup_hidden.connect(self._on_popup_hidden)
 
         # Set by HitScanner whenever a new OCR result arrives
         self._paragraphs: Optional[List[Paragraph]] = None
@@ -108,6 +113,99 @@ class NavigationState(QObject):
         """Slot: handle selection hide on main thread"""
         self.overlay_selection.hide_overlay()
 
+    def _on_virtual_cursor_changed(self, pos):
+        """Slot: update virtual mouse position on main thread"""
+        self.input_loop.virtual_mouse_pos = pos
+
+    def set_popup(self, popup):
+        """Set reference to popup for hide operations"""
+        self._popup = popup
+
+    def _on_popup_hidden(self):
+        """Slot: hide popup on main thread"""
+        if hasattr(self, '_popup') and self._popup:
+            self._popup.hide_popup()
+
+    # ------------------------------------------------------------------
+    # Helper methods
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _contains_kanji(text: str) -> bool:
+        """Check if text contains at least one kanji character."""
+        for ch in text:
+            code = ord(ch)
+            if 0x4E00 <= code <= 0x9FFF or 0x3400 <= code <= 0x4DBF:
+                return True
+        return False
+
+    @staticmethod
+    def _is_kana(ch: str) -> bool:
+        """Check if a single character is kana (hiragana or katakana)."""
+        code = ord(ch)
+        return 0x3040 <= code <= 0x309F or 0x30A0 <= code <= 0x30FF
+
+    def _extract_furigana_for_token(self, surface: str, reading: str) -> str:
+        """
+        Extract only the furigana (reading for kanji) from a token.
+        
+        Uses a two-pointer algorithm to match surface characters to reading characters.
+        For example, "行ける" with reading "いける" returns "い" (furigana for 行).
+        """
+        if not surface or not reading:
+            return ""
+        
+        if not self._contains_kanji(surface):
+            return ""
+        
+        surface_idx = 0
+        reading_idx = 0
+        furigana_parts = []
+        
+        while surface_idx < len(surface):
+            ch = surface[surface_idx]
+            if self._is_kana(ch):
+                # Kana in surface - no furigana needed
+                surface_idx += 1
+                reading_idx += 1
+            else:
+                # Kanji - find where the next kana starts in surface
+                next_kana_pos = -1
+                for i in range(surface_idx + 1, len(surface)):
+                    if self._is_kana(surface[i]):
+                        next_kana_pos = i
+                        break
+                
+                if next_kana_pos < 0:
+                    # No more kana in surface, take remaining reading
+                    furigana_parts.append(reading[reading_idx:])
+                    break
+                else:
+                    # Find matching position in reading
+                    # Look for the reading character that matches the next kana
+                    kana_char = surface[next_kana_pos]
+                    match_pos = -1
+                    temp_idx = reading_idx
+                    
+                    while temp_idx < len(reading):
+                        if reading[temp_idx] == kana_char:
+                            match_pos = temp_idx
+                            break
+                        temp_idx += 1
+                    
+                    if match_pos < 0:
+                        # No match found, take remaining
+                        furigana_parts.append(reading[reading_idx:])
+                        break
+                    else:
+                        # Extract reading for this kanji portion
+                        furigana_parts.append(reading[reading_idx:match_pos])
+                        reading_idx = match_pos
+                        surface_idx = next_kana_pos
+        
+        result = ''.join(furigana_parts)
+        return result
+
     # ------------------------------------------------------------------
     # Public interface called by GamepadController
     # ------------------------------------------------------------------
@@ -129,6 +227,7 @@ class NavigationState(QObject):
         Called by GamepadController when the user enters navigation mode.
         Snaps the selection to the character nearest to the current mouse pos.
         """
+        logger.debug("NavigationState.on_enter called")
         if not self._char_map:
             logger.debug("NavigationState.on_enter: no OCR result yet – nothing to navigate.")
             return
@@ -146,12 +245,16 @@ class NavigationState(QObject):
 
     def on_exit(self):
         """Called by GamepadController when the user exits navigation mode."""
+        logger.debug("NavigationState.on_exit called")
+        # Hide popup first (before clearing cursor)
+        self.popup_hidden.emit()
         # Emit signals for thread-safe Qt operations
         self.selection_hidden.emit()
         if self._furigana_active:
             self.furigana_hidden.emit()
-        # Clear the virtual cursor so normal mouse control resumes
+        # Clear the virtual cursor directly and via signal for thread safety
         self.input_loop.virtual_mouse_pos = None
+        self.virtual_cursor_changed.emit(None)
 
     def step_char(self, delta: int):
         """Move the selection by *delta* characters (±1)."""
@@ -279,12 +382,16 @@ class NavigationState(QObject):
     def _update_virtual_cursor(self):
         """
         Compute the screen pixel coordinates of the selected character
-        and store them in input_loop.virtual_mouse_pos.  The popup and
-        hit-scan code will use this position for all subsequent queries.
+        and update virtual_mouse_pos. Also emit signal for thread-safe
+        overlay updates. The direct assignment ensures the popup sees the
+        new position immediately (before signal delivery).
         """
         pos = self._char_index_to_screen_pos(self._char_index)
         if pos:
+            # Update directly for immediate popup visibility
             self.input_loop.virtual_mouse_pos = pos
+            # Also emit signal for thread-safe overlay updates
+            self.virtual_cursor_changed.emit(pos)
 
     def _trigger_lookup(self):
         """
@@ -395,21 +502,32 @@ class NavigationState(QObject):
             word_list = list(para.words)
 
             for token in tokens:
-                if token.is_kana or not token.reading:
+                # Skip tokens without kanji
+                if not self._contains_kanji(token.surface):
                     continue
 
-                # Find the first word that contains token.char_start
+                # Skip tokens without reading
+                if not token.reading:
+                    continue
+
+                # Extract only the kanji reading (without okurigana)
+                furigana_reading = self._extract_furigana_for_token(token.surface, token.reading)
+                if not furigana_reading:
+                    continue
+
+                # Find the word that contains this token
                 for wi, word in enumerate(word_list):
                     w_start = word_char_starts[wi]
                     w_end = w_start + len(word.text)
                     if w_start <= token.char_start < w_end:
                         box = word.box
+
                         sx = int(off_x + (box.center_x - box.width / 2) * img_w)
                         sy = int(off_y + (box.center_y - box.height / 2) * img_h)
                         sw = int(box.width * img_w)
                         sh = int(box.height * img_h)
                         furigana_items.append(
-                            (sx, sy, sw, sh, token.reading, para.is_vertical)
+                            (sx, sy, sw, sh, furigana_reading, para.is_vertical)
                         )
                         break
 
