@@ -20,7 +20,7 @@ from typing import List, Tuple
 
 from PyQt6.QtCore import Qt, QRect
 from PyQt6.QtGui import QColor, QFont, QFontMetrics, QPainter
-from PyQt6.QtWidgets import QWidget
+from PyQt6.QtWidgets import QWidget, QApplication
 
 from src.config.config import config
 
@@ -63,7 +63,12 @@ class OverlayFurigana(QWidget):
         off_x, off_y, img_w, img_h = self._screen_manager.get_scan_geometry()
         if img_w == 0 or img_h == 0:
             return
-        self.setGeometry(off_x, off_y, img_w, img_h)
+        screen = QApplication.primaryScreen()
+        ratio = screen.devicePixelRatio() if screen else 1
+        self.setGeometry(
+            int(off_x / ratio), int(off_y / ratio),
+            int(img_w / ratio), int(img_h / ratio)
+        )
         self.show()
         self.raise_()
 
@@ -92,12 +97,15 @@ class OverlayFurigana(QWidget):
         if img_w == 0 or img_h == 0:
             return
 
+        screen = QApplication.primaryScreen()
+        ratio = screen.devicePixelRatio() if screen else 1
+
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.TextAntialiasing)
 
         font_family = config.font_family if config.font_family else ""
         font = QFont(font_family)
-        font.setPixelSize(max(8, config.furigana_font_size))
+        font.setPixelSize(max(8, int(config.furigana_font_size / ratio)))
         painter.setFont(font)
         fm = QFontMetrics(font)
 
@@ -106,9 +114,11 @@ class OverlayFurigana(QWidget):
         bg_color.setAlpha(180)
 
         for sx, sy, sw, sh, reading, is_vertical in self._items:
-            # Convert from screen coords to widget-local coords
-            local_x = sx - off_x
-            local_y = sy - off_y
+            # Convert from screen coords to widget-local coords, accounting for display scaling
+            local_x = (sx - off_x) / ratio
+            local_y = (sy - off_y) / ratio
+            local_sw = sw / ratio
+            local_sh = sh / ratio
 
             text_w = fm.horizontalAdvance(reading)
             text_h = fm.height()
@@ -116,22 +126,22 @@ class OverlayFurigana(QWidget):
 
             if is_vertical:
                 # Place reading to the right of the word box
-                rx = local_x + sw + 2
+                rx = local_x + local_sw + 2
                 ry = local_y
-                bg_rect = QRect(rx, ry, text_w + 4, max(sh, text_h + 4))
+                bg_rect = QRect(int(rx), int(ry), int(text_w + 4), int(max(local_sh, text_h + 4)))
                 draw_x = rx + 2
                 draw_y = ry + ascent + 2
             else:
                 # Place reading above the word box
                 rx = local_x
                 ry = local_y - text_h - 2
-                bg_rect = QRect(rx, ry, max(sw, text_w + 4), text_h + 2)
+                bg_rect = QRect(int(rx), int(ry), int(max(local_sw, text_w + 4)), int(text_h + 2))
                 draw_x = rx + 2
                 draw_y = ry + ascent
 
-            # Clamp to widget bounds
-            if bg_rect.right() > img_w:
-                shift = bg_rect.right() - img_w
+            # Clamp to widget bounds (use scaled dimensions)
+            if bg_rect.right() > img_w / ratio:
+                shift = bg_rect.right() - (img_w / ratio)
                 bg_rect.moveLeft(bg_rect.left() - shift)
                 draw_x -= shift
             if bg_rect.top() < 0:
@@ -141,6 +151,6 @@ class OverlayFurigana(QWidget):
 
             painter.fillRect(bg_rect, bg_color)
             painter.setPen(fg_color)
-            painter.drawText(draw_x, draw_y, reading)
+            painter.drawText(int(draw_x), int(draw_y), reading)
 
         painter.end()

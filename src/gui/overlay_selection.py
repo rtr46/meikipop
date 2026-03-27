@@ -13,7 +13,7 @@ import logging
 
 from PyQt6.QtCore import Qt, QRect
 from PyQt6.QtGui import QColor, QPainter, QPen
-from PyQt6.QtWidgets import QWidget
+from PyQt6.QtWidgets import QWidget, QApplication
 
 from src.config.config import config
 from src.ocr.interface import BoundingBox
@@ -89,7 +89,12 @@ class OverlaySelection(QWidget):
     def _reposition(self):
         off_x, off_y, img_w, img_h = self._screen_manager.get_scan_geometry()
         if img_w > 0 and img_h > 0:
-            self.setGeometry(off_x, off_y, img_w, img_h)
+            screen = QApplication.primaryScreen()
+            ratio = screen.devicePixelRatio() if screen else 1
+            self.setGeometry(
+                int(off_x / ratio), int(off_y / ratio),
+                int(img_w / ratio), int(img_h / ratio)
+            )
 
     # ------------------------------------------------------------------
     # Painting
@@ -101,13 +106,15 @@ class OverlaySelection(QWidget):
 
         off_x, off_y, _, _ = self._screen_manager.get_scan_geometry()
 
-        # Convert to widget-local coordinates
-        local_x = self._sel_sx - off_x
-        local_y = self._sel_sy - off_y
-        # todo: adjust to display scaling
-        # local_x = int(local_x / 1.5)
-        # local_y = int(local_y / 1.5)
-        rect = QRect(local_x, local_y, self._sel_sw, self._sel_sh)
+        screen = QApplication.primaryScreen()
+        ratio = screen.devicePixelRatio() if screen else 1
+
+        # Convert to widget-local coordinates, accounting for display scaling
+        local_x = (self._sel_sx - off_x) / ratio
+        local_y = (self._sel_sy - off_y) / ratio
+        local_w = self._sel_sw / ratio
+        local_h = self._sel_sh / ratio
+        rect = QRect(int(local_x), int(local_y), int(local_w), int(local_h))
 
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
@@ -120,11 +127,11 @@ class OverlaySelection(QWidget):
         # Solid border (slightly inset so it doesn't bleed outside the box)
         border_color = QColor(config.selection_color)
         border_color.setAlpha(230)
-        pen = QPen(border_color, 2)
+        pen = QPen(border_color, max(1, int(2 / ratio)))
         painter.setPen(pen)
         painter.setBrush(Qt.BrushStyle.NoBrush)
-        inset = QRect(local_x + 1, local_y + 1,
-                      self._sel_sw - 2, self._sel_sh - 2)
+        inset = QRect(int(local_x + 1), int(local_y + 1),
+                      int(local_w - 2), int(local_h - 2))
         painter.drawRect(inset)
 
         painter.end()
