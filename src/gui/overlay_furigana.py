@@ -113,7 +113,7 @@ class OverlayFurigana(QWidget):
 
         font_family = config.font_family if config.font_family else ""
         font = QFont(font_family)
-        font.setPixelSize(max(8, int(config.furigana_font_size / ratio)))
+        font.setPixelSize(max(8, config.furigana_font_size))
         painter.setFont(font)
         fm = QFontMetrics(font)
 
