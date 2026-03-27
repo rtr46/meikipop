@@ -20,13 +20,12 @@ def get_resource_path(relative_path):
         base_path = os.path.abspath(".")
 
     full_path = os.path.join(base_path, relative_path)
-    # Optional: Uncomment for debugging
-    # print(f"[DEBUG] Resolved resource path: {full_path}")
     return full_path
 
 
 class TrayIcon(QSystemTrayIcon):
-    def __init__(self, screen_manager, ocr_processor: OcrProcessor, popup_window, input_loop, lookup, parent=None):
+    def __init__(self, screen_manager, ocr_processor: OcrProcessor, popup_window,
+                 input_loop, lookup, gamepad_controller=None, parent=None):
         # Resolve icon paths using robust helper
         icon_path = get_resource_path('src/resources/icon.ico')
         icon_inactive_path = get_resource_path('src/resources/icon.inactive.ico')
@@ -35,7 +34,6 @@ class TrayIcon(QSystemTrayIcon):
             self.icon = QIcon(icon_path)
             self.icon_inactive = QIcon(icon_inactive_path)
         else:
-            # print(f"Warning: Custom icon not found at '{icon_path}'. Using default.")
             from PyQt6.QtWidgets import QStyle
             self.icon = QIcon(QApplication.style().standardIcon(
                 QStyle.StandardPixmap.SP_ComputerIcon
@@ -48,6 +46,7 @@ class TrayIcon(QSystemTrayIcon):
         self.popup_window = popup_window
         self.input_loop = input_loop
         self.lookup = lookup
+        self.gamepad_controller = gamepad_controller
         self.scan_area_actions = []
 
         self.menu = QMenu()
@@ -128,20 +127,15 @@ class TrayIcon(QSystemTrayIcon):
         self.show()
 
     def on_tray_activated(self, reason):
-        """Handles clicks on the tray icon."""
-        # QSystemTrayIcon.ActivationReason.Trigger is the enum for a normal left-click.
         if reason == self.ActivationReason.Trigger:
             self.toggle_enabled_state()
 
     def toggle_enabled_state(self):
-        """Toggles the enabled/paused state of the application."""
         self.enable_action.setChecked(config.is_enabled)
         config.is_enabled = not config.is_enabled
         if config.is_enabled:
-            # App is active/unpaused
             self.setIcon(self.icon)
         else:
-            # App is inactive/paused
             self.setIcon(self.icon_inactive)
 
     def update_scan_area_check(self):
@@ -153,7 +147,6 @@ class TrayIcon(QSystemTrayIcon):
                 break
 
         if not action_to_check:
-            # If no specific match is found, default to checking the 'Custom Region' action.
             action_to_check = self.scan_area_actions[0]
 
         action_to_check.setChecked(True)
@@ -173,7 +166,7 @@ class TrayIcon(QSystemTrayIcon):
                     config.save()
             else:
                 self.update_scan_area_check()
-        else:  # It's a screen index
+        else:
             index = int(selected_id)
             if str(index) != config.scan_region:
                 self.screen_manager.set_scan_screen(index)
@@ -186,14 +179,11 @@ class TrayIcon(QSystemTrayIcon):
             self.ocr_processor.switch_provider(provider_name)
 
     def reapply_settings(self):
-        """Updates the tray menu's checkmarks to reflect the current config."""
-        # Update OCR Provider selection
         for action in self.ocr_action_group.actions():
             if action.text() == config.ocr_provider:
                 action.setChecked(True)
                 break
 
-        # Update Scan Mode selection
         for action in self.scan_mode_action_group.actions():
             is_auto_action = action.text() == "Auto"
             if is_auto_action == config.auto_scan_mode:
@@ -201,7 +191,13 @@ class TrayIcon(QSystemTrayIcon):
                 break
 
     def show_settings(self):
-        settings_dialog = SettingsDialog(self.ocr_processor, self.popup_window, self.input_loop, self.lookup, self)
+        # Pass gamepad_controller so the settings dialog can call
+        # reapply_settings() on it when the user saves changes.
+        settings_dialog = SettingsDialog(
+            self.ocr_processor, self.popup_window, self.input_loop,
+            self.lookup, self,
+            gamepad_controller=self.gamepad_controller,
+        )
         settings_dialog.exec()
 
     def prevent_ghost_icon_on_win(self):
@@ -209,7 +205,6 @@ class TrayIcon(QSystemTrayIcon):
             import ctypes
             from ctypes import wintypes
             def win_console_handler(ctrl_type):
-                # 2 = CTRL_CLOSE_EVENT (Closing the console window)
                 if ctrl_type == 2:
                     try:
                         self.hide()

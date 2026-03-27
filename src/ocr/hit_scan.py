@@ -1,12 +1,12 @@
 # src/ocr/hit_scan.py
 import logging
 import threading
-from typing import List
+from typing import Callable, List, Optional
 
 from src.gui.magpie_manager import magpie_manager
 from src.ocr.interface import Paragraph
 
-logger = logging.getLogger(__name__)  # Get the logger
+logger = logging.getLogger(__name__)
 
 
 class HitScanner(threading.Thread):
@@ -15,7 +15,21 @@ class HitScanner(threading.Thread):
         self.shared_state = shared_state
         self.input_loop = input_loop
         self.screen_manager = screen_manager
-        self.last_ocr_result = None
+
+        # The most recent OCR result; publicly readable by NavigationState
+        # so it can rebuild its char map when new text arrives.
+        self.last_ocr_result: Optional[List[Paragraph]] = None
+
+        # Optional callback invoked whenever last_ocr_result is updated.
+        # NavigationState registers itself here via set_ocr_update_callback().
+        self._ocr_update_callback: Optional[Callable[[Optional[List[Paragraph]]], None]] = None
+
+    def set_ocr_update_callback(self, cb: Callable[[Optional[List[Paragraph]]], None]):
+        """
+        Register a function to be called every time the OCR result changes.
+        Used by NavigationState to rebuild its character map without polling.
+        """
+        self._ocr_update_callback = cb
 
     def run(self):
         logger.debug("HitScanner thread started.")
@@ -27,6 +41,19 @@ class HitScanner(threading.Thread):
 
                 if is_ocr_result_updated:
                     self.last_ocr_result = new_ocr_result
+                    # Notify navigation state (if registered) so it can
+                    # rebuild the character map with fresh bounding boxes
+                    if self._ocr_update_callback:
+                        try:
+                            self._ocr_update_callback(self.last_ocr_result)
+                        except Exception:
+                            logger.exception("OCR update callback raised an exception.")
+
+                # In gamepad navigation mode the lookup is driven directly
+                # by NavigationState, so we skip the mouse-based hit scan
+                # to avoid overwriting its lookup string.
+                if self.input_loop.gamepad_navigation_active:
+                    continue
 
                 hit_scan_result = self.hit_scan(self.last_ocr_result) if self.last_ocr_result else None
 
@@ -113,14 +140,10 @@ class HitScanner(threading.Thread):
             character = full_text[final_char_index]
             lookup_string = full_text[final_char_index:]
             hit_scan_result = (full_text, final_char_index, character,
-                               lookup_string)  # this may be interesting for debugging, but only lookup_string is really relevant
+                               lookup_string)
             break
 
         if hit_scan_result:
             text, char_pos, char, lookup_string = hit_scan_result
-        #    truncated_text = (text[:40] + '...') if len(text) > 40 else text
-        #     config.user_log(f"  -> Looking up '{char}' at pos {char_pos} in text: \"{truncated_text}\"")
-        # else:
-        #     config.user_log("hit scan unsuccessful")
 
         return lookup_string

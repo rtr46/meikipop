@@ -48,6 +48,31 @@ class Config:
             'color_highlight_reading': '#90EE90',
             'background_opacity': 245,
             'popup_position_mode': 'flip_vertically'
+        },
+        'Gamepad': {
+            # Master switch - all gamepad features disabled by default
+            'gamepad_enabled': False,
+            # Which physical joystick to use (0 = first detected)
+            'gamepad_joystick_index': 0,
+            # Button indices (Xbox layout: A=0 B=1 X=2 Y=3 LB=4 RB=5 Back=6 Start=7 L3=8 R3=9)
+            'gamepad_toggle_button': 6,  # Back/Select: enter/exit navigation mode
+            'gamepad_exit_button': 1,  # B: quick-exit navigation mode
+            'gamepad_furigana_button': 3,  # Y: toggle furigana overlay
+            'gamepad_word_prev_button': 4,  # LB: jump to previous token (word-level nav)
+            'gamepad_word_next_button': 5,  # RB: jump to next token (word-level nav)
+            # D-pad is always used for character navigation when in nav mode
+        },
+        'Furigana': {
+            # Whether to show furigana overlay when the popup is visible
+            'furigana_enabled': False,
+            # Color for furigana text
+            'furigana_color': '#FFE066',
+            # Pixel size for furigana text (smaller than game text)
+            'furigana_font_size': 11,
+            # Color for the gamepad selection highlight box
+            'selection_color': '#FF4444',
+            # Alpha 0-255 for the selection fill
+            'selection_opacity': 120,
         }
     }
 

@@ -65,7 +65,7 @@ class RegionSelector(QDialog):
         self.end_logical = self.begin_logical
 
         # Store the physical position for the final result
-        px, py = InputLoop.get_mouse_pos()
+        px, py = InputLoop.get_raw_mouse_pos()
         self.begin_physical = QPoint(px, py)
 
         self.has_selection_started = True
@@ -85,7 +85,7 @@ class RegionSelector(QDialog):
         self.update_timer.stop()
 
         # Get the final physical position
-        px, py = InputLoop.get_mouse_pos()
+        px, py = InputLoop.get_raw_mouse_pos()
         end_physical = QPoint(px, py)
 
         # Create the final selection rectangle using the stored physical coordinates

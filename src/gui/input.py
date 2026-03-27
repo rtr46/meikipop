@@ -150,6 +150,18 @@ class InputLoop(threading.Thread):
 
         self.started_auto_mode = False
 
+        # ---- Gamepad navigation state --------------------------------
+        # Set to (x, y) by NavigationState when the user selects a
+        # character via the gamepad.  The popup and hit-scan code call
+        # get_mouse_pos() which returns this value when it is not None,
+        # so the rest of the application needs no further changes.
+        self.virtual_mouse_pos = None
+
+        # Set to True by GamepadController when navigation mode is active.
+        # is_virtual_hotkey_down() returns True while this flag is set so
+        # the popup stays visible throughout navigation.
+        self.gamepad_navigation_active = False
+
     def run(self):
         logger.debug("Input thread started.")
         last_mouse_pos = (0, 0)
@@ -197,8 +209,27 @@ class InputLoop(threading.Thread):
         logger.debug("Input thread stopped.")
 
     def is_virtual_hotkey_down(self):
+        # In gamepad navigation mode the popup should stay visible even
+        # though no keyboard hotkey is being held.
+        if self.gamepad_navigation_active:
+            return True
         return self.keyboard_controller.is_hotkey_pressed() or (
                 config.auto_scan_mode and config.auto_scan_mode_lookups_without_hotkey)
+
+    def get_mouse_pos(self):
+        """
+        Return the effective mouse position.
+
+        When the gamepad navigation mode is active, returns the virtual
+        cursor position (the centre of the selected character's bounding
+        box) so that all downstream code – HitScanner, ScreenManager's
+        mouse-move guard, and the popup's move_to() – transparently see
+        the gamepad selection instead of the real mouse.
+        """
+        if self.virtual_mouse_pos is not None:
+            return self.virtual_mouse_pos
+        pos = self.mouse_controller.position
+        return (int(pos[0]), int(pos[1]))
 
     def reapply_settings(self):
         logger.debug(f"InputLoop: Re-applying settings. New hotkey: '{config.hotkey}'.")
@@ -211,7 +242,7 @@ class InputLoop(threading.Thread):
             self.keyboard_controller = WindowsKeyboardController(self.hotkey_str)
 
     @staticmethod
-    def get_mouse_pos():
+    def get_raw_mouse_pos():
         with mouse.Controller() as mc:
             pos = mc.position
             # Convert floats to integers for QPoint compatibility

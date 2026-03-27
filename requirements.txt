@@ -12,3 +12,7 @@ python-xlib~=0.33; sys_platform == 'linux'
 websockets>=15.0.1
 meikiocr>=0.3.1
 onnxruntime==1.20.1; sys_platform == 'win32' # newer versions cause issues on windows
+pygame>=2.6.1
+vgamepad>=0.1.0; sys_platform == 'win32'
+sudachipy>=0.6.10
+sudachidict-full>=20251022

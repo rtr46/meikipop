@@ -1,6 +1,6 @@
 # src/gui/settings_dialog.py
-from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QColor, QIcon, QFontDatabase
+from PyQt6.QtCore import Qt, QUrl
+from PyQt6.QtGui import QColor, QIcon, QFontDatabase, QDesktopServices
 from PyQt6.QtWidgets import (QWidget, QDialog, QFormLayout, QComboBox,
                              QSpinBox, QCheckBox, QPushButton, QColorDialog, QVBoxLayout, QHBoxLayout,
                              QGroupBox, QDialogButtonBox, QLabel, QSlider, QDoubleSpinBox,
@@ -36,20 +36,28 @@ THEMES = {
     "Custom": {}
 }
 
+# Xbox-style button labels for the combo boxes in the Gamepad tab
+_BUTTON_OPTIONS = [
+    ("A (0)", 0), ("B (1)", 1), ("X (2)", 2), ("Y (3)", 3),
+    ("LB (4)", 4), ("RB (5)", 5), ("Back (6)", 6), ("Start (7)", 7),
+    ("L3 (8)", 8), ("R3 (9)", 9),
+]
+
 
 class SettingsDialog(QDialog):
     def __init__(self, ocr_processor: OcrProcessor, popup_window: Popup, input_loop: InputLoop, lookup: Lookup,
-                 tray_icon, parent=None):
+                 tray_icon, gamepad_controller=None, parent=None):
         super().__init__(parent)
         self.ocr_processor = ocr_processor
         self.popup_window = popup_window
         self.input_loop = input_loop
         self.tray_icon = tray_icon
         self.lookup = lookup
+        self.gamepad_controller = gamepad_controller
 
         self.setWindowTitle(f"{APP_NAME} Settings")
         self.setWindowIcon(QIcon("icon.ico"))
-        self.setMinimumWidth(400)
+        self.setMinimumWidth(420)
 
         # Keep track of all form layouts to unify their spacing later
         self.form_layouts = []
@@ -314,10 +322,18 @@ class SettingsDialog(QDialog):
         self.tab_appearance_layout.addWidget(color_group)
         self.tab_appearance_layout.addStretch()
 
-        # Add tabs to main layout
+        # ==========================================
+        # TAB 4: Gamepad
+        # ==========================================
+        self.tab_gamepad = QWidget()
+        self.tab_gamepad_layout = QVBoxLayout(self.tab_gamepad)
+        self._build_gamepad_tab()
+
+        # ---- Add all tabs ---
         self.tabs.addTab(self.tab_general, "General")
         self.tabs.addTab(self.tab_content, "Popup Content")
         self.tabs.addTab(self.tab_appearance, "Popup Appearance")
+        self.tabs.addTab(self.tab_gamepad, "Gamepad")
         main_layout.addWidget(self.tabs)
 
         # Buttons
@@ -334,39 +350,257 @@ class SettingsDialog(QDialog):
         self._update_auto_scan_state(self.auto_scan_check.isChecked())
         self._update_glens_state(self.ocr_provider_combo.currentText())
         self._update_kanji_options_state(self.show_kanji_check.isChecked())
+        self._update_gamepad_state(self.gamepad_enabled_check.isChecked())
+
+    # ------------------------------------------------------------------
+    # Gamepad tab builder
+    # ------------------------------------------------------------------
+
+    def _build_gamepad_tab(self):
+        layout = self.tab_gamepad_layout
+
+        # --- Group 1: Enable + Dependencies ---
+        deps_group = QGroupBox("Gamepad Support")
+        deps_layout = QFormLayout()
+        self.form_layouts.append(deps_layout)
+
+        self.gamepad_enabled_check = QCheckBox()
+        self.gamepad_enabled_check.setChecked(config.gamepad_enabled)
+        self.gamepad_enabled_check.toggled.connect(self._update_gamepad_state)
+        deps_layout.addRow("Enable Gamepad Support:", self.gamepad_enabled_check)
+
+        self.gamepad_joystick_spin = QSpinBox()
+        self.gamepad_joystick_spin.setRange(0, 7)
+        self.gamepad_joystick_spin.setValue(config.gamepad_joystick_index)
+        self.gamepad_joystick_spin.setToolTip(
+            "Index of the physical gamepad to use (0 = first detected).\n"
+            "Change this if you have multiple controllers and the wrong one is being used.")
+        deps_layout.addRow("Controller Index:", self.gamepad_joystick_spin)
+
+        deps_group.setLayout(deps_layout)
+        layout.addWidget(deps_group)
+
+        # --- Group 2: Dependency Status ---
+        status_group = QGroupBox("Required Packages")
+        status_layout = QVBoxLayout()
+
+        self._pygame_status_label = self._make_status_label(
+            "pygame  (gamepad reading)",
+            self._check_pygame(),
+            install_cmd="pip install pygame",
+        )
+        self._vgamepad_status_label = self._make_status_label(
+            "vgamepad  (pass-through driver)",
+            self._check_vgamepad(),
+            install_cmd="pip install vgamepad",
+            extra_link=("ViGEmBus driver →",
+                        "https://github.com/nefarius/ViGEmBus/releases/latest"),
+        )
+        status_layout.addWidget(self._pygame_status_label)
+        status_layout.addWidget(self._vgamepad_status_label)
+
+        status_note = QLabel(
+            "<small>After installing packages, restart meikipop for changes to take effect.</small>"
+        )
+        status_note.setTextFormat(Qt.TextFormat.RichText)
+        status_note.setWordWrap(True)
+        status_layout.addWidget(status_note)
+
+        status_group.setLayout(status_layout)
+        layout.addWidget(status_group)
+
+        # --- Group 3: Button Mapping ---
+        mapping_group = QGroupBox("Button Mapping")
+        mapping_layout = QFormLayout()
+        self.form_layouts.append(mapping_layout)
+
+        note = QLabel(
+            "<small>Default mapping assumes an Xbox-layout controller.<br>"
+            "D-pad left/right always steps one character; up/down also step characters.<br>"
+            "LB / RB jump one parsed word (requires parser, see Furigana tab).</small>"
+        )
+        note.setTextFormat(Qt.TextFormat.RichText)
+        note.setWordWrap(True)
+        mapping_layout.addRow(note)
+
+        self.gamepad_toggle_combo = self._make_button_combo(config.gamepad_toggle_button)
+        self.gamepad_exit_combo = self._make_button_combo(config.gamepad_exit_button)
+        self.gamepad_furigana_combo = self._make_button_combo(config.gamepad_furigana_button)
+        self.gamepad_wordprev_combo = self._make_button_combo(config.gamepad_word_prev_button)
+        self.gamepad_wordnext_combo = self._make_button_combo(config.gamepad_word_next_button)
+
+        mapping_layout.addRow("Toggle Nav Mode:", self.gamepad_toggle_combo)
+        mapping_layout.addRow("Exit Nav Mode:", self.gamepad_exit_combo)
+        mapping_layout.addRow("Toggle Furigana:", self.gamepad_furigana_combo)
+        mapping_layout.addRow("Prev Word (jump):", self.gamepad_wordprev_combo)
+        mapping_layout.addRow("Next Word (jump):", self.gamepad_wordnext_combo)
+
+        mapping_group.setLayout(mapping_layout)
+        layout.addWidget(mapping_group)
+
+        layout.addStretch()
+
+        # Furigana section appended after the stretch placeholder
+        # (insertWidget in _build_furigana_section places it before the stretch)
+        self._build_furigana_section()
+
+    # --- Furigana sub-tab is built as part of Tab 4 for coherence ---
+    # (It's a second group inside the Gamepad tab so that both features
+    #  are discoverable together.)
+
+    def _build_furigana_section(self):
+        """Called at the end of _build_gamepad_tab to append the furigana group."""
+        furi_group = QGroupBox("Furigana Overlay")
+        furi_layout = QFormLayout()
+        self.form_layouts.append(furi_layout)
+
+        # Parser status
+        parser_status_widget = self._make_status_label(
+            "sudachipy + sudachidict-full  (Japanese parser)",
+            self._check_sudachi(),
+            install_cmd="pip install sudachipy sudachidict-full",
+        )
+        furi_layout.addRow(parser_status_widget)
+
+        self.furigana_enabled_check = QCheckBox()
+        self.furigana_enabled_check.setChecked(config.furigana_enabled)
+        self.furigana_enabled_check.setToolTip(
+            "Show hiragana readings above OCR words while the popup is visible.\n"
+            "Requires sudachipy + sudachidict-full to be installed.")
+        furi_layout.addRow("Show Furigana:", self.furigana_enabled_check)
+
+        self.furigana_font_spin = QSpinBox()
+        self.furigana_font_spin.setRange(6, 24)
+        self.furigana_font_spin.setValue(config.furigana_font_size)
+        furi_layout.addRow("Furigana Font Size:", self.furigana_font_spin)
+
+        self.furigana_color_btn = QPushButton(config.furigana_color)
+        self.furigana_color_btn.clicked.connect(
+            lambda: self._pick_simple_color('furigana_color', self.furigana_color_btn))
+        self._apply_color_btn_style(self.furigana_color_btn, config.furigana_color)
+        furi_layout.addRow("Furigana Colour:", self.furigana_color_btn)
+
+        self.selection_color_btn = QPushButton(config.selection_color)
+        self.selection_color_btn.clicked.connect(
+            lambda: self._pick_simple_color('selection_color', self.selection_color_btn))
+        self._apply_color_btn_style(self.selection_color_btn, config.selection_color)
+        furi_layout.addRow("Selection Colour:", self.selection_color_btn)
+
+        self.selection_opacity_spin = QSpinBox()
+        self.selection_opacity_spin.setRange(0, 255)
+        self.selection_opacity_spin.setValue(config.selection_opacity)
+        furi_layout.addRow("Selection Opacity:", self.selection_opacity_spin)
+
+        furi_group.setLayout(furi_layout)
+        self.tab_gamepad_layout.insertWidget(
+            self.tab_gamepad_layout.count() - 1,  # before the trailing stretch
+            furi_group
+        )
+
+    # ------------------------------------------------------------------
+    # Helper widget factories
+    # ------------------------------------------------------------------
+
+    def _make_button_combo(self, current_value: int) -> QComboBox:
+        combo = QComboBox()
+        self._set_expanding(combo)
+        for label, val in _BUTTON_OPTIONS:
+            combo.addItem(label, userData=val)
+        # Select the entry whose userData matches current_value
+        idx = next((i for i, (_, v) in enumerate(_BUTTON_OPTIONS) if v == current_value), 0)
+        combo.setCurrentIndex(idx)
+        return combo
+
+    def _make_status_label(self, feature_name: str, ok: bool,
+                           install_cmd: str = "",
+                           extra_link: tuple = None) -> QWidget:
+        """
+        Build a one-row widget showing ✓/✗ + feature name + optional install hint.
+        """
+        widget = QWidget()
+        row = QHBoxLayout(widget)
+        row.setContentsMargins(0, 2, 0, 2)
+
+        icon = "✓" if ok else "✗"
+        color = "green" if ok else "#cc0000"
+        status = QLabel(f'<span style="color:{color}; font-weight:bold;">{icon}</span> {feature_name}')
+        status.setTextFormat(Qt.TextFormat.RichText)
+        row.addWidget(status)
+        row.addStretch()
+
+        if not ok and install_cmd:
+            hint = QLabel(f'<small><code>{install_cmd}</code></small>')
+            hint.setTextFormat(Qt.TextFormat.RichText)
+            hint.setToolTip(f"Run this in your terminal:\n  {install_cmd}")
+            row.addWidget(hint)
+
+        if extra_link:
+            link_text, link_url = extra_link
+            link_btn = QPushButton(link_text)
+            link_btn.setFlat(True)
+            link_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+            link_btn.clicked.connect(lambda: QDesktopServices.openUrl(QUrl(link_url)))
+            link_btn.setStyleSheet("color: #4477aa; text-decoration: underline;")
+            row.addWidget(link_btn)
+
+        return widget
+
+    # ------------------------------------------------------------------
+    # Dependency checks
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _check_pygame() -> bool:
+        try:
+            import pygame  # noqa: F401
+            return True
+        except ImportError:
+            return False
+
+    @staticmethod
+    def _check_vgamepad() -> bool:
+        try:
+            import vgamepad
+            pad = vgamepad.VX360Gamepad()
+            del pad
+            return True
+        except Exception:
+            return False
+
+    @staticmethod
+    def _check_sudachi() -> bool:
+        try:
+            import sudachipy  # noqa: F401
+            import sudachidict_full  # noqa: F401
+            return True
+        except ImportError:
+            return False
+
+    # ------------------------------------------------------------------
+    # Shared helpers (unchanged from original)
+    # ------------------------------------------------------------------
 
     def _set_expanding(self, widget):
-        """Helper to let a widget expand horizontally"""
         widget.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
 
     def _finalize_layout_styling(self):
-        """ Sets all label columns to that width to align the controls perfectly"""
         max_label_width = 0
-
-        # Pass 1: Measure largest label
         for layout in self.form_layouts:
             for i in range(layout.rowCount()):
                 item = layout.itemAt(i, QFormLayout.ItemRole.LabelRole)
                 if item and item.widget():
                     max_label_width = max(max_label_width, item.widget().sizeHint().width())
-
-        # Add a little padding to be safe
         max_label_width += 5
-
-        # Pass 2: Apply width and standard styling
         for layout in self.form_layouts:
-            # Important: AllNonFixedFieldsGrow ensures combo boxes fill the space
             layout.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow)
             layout.setLabelAlignment(Qt.AlignmentFlag.AlignLeft)
-            layout.setHorizontalSpacing(15)  # Unified gap size
-
+            layout.setHorizontalSpacing(15)
             for i in range(layout.rowCount()):
                 item = layout.itemAt(i, QFormLayout.ItemRole.LabelRole)
                 if item and item.widget():
                     item.widget().setMinimumWidth(max_label_width)
 
     def _update_auto_scan_state(self, is_checked):
-        """Grays out auto scan options if the main toggle is off."""
         self.auto_scan_interval_spin.setEnabled(is_checked)
         self.auto_scan_no_hotkey_check.setEnabled(is_checked)
         self.auto_scan_mouse_move_check.setEnabled(is_checked)
@@ -375,16 +609,22 @@ class SettingsDialog(QDialog):
         self.auto_scan_mouse_move_check_label.setEnabled(is_checked)
 
     def _update_glens_state(self, current_provider):
-        """Grays out Google Lens options if another provider is selected."""
         is_glens = "Google Lens (remote)" in current_provider
         self.glens_compression_check.setEnabled(is_glens)
         self.glens_compression_check_label.setEnabled(is_glens)
 
     def _update_kanji_options_state(self, is_checked):
-        """Enables/Disables kanji specific sub-options."""
         self.show_examples_check.setEnabled(is_checked)
         self.show_components_check.setEnabled(is_checked)
         self.lookup.clear_cache()
+
+    def _update_gamepad_state(self, is_checked):
+        """Enable/disable gamepad sub-options based on master toggle."""
+        for widget in [self.gamepad_joystick_spin,
+                       self.gamepad_toggle_combo, self.gamepad_exit_combo,
+                       self.gamepad_furigana_combo,
+                       self.gamepad_wordprev_combo, self.gamepad_wordnext_combo]:
+            widget.setEnabled(is_checked)
 
     def _mark_as_custom(self):
         if self.theme_combo.currentText() != "Custom":
@@ -412,6 +652,23 @@ class SettingsDialog(QDialog):
             setattr(config, key, color.name())
             self._update_color_buttons()
             self._mark_as_custom()
+
+    def _pick_simple_color(self, config_key: str, btn: QPushButton):
+        color = QColorDialog.getColor(QColor(getattr(config, config_key)), self)
+        if color.isValid():
+            setattr(config, config_key, color.name())
+            self._apply_color_btn_style(btn, color.name())
+            btn.setText(color.name())
+
+    @staticmethod
+    def _apply_color_btn_style(btn: QPushButton, color_hex: str):
+        q_color = QColor(color_hex)
+        text_color = "#000000" if q_color.lightness() > 127 else "#FFFFFF"
+        btn.setStyleSheet(f"background-color: {color_hex}; color: {text_color};")
+
+    # ------------------------------------------------------------------
+    # Save
+    # ------------------------------------------------------------------
 
     def save_and_accept(self):
         # Update OCR Provider
@@ -447,12 +704,29 @@ class SettingsDialog(QDialog):
         config.font_family = self.font_family_combo.currentFont().family()
         config.font_size_header = self.font_size_header_spin.value()
         config.font_size_definitions = self.font_size_def_spin.value()
+
+        # ---- Gamepad settings ----
+        config.gamepad_enabled = self.gamepad_enabled_check.isChecked()
+        config.gamepad_joystick_index = self.gamepad_joystick_spin.value()
+        config.gamepad_toggle_button = self.gamepad_toggle_combo.currentData()
+        config.gamepad_exit_button = self.gamepad_exit_combo.currentData()
+        config.gamepad_furigana_button = self.gamepad_furigana_combo.currentData()
+        config.gamepad_word_prev_button = self.gamepad_wordprev_combo.currentData()
+        config.gamepad_word_next_button = self.gamepad_wordnext_combo.currentData()
+
+        # ---- Furigana settings (only if section was built) ----
+        if hasattr(self, 'furigana_enabled_check'):
+            config.furigana_enabled = self.furigana_enabled_check.isChecked()
+            config.furigana_font_size = self.furigana_font_spin.value()
+
         config.save()
 
         # Tell the live components to re-apply settings
         self.input_loop.reapply_settings()
         self.popup_window.reapply_settings()
         self.tray_icon.reapply_settings()
+        if self.gamepad_controller:
+            self.gamepad_controller.reapply_settings()
         self.ocr_processor.shared_state.screenshot_trigger_event.set()
 
         self.accept()

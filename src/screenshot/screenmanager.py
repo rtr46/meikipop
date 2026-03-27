@@ -39,10 +39,18 @@ class ScreenManager(threading.Thread):
                     logger.debug(f"paused while auto mode")
                     self._sleep_and_handle_loop_exit(1)
                     continue
+
                 self.shared_state.screenshot_trigger_event.wait()
                 self.shared_state.screenshot_trigger_event.clear()
                 if not self.shared_state.running: break
                 logger.debug("Screenshot: Triggered!")
+
+                # While the user is navigating with the gamepad, block new
+                # screenshots.  The existing OCR result is sufficient and
+                # re-scanning would interfere with the navigation overlay.
+                if self.input_loop.gamepad_navigation_active:
+                    logger.debug("Screenshot: skipped (gamepad navigation active).")
+                    continue
 
                 # prevent multiple ocr runs during auto_scan_interval_seconds
                 seconds_since_last_ocr = time.perf_counter() - self.last_ocr_put_time

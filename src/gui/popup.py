@@ -23,7 +23,13 @@ logger = logging.getLogger(__name__)
 
 
 class Popup(QWidget):
-    def __init__(self, shared_state, input_loop):
+    def __init__(self, shared_state, input_loop,
+                 overlay_furigana=None, hit_scanner=None):
+        """
+        overlay_furigana  – OverlayFurigana instance (optional)
+        hit_scanner       – HitScanner instance used to fetch the latest
+                            OCR result when showing the furigana overlay (optional)
+        """
         super().__init__()
         self._latest_data = None
         self._last_latest_data = None
@@ -32,6 +38,8 @@ class Popup(QWidget):
 
         self.shared_state = shared_state
         self.input_loop = input_loop
+        self.overlay_furigana = overlay_furigana
+        self.hit_scanner = hit_scanner
 
         self.is_visible = False
         self.timer = QTimer(self)
@@ -174,8 +182,16 @@ class Popup(QWidget):
         else:
             self.hide_popup()
 
-        mouse_pos = QCursor.pos()
-        self.move_to(mouse_pos.x(), mouse_pos.y())
+        # Position the popup near the effective cursor.
+        # In gamepad navigation mode use the virtual cursor (the selected
+        # character's bounding box centre) instead of the real mouse.
+        if self.input_loop.gamepad_navigation_active and self.input_loop.virtual_mouse_pos:
+            vx, vy = self.input_loop.virtual_mouse_pos
+            cursor_pos = QPoint(vx, vy)
+        else:
+            cursor_pos = QCursor.pos()
+
+        self.move_to(cursor_pos.x(), cursor_pos.y())
 
     def _render_kanji_entry(self, entry: KanjiEntry):
         # Colors and sizes from config
@@ -397,20 +413,22 @@ class Popup(QWidget):
             final_y = preferred_y if preferred_y + popup_size.height() <= screen_geo.bottom() else y - popup_size.height() - offset
 
         # Final clamp to ensure the popup is always fully visible.
-        # This acts as a safeguard against any edge cases.
         final_x = max(screen_geo.left(), min(final_x, screen_geo.right() - popup_size.width()))
         final_y = max(screen_geo.top(), min(final_y, screen_geo.bottom() - popup_size.height()))
 
         self.move(int(final_x), int(final_y))
 
     def hide_popup(self):
-        # logger.debug(f"hide_popup triggered while visibility:{self.is_visible}")
         if not self.is_visible:
             return
         self.hide()
         self.is_visible = False
-        QTimer.singleShot(50, lambda: self._release_lock_safely())  # prevent popup from being screenshotted
+        QTimer.singleShot(50, lambda: self._release_lock_safely())
         self._restore_focus_on_mac()
+
+        # Hide furigana overlay whenever the popup disappears
+        if self.overlay_furigana:
+            self.overlay_furigana.hide_overlay()
 
     def _release_lock_safely(self):
         logger.debug("hide_popup releasing lock...")
@@ -418,7 +436,6 @@ class Popup(QWidget):
         logger.debug("...successfully released lock by hide_popup")
 
     def show_popup(self):
-        # logger.debug(f"show_popup triggered while visibility:{self.is_visible}")
         if self.is_visible:
             return
         logger.debug("show_popup acquiring lock...")
@@ -432,24 +449,26 @@ class Popup(QWidget):
 
         self.is_visible = True
 
+        # Show furigana overlay when the popup appears, if enabled.
+        # Because show_popup() runs while screen_lock is held, the OCR
+        # processor cannot take a new screenshot and accidentally capture
+        # the overlay – the timing exclusion comes for free.
+        if (self.overlay_furigana and config.furigana_enabled
+                and self.hit_scanner and self.hit_scanner.last_ocr_result):
+            self.overlay_furigana.show_overlay()
+
     def reapply_settings(self):
         logger.debug("Popup: Re-applying settings and triggering font recalibration.")
         self._apply_frame_stylesheet()
-        # By setting is_calibrated to False, the main loop will automatically
-        # run _calibrate_empirically() again with the new font settings.
         self.is_calibrated = False
 
     def _store_active_window_on_mac(self):
         """Store the currently active window for focus restoration (macOS only)."""
         if not IS_MACOS or not Quartz:
             return
-
         try:
-            # Get the currently active application
             active_app = Quartz.NSWorkspace.sharedWorkspace().frontmostApplication()
             if active_app:
-                # Store the application reference instead of trying to get the window
-                # We'll use the application to restore focus later
                 self._previous_active_window_on_mac = active_app
         except Exception as e:
             logger.warning(f"Failed to store active window: {e}")
@@ -459,12 +478,9 @@ class Popup(QWidget):
         """Restore focus to the previously active application (macOS only)."""
         if not IS_MACOS or not Quartz or not self._previous_active_window_on_mac:
             return
-
         try:
-            # Activate the previously active application
             self._previous_active_window_on_mac.activateWithOptions_(Quartz.NSApplicationActivateAllWindows)
         except Exception as e:
             logger.warning(f"Failed to restore focus: {e}")
         finally:
-            # Clear the stored application reference
             self._previous_active_window_on_mac = None
