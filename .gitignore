@@ -25,3 +25,8 @@ dictionary.pkl
 .DS_Store
 
 src/meikipop.egg-info/
+
+# Flatpak
+bundle-repo
+**.flatpak
+python3-deps.json

@@ -11,11 +11,13 @@ jobs:
     uses: ./.github/workflows/build-windows.yml
   build-linux:
     uses: ./.github/workflows/build-linux.yml
+  build-flatpak:
+    uses: ./.github/workflows/build-flatpak.yml
   build-macos:
     uses: ./.github/workflows/build-macos.yml
 
   release:
-    needs: [ build-windows, build-linux, build-macos ]
+    needs: [ build-windows, build-linux, build-flatpak, build-macos ]
     runs-on: ubuntu-latest
     permissions:
       contents: write
