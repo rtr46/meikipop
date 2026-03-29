@@ -21,22 +21,19 @@ class HitScanner(threading.Thread):
         logger.debug("HitScanner thread started.")
         while self.shared_state.running:
             try:
-                is_ocr_result_updated, new_ocr_result = self.shared_state.hit_scan_queue.get()
+                ocr_result = self.shared_state.hit_scan_queue.get()
                 if not self.shared_state.running: break
                 logger.debug("HitScanner: Triggered")
-
-                if is_ocr_result_updated:
-                    self.last_ocr_result = new_ocr_result
-
-                hit_scan_result = self.hit_scan(self.last_ocr_result) if self.last_ocr_result else None
-
-                # Trigger the lookup
+                hit_scan_result = self.hit_scan(ocr_result)
                 self.shared_state.lookup_queue.put(hit_scan_result)
             except:
                 logger.exception("An unexpected error occurred in the hit scan loop. Continuing...")
         logger.debug("HitScanner thread stopped.")
 
     def hit_scan(self, paragraphs: List[Paragraph]):
+        if not paragraphs:
+            return None
+
         mouse_x, mouse_y = magpie_manager.transform_raw_to_visual(self.input_loop.get_mouse_pos(), 1)
         mouse_off_x, mouse_off_y, img_w, img_h = self.screen_manager.get_scan_geometry()
         relative_x = mouse_x - mouse_off_x

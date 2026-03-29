@@ -43,7 +43,7 @@ class OcrProcessor(threading.Thread):
                     f"{self.ocr_backend.NAME} found {len(ocr_result) if ocr_result else 0} paragraphs in {(time.perf_counter() - start_time):.3f}s.")
                 # todo keep last ocr result?
 
-                self.shared_state.hit_scan_queue.put((True, ocr_result))
+                self.shared_state.hit_scan_queue.put(ocr_result)
             except:
                 logger.exception("An unexpected error occurred in the ocr loop. Continuing...")
             finally:
@@ -65,7 +65,7 @@ class OcrProcessor(threading.Thread):
                 config.ocr_provider = self.ocr_backend.NAME
                 config.save()  # todo fix tray showing wrong provider
                 if config.auto_scan_mode:
-                    self.shared_state.hit_scan_queue.put((True, None))
+                    self.shared_state.hit_scan_queue.put(None)
                     self.screen_manager.force_screenshot_trigger()
                     self.shared_state.screenshot_trigger_event.set()
             except Exception as e:
