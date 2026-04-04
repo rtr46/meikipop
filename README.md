@@ -123,6 +123,10 @@ python -m scripts.import_yomitan_dict_html my_yomitan_dict.zip
 python -m scripts.import_yomitan_dict_text my_yomitan_dict.zip
 ```
 
+## building macos executable and dmg
+
+for maintainers and contributors, the full macos packaging and compatibility test plan is documented in [docs/MACOS_BUILD_AND_TESTS.md](docs/MACOS_BUILD_AND_TESTS.md).
+
 ## license
 
 meikipop is licensed under the GNU General Public License v3.0. see the `LICENSE` file for the full license text.
