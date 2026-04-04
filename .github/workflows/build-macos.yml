@@ -1,0 +1,63 @@
+name: reusable macos build
+
+on:
+  workflow_call:
+
+jobs:
+  build-macos:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-13
+            arch: x64
+          - runner: macos-14
+            arch: arm64
+
+    runs-on: ${{ matrix.runner }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: set up python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install lxml
+          pip install pyinstaller
+
+      - name: clean previous builds
+        run: rm -rf build dist || true
+
+      - name: build with pyinstaller (macos)
+        run: pyinstaller meikipop.macos.spec
+
+      - name: build dictionary
+        run: python -m scripts.build_dictionary
+
+      - name: copy dictionary into app bundle
+        run: cp dictionary.pkl dist/meikipop.app/Contents/MacOS/dictionary.pkl
+
+      - name: create dmg
+        run: |
+          rm -rf dist/dmg-root
+          mkdir -p dist/dmg-root
+          cp -R dist/meikipop.app dist/dmg-root/
+          ln -s /Applications dist/dmg-root/Applications
+          hdiutil create \
+            -volname "meikipop" \
+            -srcfolder dist/dmg-root \
+            -ov \
+            -format UDZO \
+            dist/meikipop.macos.${{ matrix.arch }}.dmg
+
+      - name: upload macos artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: meikipop-macos-${{ matrix.arch }}
+          path: dist/meikipop.macos.${{ matrix.arch }}.dmg

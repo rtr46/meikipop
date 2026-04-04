@@ -15,3 +15,6 @@ jobs:
 
   build-linux:
     uses: ./.github/workflows/build-linux.yml
+
+  build-macos:
+    uses: ./.github/workflows/build-macos.yml
