@@ -1,16 +1,13 @@
 # src/gui/tray.py
 import os
 import sys
-import logging
 
 from PyQt6.QtGui import QIcon, QAction, QActionGroup
-from PyQt6.QtWidgets import QSystemTrayIcon, QMenu, QApplication, QMessageBox
+from PyQt6.QtWidgets import QSystemTrayIcon, QMenu, QApplication
 
 from src.config.config import APP_NAME, config, IS_WINDOWS
 from src.gui.settings_dialog import SettingsDialog
 from src.ocr.ocr import OcrProcessor
-
-logger = logging.getLogger(__name__)
 
 
 def get_resource_path(relative_path):
@@ -162,46 +159,31 @@ class TrayIcon(QSystemTrayIcon):
         action_to_check.setChecked(True)
 
     def _on_scan_mode_selected(self, action: QAction):
-        try:
-            is_auto = action.text() == "Auto"
-            if is_auto != config.auto_scan_mode:
-                config.auto_scan_mode = is_auto
-                config.save()
-        except Exception:
-            logger.exception("Unhandled error while switching scan mode from tray menu.")
-            self._show_error_message("Failed to change scan mode. See logs for details.")
-            self.reapply_settings()
+        is_auto = action.text() == "Auto"
+        if is_auto != config.auto_scan_mode:
+            config.auto_scan_mode = is_auto
+            config.save()
 
     def _on_scan_area_selected(self, action: QAction):
-        try:
-            selected_id = action.data()
-            if selected_id == 'region':
-                if self.screen_manager.set_scan_region():
-                    if config.scan_region != 'region':
-                        config.scan_region = 'region'
-                        config.save()
-                else:
-                    self.update_scan_area_check()
-            else:  # It's a screen index
-                index = int(selected_id)
-                if str(index) != config.scan_region:
-                    self.screen_manager.set_scan_screen(index)
-                    config.scan_region = str(index)
+        selected_id = action.data()
+        if selected_id == 'region':
+            if self.screen_manager.set_scan_region():
+                if config.scan_region != 'region':
+                    config.scan_region = 'region'
                     config.save()
-        except Exception:
-            logger.exception("Unhandled error while switching scan area from tray menu.")
-            self._show_error_message("Failed to change scan area. See logs for details.")
-            self.update_scan_area_check()
+            else:
+                self.update_scan_area_check()
+        else:  # It's a screen index
+            index = int(selected_id)
+            if str(index) != config.scan_region:
+                self.screen_manager.set_scan_screen(index)
+                config.scan_region = str(index)
+                config.save()
 
     def _on_ocr_provider_selected(self, action):
-        try:
-            provider_name = action.text()
-            if provider_name != config.ocr_provider:
-                self.ocr_processor.switch_provider(provider_name)
-        except Exception:
-            logger.exception("Unhandled error while switching OCR provider from tray menu.")
-            self._show_error_message("Failed to switch OCR provider. See logs for details.")
-            self.reapply_settings()
+        provider_name = action.text()
+        if provider_name != config.ocr_provider:
+            self.ocr_processor.switch_provider(provider_name)
 
     def reapply_settings(self):
         """Updates the tray menu's checkmarks to reflect the current config."""
@@ -219,15 +201,8 @@ class TrayIcon(QSystemTrayIcon):
                 break
 
     def show_settings(self):
-        try:
-            settings_dialog = SettingsDialog(self.ocr_processor, self.popup_window, self.input_loop, self.lookup, self)
-            settings_dialog.exec()
-        except Exception:
-            logger.exception("Unhandled error while opening settings dialog.")
-            self._show_error_message("Failed to open settings. See logs for details.")
-
-    def _show_error_message(self, message: str):
-        QMessageBox.critical(None, APP_NAME, message)
+        settings_dialog = SettingsDialog(self.ocr_processor, self.popup_window, self.input_loop, self.lookup, self)
+        settings_dialog.exec()
 
     def prevent_ghost_icon_on_win(self):
         if IS_WINDOWS:

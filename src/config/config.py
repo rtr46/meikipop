@@ -2,7 +2,6 @@
 import configparser
 import logging
 import sys
-from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
@@ -59,9 +58,8 @@ class Config:
         return cls._instance
 
     def _load(self):
-        self._config_path = self._resolve_config_path()
         parser = configparser.ConfigParser()
-        parser.read(self._config_path, encoding='utf-8')
+        parser.read('config.ini', encoding='utf-8')
 
         for section, settings in self._SCHEMA.items():
             for key, default in settings.items():
@@ -79,25 +77,7 @@ class Config:
                 setattr(self, key, val)
 
         self.is_enabled = True
-        logger.info(f"Configuration loaded from '{self._config_path}'.")
-
-    def _resolve_config_path(self) -> str:
-        """
-        Resolve where config.ini should be read/written.
-
-        - Source/dev runs: keep using local config.ini in CWD.
-        - Frozen macOS app: use ~/Library/Application Support/meikipop/config.ini.
-        - Frozen Windows/Linux: keep config beside executable for portability.
-        """
-        if not getattr(sys, 'frozen', False):
-            return 'config.ini'
-
-        if IS_MACOS:
-            app_support_dir = Path.home() / 'Library' / 'Application Support' / APP_NAME
-            app_support_dir.mkdir(parents=True, exist_ok=True)
-            return str(app_support_dir / 'config.ini')
-
-        return str(Path(sys.executable).resolve().parent / 'config.ini')
+        logger.info("Configuration loaded.")
 
     def save(self):
         parser = configparser.ConfigParser()
@@ -107,10 +87,9 @@ class Config:
                 val = getattr(self, key)
                 parser.set(section, key, str(val).lower() if isinstance(val, bool) else str(val))
 
-        config_path = getattr(self, '_config_path', self._resolve_config_path())
-        with open(config_path, 'w', encoding='utf-8') as f:
+        with open('config.ini', 'w', encoding='utf-8') as f:
             parser.write(f)
-        logger.info(f"Settings saved to '{config_path}'.")
+        logger.info("Settings saved to config.ini.")
 
 
 config = Config()

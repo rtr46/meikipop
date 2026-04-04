@@ -4,17 +4,13 @@ from PyQt6.QtGui import QColor, QIcon, QFontDatabase
 from PyQt6.QtWidgets import (QWidget, QDialog, QFormLayout, QComboBox,
                              QSpinBox, QCheckBox, QPushButton, QColorDialog, QVBoxLayout, QHBoxLayout,
                              QGroupBox, QDialogButtonBox, QLabel, QSlider, QDoubleSpinBox,
-                             QMessageBox,
                              QTabWidget, QSizePolicy, QFontComboBox)
-import logging
 
 from src.dictionary.lookup import Lookup
 from src.config.config import config, APP_NAME, IS_WINDOWS
 from src.gui.input import InputLoop
 from src.gui.popup import Popup
 from src.ocr.ocr import OcrProcessor
-
-logger = logging.getLogger(__name__)
 
 THEMES = {
     "Nazeka": {
@@ -418,49 +414,45 @@ class SettingsDialog(QDialog):
             self._mark_as_custom()
 
     def save_and_accept(self):
-        try:
-            # Update OCR Provider
-            selected_provider = self.ocr_provider_combo.currentText()
-            if selected_provider != config.ocr_provider:
-                self.ocr_processor.switch_provider(selected_provider)
+        # Update OCR Provider
+        selected_provider = self.ocr_provider_combo.currentText()
+        if selected_provider != config.ocr_provider:
+            self.ocr_processor.switch_provider(selected_provider)
 
-            # Update all other config values
-            config.hotkey = self.hotkey_combo.currentText()
-            config.glens_low_bandwidth = self.glens_compression_check.isChecked()
-            config.max_lookup_length = self.max_lookup_spin.value()
-            config.auto_scan_mode = self.auto_scan_check.isChecked()
-            config.auto_scan_interval_seconds = self.auto_scan_interval_spin.value()
-            config.auto_scan_mode_lookups_without_hotkey = self.auto_scan_no_hotkey_check.isChecked()
-            config.auto_scan_on_mouse_move = self.auto_scan_mouse_move_check.isChecked()
+        # Update all other config values
+        config.hotkey = self.hotkey_combo.currentText()
+        config.glens_low_bandwidth = self.glens_compression_check.isChecked()
+        config.max_lookup_length = self.max_lookup_spin.value()
+        config.auto_scan_mode = self.auto_scan_check.isChecked()
+        config.auto_scan_interval_seconds = self.auto_scan_interval_spin.value()
+        config.auto_scan_mode_lookups_without_hotkey = self.auto_scan_no_hotkey_check.isChecked()
+        config.auto_scan_on_mouse_move = self.auto_scan_mouse_move_check.isChecked()
 
-            if IS_WINDOWS:
-                config.magpie_compatibility = self.magpie_check.isChecked()
-            config.compact_mode = self.compact_check.isChecked()
-            config.show_all_glosses = self.show_glosses_check.isChecked()
-            config.show_deconjugation = self.show_deconj_check.isChecked()
-            config.show_pos = self.show_pos_check.isChecked()
-            config.show_tags = self.show_tags_check.isChecked()
-            config.show_frequency = self.show_frequency_check.isChecked()
-            config.show_kanji = self.show_kanji_check.isChecked()
-            config.show_examples = self.show_examples_check.isChecked()
-            config.show_components = self.show_components_check.isChecked()
+        if IS_WINDOWS:
+            config.magpie_compatibility = self.magpie_check.isChecked()
+        config.compact_mode = self.compact_check.isChecked()
+        config.show_all_glosses = self.show_glosses_check.isChecked()
+        config.show_deconjugation = self.show_deconj_check.isChecked()
+        config.show_pos = self.show_pos_check.isChecked()
+        config.show_tags = self.show_tags_check.isChecked()
+        config.show_frequency = self.show_frequency_check.isChecked()
+        config.show_kanji = self.show_kanji_check.isChecked()
+        config.show_examples = self.show_examples_check.isChecked()
+        config.show_components = self.show_components_check.isChecked()
 
-            selected_friendly_name = self.popup_position_combo.currentText()
-            config.popup_position_mode = self.popup_mode_map.get(selected_friendly_name, "flip_vertically")
-            config.theme_name = self.theme_combo.currentText()
-            config.background_opacity = self.opacity_slider.value()
-            config.font_family = self.font_family_combo.currentFont().family()
-            config.font_size_header = self.font_size_header_spin.value()
-            config.font_size_definitions = self.font_size_def_spin.value()
-            config.save()
+        selected_friendly_name = self.popup_position_combo.currentText()
+        config.popup_position_mode = self.popup_mode_map.get(selected_friendly_name, "flip_vertically")
+        config.theme_name = self.theme_combo.currentText()
+        config.background_opacity = self.opacity_slider.value()
+        config.font_family = self.font_family_combo.currentFont().family()
+        config.font_size_header = self.font_size_header_spin.value()
+        config.font_size_definitions = self.font_size_def_spin.value()
+        config.save()
 
-            # Tell the live components to re-apply settings
-            self.input_loop.reapply_settings()
-            self.popup_window.reapply_settings()
-            self.tray_icon.reapply_settings()
-            self.ocr_processor.shared_state.screenshot_trigger_event.set()
+        # Tell the live components to re-apply settings
+        self.input_loop.reapply_settings()
+        self.popup_window.reapply_settings()
+        self.tray_icon.reapply_settings()
+        self.ocr_processor.shared_state.screenshot_trigger_event.set()
 
-            self.accept()
-        except Exception as exc:
-            logger.exception("Unhandled error while applying settings.")
-            QMessageBox.critical(self, APP_NAME, f"Failed to save settings: {exc}")
+        self.accept()
