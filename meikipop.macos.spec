@@ -1,5 +1,27 @@
 # -*- mode: python ; coding: utf-8 -*-
 
+import re
+from pathlib import Path
+
+from PyInstaller.config import CONF
+
+
+def _get_build_version() -> str:
+    config_path = Path(CONF['specpath']) / 'src' / 'config' / 'config.py'
+    match = re.search(r'^APP_VERSION\s*=\s*["\']([^"\']+)["\']', config_path.read_text(encoding='utf-8'), re.M)
+    if not match:
+        return '0.0.0'
+
+    version = match.group(1)
+    if version.startswith('v.'):
+        return version[2:]
+    if version.startswith('v'):
+        return version[1:]
+    return version
+
+
+BUILD_VERSION = _get_build_version()
+
 
 a = Analysis(
     ['src/main.py'],
@@ -64,6 +86,10 @@ coll = COLLECT(
 app = BUNDLE(
     coll,
     name='meikipop.app',
-    icon=None,
+    icon='src/resources/icon.ico',
     bundle_identifier='io.github.rtr46.meikipop',
+    version=BUILD_VERSION,
+    info_plist={
+        'CFBundleVersion': BUILD_VERSION,
+    },
 )
