@@ -1,8 +1,10 @@
 # customdict.py
 import logging
 import pickle
+import sys
 import time
 from collections import defaultdict
+from pathlib import Path
 
 from src.config.config import IS_WINDOWS
 
@@ -33,13 +35,33 @@ class Dictionary:
 
         self._is_loaded = False
 
+    def _resolve_dictionary_path(self, file_path: str) -> Path:
+        requested = Path(file_path)
+        if requested.is_file():
+            return requested
+
+        candidates = [Path.cwd() / requested]
+
+        if getattr(sys, 'frozen', False):
+            candidates.append(Path(sys.executable).resolve().parent / requested)
+            meipass = getattr(sys, '_MEIPASS', None)
+            if meipass:
+                candidates.append(Path(meipass) / requested)
+
+        for candidate in candidates:
+            if candidate.is_file():
+                return candidate
+
+        return requested
+
     def load_dictionary(self, file_path: str) -> bool:
         if self._is_loaded:
             return True
         logger.info("Loading dictionary ...")
         start = time.perf_counter()
+        resolved_path = self._resolve_dictionary_path(file_path)
         try:
-            with open(file_path, 'rb') as f:
+            with open(resolved_path, 'rb') as f:
                 data = pickle.load(f)
             self.entries            = data['entries']
             self.lookup_map         = data['lookup_map']
@@ -55,12 +77,12 @@ class Dictionary:
             return True
         except FileNotFoundError:
             logger.error(
-                f"Dictionary file '{file_path}' not found. "
+                f"Dictionary file '{file_path}' not found (resolved: '{resolved_path}'). "
                 f"Run build_dictionary.{"bat" if IS_WINDOWS else "sh"} to create it."
             )
             return False
         except Exception as e:
-            logger.error(f"Failed to load dictionary from '{file_path}': {e}")
+            logger.error(f"Failed to load dictionary from '{resolved_path}': {e}")
             return False
 
     def _validate(self):
