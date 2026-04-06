@@ -71,9 +71,7 @@ def run_gui():
     --------------------------------------------------
     {APP_NAME}.{APP_VERSION} is running in the background.
 
-      - To use: Press and hold '{config.hotkey}' over Japanese text. 
       - To configure or change scan area: Right-click the icon in your system tray.
-      - Make sure to checkout the auto scan mode!
       - To exit: Press Ctrl+C in this terminal.
 
     --------------------------------------------------
