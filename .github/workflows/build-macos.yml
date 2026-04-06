@@ -25,8 +25,7 @@ jobs:
       - name: install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          pip install lxml
+          pip install -e .
           pip install pyinstaller
 
       - name: clean previous builds
@@ -34,12 +33,6 @@ jobs:
 
       - name: build with pyinstaller (macos)
         run: pyinstaller meikipop.macos.spec
-
-      - name: build dictionary
-        run: python -m scripts.build_dictionary
-
-      - name: copy dictionary into app bundle
-        run: cp dictionary.pkl dist/meikipop.app/Contents/MacOS/dictionary.pkl
 
       - name: create dmg
         run: |
