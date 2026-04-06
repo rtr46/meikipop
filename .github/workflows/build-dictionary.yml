@@ -1,0 +1,45 @@
+# .github/workflows/build-dictionary.yml
+name: reusable dictionary build
+
+on:
+  schedule:
+    - cron: '0 7 * * 1'  # Every Monday at 7:00 AM UTC
+  workflow_dispatch: # Also allow manual trigger
+
+permissions:
+  contents: write # Needed to create/update the release
+
+jobs:
+  build-dictionary:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: set up python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .
+
+      - name: build dictionary
+        run: python -m meikipop.scripts.build_dictionary
+
+      - name: compress dictionary
+        run: |
+          mv /home/runner/.local/share/meikipop/dictionary.pkl .
+          zip dictionary.zip dictionary.pkl
+
+      - name: update dictionary-latest release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete dictionary-latest --yes --cleanup-tag || true
+          gh release create dictionary-latest \
+            --title "dictionary (latest)" \
+            --notes "most recent meikipop dictionary file" \
+            --prerelease \
+            dictionary.zip
