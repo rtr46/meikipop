@@ -20,4 +20,8 @@ build/
 data/
 config.ini
 dictionary.pkl
+
+# MacOS things
+.DS_Store
+
 src/meikipop.egg-info/

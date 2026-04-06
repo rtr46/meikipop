@@ -11,9 +11,11 @@ jobs:
     uses: ./.github/workflows/build-windows.yml
   build-linux:
     uses: ./.github/workflows/build-linux.yml
+  build-macos:
+    uses: ./.github/workflows/build-macos.yml
 
   release:
-    needs: [ build-windows, build-linux ]
+    needs: [ build-windows, build-linux, build-macos ]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -32,3 +34,4 @@ jobs:
           files: |
             artifacts/*/*.zip
             artifacts/*/*.tar.gz
+            artifacts/*/*.dmg
