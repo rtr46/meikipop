@@ -5,7 +5,7 @@ import re
 import threading
 from collections import OrderedDict
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Set, Tuple
+from typing import Dict, List, Tuple
 
 from meikipop.config.config import config, MAX_DICT_ENTRIES, DICT_PATH
 from meikipop.dictionary.customdict import Dictionary, WRITTEN_FORM_INDEX, READING_INDEX, FREQUENCY_INDEX, ENTRY_ID_INDEX, DEFAULT_FREQ

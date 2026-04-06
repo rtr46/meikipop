@@ -3,7 +3,7 @@ import configparser
 import logging
 import sys
 
-from meikipop.paths import paths
+from meikipop.config.paths import paths
 
 logger = logging.getLogger(__name__)
 

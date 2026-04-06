@@ -28,6 +28,9 @@ jobs:
       - name: build dictionary
         run: python -m meikipop.scripts.build_dictionary
 
+      - name: compress dictionary
+        run: zip dictionary.zip /home/runner/.local/share/meikipop/dictionary.pkl
+
       - name: update dictionary-latest release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -37,4 +40,4 @@ jobs:
             --title "dictionary (latest)" \
             --notes "most recent meikipop dictionary file" \
             --prerelease \
-            /home/runner/.local/share/meikipop/dictionary.pkl
+            dictionary.zip

@@ -2,9 +2,14 @@
 import logging
 import pickle
 import time
+import urllib.request
+import zipfile
+import io
 from collections import defaultdict
 
 logger = logging.getLogger(__name__)
+
+DICT_URL = "https://github.com/rtr46/meikipop/releases/download/dictionary-latest/dictionary.zip"
 
 DEFAULT_FREQ = 999_999
 
@@ -52,14 +57,31 @@ class Dictionary:
             self._validate()
             return True
         except FileNotFoundError:
+            logger.warning(f"Dictionary file '{file_path}' not found. Trying download...")
+            if self._download_dictionary(file_path):
+                return self.load_dictionary(file_path)  # retry once after download
             logger.error(
-                f"Dictionary file '{file_path}' not found. "
-                f"Run 'meikipop build-dict' to create it."
+                "Dictionary could not be downloaded. "
+                "You can build it manually by running 'meikipop build-dict'."
             )
             return False
         except Exception as e:
             logger.error(f"Failed to load dictionary from '{file_path}': {e}")
             return False
+
+    def _download_dictionary(self, file_path: str) -> bool:
+        logger.info("Dictionary not found locally. Attempting download...")
+        try:
+            with urllib.request.urlopen(DICT_URL) as response:
+                data = response.read()
+            with zipfile.ZipFile(io.BytesIO(data)) as zf:
+                zf.extract("dictionary.pkl", path=os.path.dirname(file_path))
+            logger.info("Dictionary downloaded successfully.")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to download dictionary: {e}")
+            return False
+
 
     def _validate(self):
         """
