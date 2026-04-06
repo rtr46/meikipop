@@ -7,6 +7,7 @@ import threading
 from PyQt6.QtCore import qInstallMessageHandler
 from PyQt6.QtWidgets import QApplication
 
+from meikipop.utils.logger import setup_logging
 from meikipop.config.config import config, APP_NAME, APP_VERSION
 from meikipop.dictionary.lookup import Lookup
 from meikipop.gui.input import InputLoop
@@ -16,7 +17,6 @@ from meikipop.ocr.hit_scan import HitScanner
 from meikipop.ocr.ocr import OcrProcessor
 from meikipop.screenshot.screenmanager import ScreenManager
 from meikipop.utils.lastest_queue import LatestValueQueue
-from meikipop.utils.logger import setup_logging
 
 
 def qt_message_handler(mode, context, message):

@@ -29,7 +29,9 @@ jobs:
         run: python -m meikipop.scripts.build_dictionary
 
       - name: compress dictionary
-        run: zip dictionary.zip /home/runner/.local/share/meikipop/dictionary.pkl
+        run: |
+          mv /home/runner/.local/share/meikipop/dictionary.pkl .
+          zip dictionary.zip dictionary.pkl
 
       - name: update dictionary-latest release
         env:

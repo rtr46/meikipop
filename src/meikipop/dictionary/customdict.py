@@ -51,7 +51,7 @@ class Dictionary:
             self._is_loaded = True
             n_refs = sum(len(v) for v in self.lookup_map.values())
             logger.info(
-                f"Dictionary loaded in {time.perf_counter() - start:.2f}s  "
+                f"Dictionary loaded in {time.perf_counter() - start:.2f}s from '{file_path}'"
                 f"({len(self.entries)} core entries, {n_refs} lookup refs)"
             )
             self._validate()
@@ -75,7 +75,7 @@ class Dictionary:
             with urllib.request.urlopen(DICT_URL) as response:
                 data = response.read()
             with zipfile.ZipFile(io.BytesIO(data)) as zf:
-                zf.extract("dictionary.pkl", path=os.path.dirname(file_path))
+                zf.extract("dictionary.pkl", path=file_path)
             logger.info("Dictionary downloaded successfully.")
             return True
         except Exception as e:

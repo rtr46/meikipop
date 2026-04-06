@@ -7,7 +7,7 @@ from PyQt6.QtWidgets import QSystemTrayIcon, QMenu, QApplication
 from meikipop.config.config import APP_NAME, config, IS_WINDOWS
 from meikipop.gui.settings_dialog import SettingsDialog
 from meikipop.ocr.ocr import OcrProcessor
-from meikipop.config.paths import paths
+from meikipop.utils.paths import paths
 
 
 class TrayIcon(QSystemTrayIcon):

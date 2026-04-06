@@ -3,7 +3,7 @@ import configparser
 import logging
 import sys
 
-from meikipop.config.paths import paths
+from meikipop.utils.paths import paths
 
 logger = logging.getLogger(__name__)
 
@@ -97,7 +97,7 @@ class Config:
 
         with open(CONFIG_PATH, 'w', encoding='utf-8') as f:
             parser.write(f)
-        logger.info("Settings saved to config.ini.")
+        logger.info(f"Settings saved to '{CONFIG_PATH}'.")
 
 
 config = Config()
