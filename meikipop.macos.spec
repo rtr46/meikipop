@@ -22,12 +22,12 @@ def _get_build_version() -> str:
 
 BUILD_VERSION = _get_build_version()
 
-
 a = Analysis(
     ['src/main.py'],
     pathex=['.'],
     binaries=[],
     datas=[
+        ('dictionary.pkl', '.'),
         ('src/ocr/providers/glensv2/provider.py', 'src/ocr/providers/glensv2'),
         ('src/ocr/providers/glensv2/lens_betterproto.py', 'src/ocr/providers/glensv2'),
         ('src/ocr/providers/glensv2/__init__.py', 'src/ocr/providers/glensv2'),
