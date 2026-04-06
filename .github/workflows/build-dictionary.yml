@@ -1,5 +1,5 @@
 # .github/workflows/build-dictionary.yml
-name: dictionary build
+name: reusable dictionary build
 
 on:
   schedule:
@@ -34,7 +34,7 @@ jobs:
         run: |
           gh release delete dictionary-latest --yes --cleanup-tag || true
           gh release create dictionary-latest \
-            --title "Dictionary (latest)" \
-            --notes "Auto-updated dictionary. Rebuilt every Monday or on manual trigger." \
+            --title "dictionary (latest)" \
+            --notes "most recent meikipop dictionary file" \
             --prerelease \
             /home/runner/.local/share/meikipop/dictionary.pkl
