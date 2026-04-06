@@ -29,6 +29,8 @@ jobs:
         run: python -m meikipop.scripts.build_dictionary
 
       - name: update dictionary-latest release
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           gh release delete dictionary-latest --yes --cleanup-tag || true
           gh release create dictionary-latest \
