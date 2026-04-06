@@ -1,0 +1,47 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "meikipop"
+version = "2.0.0rc3"
+description = "Universal Japanese OCR popup dictionary"
+readme = "README.md"
+license = "GPL-3.0"
+authors = [
+    {name = "rtr46"}
+]
+requires-python = ">=3.10"
+dependencies = [
+    "PyQt6>=6.9.1",
+    "pynput>=1.7.8",
+    "mss>=10.0.0",
+    "requests>=2.32.4",
+    "Pillow>=11.2.1",
+    "betterproto>=2.0.0b7",
+    "protobuf>=6.33.1",
+    "websockets>=15.0.1",
+    "meikiocr>=0.3.3",
+    "onnxruntime==1.20.1; sys_platform == 'win32'",
+    "keyboard~=0.13.5; sys_platform == 'win32'",
+    "python-xlib~=0.33; sys_platform == 'linux'",
+    "pyobjc-framework-Quartz>=10.0; sys_platform == 'darwin'",
+    "pyobjc-framework-Cocoa>=10.0; sys_platform == 'darwin'",
+    "lxml",
+    "platformdirs",
+]
+
+[project.scripts]
+meikipop = "meikipop.main:main"
+
+[project.entry-points."meikipop.scripts"]
+build-dict = "meikipop.scripts.build_dictionary:main"
+import-yomitan-dict-html = "meikipop.scripts.import_yomitan_dict_html:main"
+import-yomitan-dict-text = "meikipop.scripts.import_yomitan_dict_text:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["meikipop*"]
+
+[tool.setuptools.package-data]
+meikipop = ["scripts/deconjugator.json", "resources/icon.ico", "resources/icon.inactive.ico"]

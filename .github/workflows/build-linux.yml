@@ -47,27 +47,17 @@ jobs:
       - name: install pip dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          pip install lxml
+          pip install -e .
           pip install pyinstaller
 
       - name: clean previous builds
         run: rm -rf build dist || true
 
       - name: build with pyinstaller (linux)
-        run: |
-          xvfb-run pyinstaller meikipop.linux.x64.spec
-
-      - name: build dictionary
-        run: python -m scripts.build_dictionary
+        run: xvfb-run pyinstaller meikipop.linux.x64.spec
 
       - name: build linux archive
-        run: |
-          mv dist/meikipop dist/meikipop.elf
-          mkdir dist/meikipop/
-          mv dist/meikipop.elf dist/meikipop/meikipop
-          mv dictionary.pkl dist/meikipop/
-          tar -czvf dist/meikipop.linux.x64.tar.gz -C dist/ meikipop
+        run: tar -czvf dist/meikipop.linux.x64.tar.gz -C dist/ meikipop
 
       - name: upload linux artifact
         id: upload
