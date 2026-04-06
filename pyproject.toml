@@ -21,7 +21,7 @@ dependencies = [
     "betterproto>=2.0.0b7",
     "protobuf>=6.33.1",
     "websockets>=15.0.1",
-    "meikiocr>=0.3.1",
+    "meikiocr>=0.3.3",
     "onnxruntime==1.20.1; sys_platform == 'win32'",
     "keyboard~=0.13.5; sys_platform == 'win32'",
     "python-xlib~=0.33; sys_platform == 'linux'",

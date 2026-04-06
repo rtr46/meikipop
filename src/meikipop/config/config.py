@@ -1,4 +1,4 @@
-# src/config/config.py
+# meikipop/config/config.py
 import configparser
 import logging
 import sys
