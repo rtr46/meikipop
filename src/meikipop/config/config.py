@@ -26,12 +26,12 @@ class Config:
             'scan_region': 'region',
             'max_lookup_length': 25,
             'glens_low_bandwidth': False,
-            'ocr_provider': 'Google Lens (remote)',
-            'auto_scan_mode': False,
+            'ocr_provider': 'meikiocr (local)',
+            'auto_scan_mode': True,
             'auto_scan_mode_lookups_without_hotkey': True,
-            'auto_scan_interval_seconds': 0.0,
-            'auto_scan_on_mouse_move': False,
-            'magpie_compatibility': False
+            'auto_scan_interval_seconds': 0.5,
+            'auto_scan_on_mouse_move': True,
+            'magpie_compatibility': True
         },
         'Theme': {
             'theme_name': 'Nazeka',
@@ -45,14 +45,14 @@ class Config:
             'show_tags': False,
             'show_frequency': False,
             'show_kanji': True,
-            'show_examples': False,
-            'show_components': False,
+            'show_examples': True,
+            'show_components': True,
             'color_background': '#2E2E2E',
             'color_foreground': '#F0F0F0',
             'color_highlight_word': '#88D8FF',
             'color_highlight_reading': '#90EE90',
             'background_opacity': 245,
-            'popup_position_mode': 'flip_vertically'
+            'popup_position_mode': 'visual_novel_mode'
         }
     }
 
