@@ -51,7 +51,7 @@ if you already have python 3.10+ installed, this is the most flexible option tha
 
 ```bash
 #... activate your environment if any
-pip install meikipop
+pip install --upgrade meikipop
 meikipop  # run the application
 ```
 
