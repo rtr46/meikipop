@@ -19,3 +19,7 @@ class LatestValueQueue():
             value = self._value
             self._event.clear()
             return value
+
+    def trigger(self):
+        with self._lock:
+            self._event.set()

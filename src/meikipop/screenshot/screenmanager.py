@@ -120,7 +120,7 @@ class ScreenManager(threading.Thread):
             time.sleep(interval)
             self.shared_state.screenshot_trigger_event.set()
         else:
-            self.shared_state.hit_scan_queue.put((False, None))
+            self.shared_state.hit_scan_queue.trigger()
 
     @staticmethod
     def get_screens():

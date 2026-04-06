@@ -1,4 +1,4 @@
-# meikipop/config/config.py
+# src/config/config.py
 import configparser
 import logging
 import sys
@@ -8,7 +8,7 @@ from meikipop.paths import paths
 logger = logging.getLogger(__name__)
 
 APP_NAME = "meikipop"
-APP_VERSION = "2.0.0rc1"
+APP_VERSION = "2.0.0rc2"
 MAX_DICT_ENTRIES = 10
 IS_LINUX = sys.platform.startswith('linux')
 IS_WINDOWS = sys.platform.startswith('win')

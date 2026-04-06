@@ -90,7 +90,7 @@ def run_gui():
     shared_state.running = False
     shared_state.screenshot_trigger_event.set()
     shared_state.ocr_queue.put(None)
-    shared_state.hit_scan_queue.put((False, None))
+    shared_state.hit_scan_queue.trigger()
     shared_state.lookup_queue.put(None)
     sys.exit(exit_code)
 

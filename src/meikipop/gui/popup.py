@@ -169,7 +169,7 @@ class Popup(QWidget):
             self.setFixedSize(new_size)
         self._last_latest_data = latest_data
 
-        if self._latest_data and self.input_loop.is_virtual_hotkey_down():
+        if self._latest_data and self.input_loop.is_virtual_hotkey_down() and config.is_enabled:
             self.show_popup()
         else:
             self.hide_popup()
