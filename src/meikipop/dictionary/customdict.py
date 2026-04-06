@@ -7,6 +7,8 @@ import zipfile
 import io
 from collections import defaultdict
 
+from meikipop.utils.paths import paths
+
 logger = logging.getLogger(__name__)
 
 DICT_URL = "https://github.com/rtr46/meikipop/releases/download/dictionary-latest/dictionary.zip"
@@ -39,7 +41,7 @@ class Dictionary:
     def load_dictionary(self, file_path: str) -> bool:
         if self._is_loaded:
             return True
-        logger.info("Loading dictionary ...")
+        logger.info(f"Loading dictionary from '{file_path}'")
         start = time.perf_counter()
         try:
             with open(file_path, 'rb') as f:
@@ -51,14 +53,14 @@ class Dictionary:
             self._is_loaded = True
             n_refs = sum(len(v) for v in self.lookup_map.values())
             logger.info(
-                f"Dictionary loaded in {time.perf_counter() - start:.2f}s from '{file_path}'"
+                f"Dictionary loaded in {time.perf_counter() - start:.2f}s"
                 f"({len(self.entries)} core entries, {n_refs} lookup refs)"
             )
             self._validate()
             return True
         except FileNotFoundError:
-            logger.warning(f"Dictionary file '{file_path}' not found. Trying download...")
-            if self._download_dictionary(file_path):
+            logger.warning(f"Dictionary file not found. Trying download...")
+            if self._download_dictionary():
                 return self.load_dictionary(file_path)  # retry once after download
             logger.error(
                 "Dictionary could not be downloaded. "
@@ -66,16 +68,15 @@ class Dictionary:
             )
             return False
         except Exception as e:
-            logger.error(f"Failed to load dictionary from '{file_path}': {e}")
+            logger.error(f"Failed to load dictionary: {e}")
             return False
 
-    def _download_dictionary(self, file_path: str) -> bool:
-        logger.info("Dictionary not found locally. Attempting download...")
+    def _download_dictionary(self) -> bool:
         try:
             with urllib.request.urlopen(DICT_URL) as response:
                 data = response.read()
             with zipfile.ZipFile(io.BytesIO(data)) as zf:
-                zf.extract("dictionary.pkl", path=file_path)
+                zf.extract("dictionary.pkl", path=paths.data_dir)
             logger.info("Dictionary downloaded successfully.")
             return True
         except Exception as e:

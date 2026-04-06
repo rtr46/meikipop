@@ -19,6 +19,11 @@ class MeikiPaths:
     def is_frozen(self):
         """Check if running as PyInstaller bundle"""
         return getattr(sys, 'frozen', False)
+
+    @property
+    def data_dir(self):
+        """Location of dictionary.pkl"""
+        return self._platform_dirs.user_data_dir
     
     @property
     def config_path(self):
@@ -28,7 +33,7 @@ class MeikiPaths:
     @property
     def dictionary_path(self):
         """Location of dictionary.pkl"""
-        return os.path.join(self._platform_dirs.user_data_dir, 'dictionary.pkl')
+        return os.path.join(self.data_dir, 'dictionary.pkl')
     
     @property
     def cache_dir(self):
@@ -36,15 +41,15 @@ class MeikiPaths:
         return self._platform_dirs.user_cache_dir
     
     @property
-    def resource_dir(self):
+    def main_dir(self):
         """Location of bundled resources (icons, etc.)"""
         if self.is_frozen:
             return os.path.join(sys._MEIPASS, 'meikipop')
-        return os.path.dirname(os.path.abspath(__file__))
+        return os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     
     def get_resource_path(self, relative_path):
         """Get full path to a bundled resource"""
-        return os.path.join(self.resource_dir, relative_path)
+        return os.path.join(self.main_dir, 'resources', relative_path)
 
 
 paths = MeikiPaths()

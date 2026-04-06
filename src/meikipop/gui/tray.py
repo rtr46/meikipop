@@ -13,8 +13,8 @@ from meikipop.utils.paths import paths
 class TrayIcon(QSystemTrayIcon):
     def __init__(self, screen_manager, ocr_processor: OcrProcessor, popup_window, input_loop, lookup, parent=None):
         # Resolve icon paths using
-        icon_path = paths.get_resource_path('resources/icon.ico')
-        icon_inactive_path = paths.get_resource_path('resources/icon.inactive.ico')
+        icon_path = paths.get_resource_path('icon.ico')
+        icon_inactive_path = paths.get_resource_path('icon.inactive.ico')
 
         if os.path.exists(icon_path):
             self.icon = QIcon(icon_path)
