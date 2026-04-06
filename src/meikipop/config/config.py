@@ -64,7 +64,7 @@ class Config:
 
     def _load(self):
         parser = configparser.ConfigParser()
-        parser.read(CONFIG_PATH, encoding='utf-8')
+        found = parser.read(CONFIG_PATH, encoding='utf-8')
 
         for section, settings in self._SCHEMA.items():
             for key, default in settings.items():
@@ -82,7 +82,10 @@ class Config:
                 setattr(self, key, val)
 
         self.is_enabled = True
-        logger.info("Configuration loaded.")
+        if found:
+            logger.info(f"Configuration loaded from '{CONFIG_PATH}'.")
+        else:
+            logger.info(f"No configuration found at '{CONFIG_PATH}'. A new one will be created with default values.")
 
     def save(self):
         parser = configparser.ConfigParser()
