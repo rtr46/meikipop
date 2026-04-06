@@ -37,4 +37,4 @@ jobs:
             --title "Dictionary (latest)" \
             --notes "Auto-updated dictionary. Rebuilt every Monday or on manual trigger." \
             --prerelease \
-            dictionary.pkl
+            /home/runner/.local/share/meikipop/dictionary.pkl

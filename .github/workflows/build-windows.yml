@@ -34,15 +34,8 @@ jobs:
       - name: build with pyinstaller (windows)
         run: pyinstaller meikipop.win.x64.spec
 
-      - name: build dictionary
-        run: python -m meikipop.scripts.build_dictionary
-
       - name: build windows archive
-        run: |
-          mkdir dist/meikipop
-          copy "C:\Users\runneradmin\AppData\Local\meikipop\dictionary.pkl" dist/meikipop/
-          mv dist/meikipop.exe dist/meikipop/
-          powershell -Command "Compress-Archive -Path dist/meikipop -DestinationPath dist/meikipop.windows.x64.zip"
+        run: powershell -Command "Compress-Archive -Path dist/meikipop.exe -DestinationPath dist/meikipop.windows.x64.zip"
 
       - name: upload windows artifact
         id: upload
