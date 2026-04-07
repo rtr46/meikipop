@@ -7,7 +7,7 @@ from PyQt6.QtWidgets import (QWidget, QDialog, QFormLayout, QComboBox,
                              QTabWidget, QSizePolicy, QFontComboBox)
 
 from meikipop.dictionary.lookup import Lookup
-from meikipop.config.config import config, APP_NAME, IS_WINDOWS
+from meikipop.config.config import config, APP_NAME, IS_WINDOWS, IS_MACOS
 from meikipop.gui.input import InputLoop
 from meikipop.gui.popup import Popup
 from meikipop.ocr.ocr import OcrProcessor
@@ -38,6 +38,38 @@ THEMES = {
 
 
 class SettingsDialog(QDialog):
+    HOTKEY_ALIASES = {
+        "control": "ctrl",
+        "ctrl": "ctrl",
+        "shift": "shift",
+        "option": "alt",
+        "alt": "alt",
+        "command": "cmd",
+        "cmd": "cmd",
+    }
+
+    HOTKEY_ORDER = ["cmd", "ctrl", "shift", "alt"]
+
+    HOTKEY_OPTIONS_DEFAULT = [
+        ("ctrl", "ctrl"),
+        ("shift", "shift"),
+        ("alt", "alt"),
+        ("ctrl+shift", "ctrl+shift"),
+        ("ctrl+alt", "ctrl+alt"),
+        ("shift+alt", "shift+alt"),
+        ("ctrl+shift+alt", "ctrl+shift+alt"),
+    ]
+
+    HOTKEY_OPTIONS_MACOS = [
+        ("control", "ctrl"),
+        ("shift", "shift"),
+        ("option", "alt"),
+        ("control+shift", "ctrl+shift"),
+        ("control+option", "ctrl+alt"),
+        ("shift+option", "shift+alt"),
+        ("control+shift+option", "ctrl+shift+alt"),
+    ]
+
     def __init__(self, ocr_processor: OcrProcessor, popup_window: Popup, input_loop: InputLoop, lookup: Lookup,
                  tray_icon, parent=None):
         super().__init__(parent)
@@ -53,6 +85,7 @@ class SettingsDialog(QDialog):
 
         # Keep track of all form layouts to unify their spacing later
         self.form_layouts = []
+        self.hotkey_options = self.HOTKEY_OPTIONS_MACOS if IS_MACOS else self.HOTKEY_OPTIONS_DEFAULT
 
         # Main vertical layout for the Dialog
         main_layout = QVBoxLayout(self)
@@ -72,8 +105,13 @@ class SettingsDialog(QDialog):
         self.form_layouts.append(core_layout)
 
         self.hotkey_combo = QComboBox()
-        self.hotkey_combo.addItems(['ctrl', 'shift', 'alt', 'ctrl+shift', 'ctrl+alt', 'shift+alt', 'ctrl+shift+alt'])
-        self.hotkey_combo.setCurrentText(config.hotkey)
+        for label, value in self.hotkey_options:
+            self.hotkey_combo.addItem(label, value)
+        normalized_hotkey = self._normalize_hotkey(config.hotkey)
+        hotkey_index = self.hotkey_combo.findData(normalized_hotkey)
+        if hotkey_index < 0:
+            hotkey_index = self.hotkey_combo.findData("shift")
+        self.hotkey_combo.setCurrentIndex(max(hotkey_index, 0))
         self._set_expanding(self.hotkey_combo)
         core_layout.addRow("Hotkey:", self.hotkey_combo)
 
@@ -420,7 +458,7 @@ class SettingsDialog(QDialog):
             self.ocr_processor.switch_provider(selected_provider)
 
         # Update all other config values
-        config.hotkey = self.hotkey_combo.currentText()
+        config.hotkey = self.hotkey_combo.currentData() or self._normalize_hotkey(self.hotkey_combo.currentText())
         config.glens_low_bandwidth = self.glens_compression_check.isChecked()
         config.max_lookup_length = self.max_lookup_spin.value()
         config.auto_scan_mode = self.auto_scan_check.isChecked()
@@ -456,3 +494,20 @@ class SettingsDialog(QDialog):
         self.ocr_processor.shared_state.screenshot_trigger_event.set()
 
         self.accept()
+
+    @classmethod
+    def _normalize_hotkey(cls, hotkey_str):
+        if not hotkey_str:
+            return "shift"
+
+        seen = set()
+        for token in hotkey_str.lower().split("+"):
+            mapped = cls.HOTKEY_ALIASES.get(token.strip())
+            if mapped:
+                seen.add(mapped)
+
+        if not seen:
+            return "shift"
+
+        ordered_tokens = [token for token in cls.HOTKEY_ORDER if token in seen]
+        return "+".join(ordered_tokens)
