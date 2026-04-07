@@ -31,20 +31,22 @@ to maintain this focus, there are a few things meikipop is **not**:
 
 there are a few different ways to install and run meikipop. note that when meikipop is started for the first time, a dictionary and ocr models may be downloaded.
 
-### easiest: prepackaged binaries (win, linux x11)
+### easiest: prepackaged binaries
 
 just download, unpack and start the executable binary. no python installation required:
 * https://github.com/rtr46/meikipop/releases/latest
 
-### recommended: install via pypi (all supported platforms)
+### recommended: install via pypi
 
-if you already have python 3.10+ installed, this is the most flexible option that lets you run directly from source, enables you to edit the program and lets you add your own custom ocr providers 
+if you already have python 3.10+ installed, this is the most flexible option that lets you run directly from source, enables you to edit the program and lets you add your own custom ocr providers. 
 
 <details>
 <summary>click here for mac os specific setup steps</summary>
 
 * go to **System Preferences** > **Security & Privacy** > **Privacy**
 * add/enable your terminal app in **Input Monitoring**, **Screen Recording** and **Accessibility**
+
+note that there may be problems when using python 3.14. use one of [these workarounds](https://github.com/rtr46/meikipop/issues/43) if necessary.
 </details>
 
 
