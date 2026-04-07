@@ -312,7 +312,7 @@ def build_jmdict_data(root, freq_map: dict):
                 dedup = (reb, written_form, reading, entry_id)
                 if dedup not in seen_lookup:
                     seen_lookup.add(dedup)
-                    freq = freq_map.get((reb, display_reb), DEFAULT_FREQ)
+                    freq = freq_map.get((reb, display_reb), DEFAULT_FREQ) if reb == written_form else DEFAULT_FREQ
                     lookup_map[reb].append((written_form, reading, freq, entry_id))
 
     n_refs = sum(len(v) for v in lookup_map.values())
