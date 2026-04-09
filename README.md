@@ -48,6 +48,13 @@ if you already have python 3.10+ installed, this is the most flexible option tha
 
 note that there may be problems when using python 3.14. use one of [these workarounds](https://github.com/rtr46/meikipop/issues/43) if necessary.
 </details>
+<details>
+<summary>click here for linux specific setup steps</summary>
+
+install the following packages for your distro:
+* **Fedora** - `sudo dnf install libxcb xcb-util xcb-util-cursor libxkbcommon-x11 libxkbcommon xcb-util-wm xcb-util-keysyms pipewire-gstreamer`
+* **Ubuntu** - `sudo apt install cmake libcairo2-dev libgirepository-2.0-dev libgstreamer1.0-dev gstreamer1.0-pipewire libxcb-xkb-dev libxcb-cursor-dev libxcb-xinerama0 libxkbcommon-x11-0 libxcb-cursor0 libxcb-icccm4 libxcb-keysyms1-dev libxcb-shape0`
+</details>
 
 
 
