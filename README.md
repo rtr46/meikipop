@@ -40,29 +40,55 @@ just download, unpack and start the executable binary. no python installation re
 
 if you already have python 3.10+ installed, this is the most flexible option that lets you run directly from source, enables you to edit the program and lets you add your own custom ocr providers. 
 
+```bash
+#... activate your environment if any
+pip install --upgrade meikipop
+meikipop  # run the application
+```
+
+### for development: editable install
+
+if you are planning to modify, fork or contribute to meikipop, it is best to checkout this repo and create an editable install
+
+```bash
+#... activate your environment if any
+git clone https://github.com/rtr46/meikipop.git
+cd meikipop
+pip install -e .
+meikipop  # run the application
+```
+
+### platform support
+
+* **windows, linux (x11)** - these are the primary supported platforms
+* **macos** - supported thanks to community contributions
+* **linux (wayland)** - it can work in principle thanks to community contributions, but may require additional trouble shooting
+
+see for platform specific setup details:
 <details>
-<summary>click here for mac os specific setup steps</summary>
+<summary>macos</summary>
 
 * go to **System Preferences** > **Security & Privacy** > **Privacy**
 * add/enable your terminal app in **Input Monitoring**, **Screen Recording** and **Accessibility**
 
 note that there may be problems when using python 3.14. use one of [these workarounds](https://github.com/rtr46/meikipop/issues/43) if necessary.
 </details>
+
 <details>
-<summary>click here for linux specific setup steps</summary>
+<summary>wayland (alpha)</summary>
 
-install the following packages for your distro:
-* **Fedora** - `sudo dnf install libxcb xcb-util xcb-util-cursor libxkbcommon-x11 libxkbcommon xcb-util-wm xcb-util-keysyms pipewire-gstreamer`
-* **Ubuntu** - `sudo apt install cmake libcairo2-dev libgirepository-2.0-dev libgstreamer1.0-dev gstreamer1.0-pipewire libxcb-xkb-dev libxcb-cursor-dev libxcb-xinerama0 libxkbcommon-x11-0 libxcb-cursor0 libxcb-icccm4 libxcb-keysyms1-dev libxcb-shape0`
+it is possible to run meikipop on wayland in principle, but depending on your specific setup you may need to take additional steps like installing additional dependencies, fixing some of the wayland specific code or changing some of your setup. since the wayland eco system is terribly fragmented and deliberately prevents apps like meikipop from working natively, don't expect any support, but feel free to open an issue regardless.
+
+here are some tips and recommendations:
+* consider switching to x11
+* install via pypi or create an editable install and avoid the linux prebuilt, which only got tested on x11
+* make sure you have xwayland working
+* you may need to install additional python dependencies, depending on your system like `pip install pygobject`
+* you may need to install additional os dependencies, depending on your distribution like:
+  * fedora: `sudo dnf install libxcb xcb-util xcb-util-cursor libxkbcommon-x11 libxkbcommon xcb-util-wm xcb-util-keysyms pipewire-gstreamer`
+  * ubuntu: `sudo apt install cmake libcairo2-dev libgirepository-2.0-dev libgstreamer1.0-dev gstreamer1.0-pipewire libxcb-xkb-dev libxcb-cursor-dev libxcb-xinerama0 libxkbcommon-x11-0 libxcb-cursor0 libxcb-icccm4 libxcb-keysyms1-dev libxcb-shape0`
+* ask your favorite llm for help
 </details>
-
-
-
-```bash
-#... activate your environment if any
-pip install --upgrade meikipop
-meikipop  # run the application
-```
 
 ## how to use
 
@@ -76,10 +102,10 @@ meikipop  # run the application
 
 you can fully customize meikipop's behavior and appearance. right-click the tray icon and choose "settings" to open the configuration gui.
 
-changes are saved to a platform-specific user data directory:
-- Windows: `%LOCALAPPDATA%\meikipop\config.ini`
-- Linux: `~/.config/meikipop/config.ini`
-- macOS: `~/Library/Application Support/meikipop/config.ini`
+changes are saved to a platform-specific user data directory which contains `config.ini` and `dictionary.pkl`:
+- windows: `%LOCALAPPDATA%\meikipop\`
+- linux: `~/.config/meikipop/`
+- macos: `~/Library/Application Support/meikipop/`
 
 ## using alternative ocr backends...
 
