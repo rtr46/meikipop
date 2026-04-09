@@ -9,11 +9,12 @@ from meikipop.utils.paths import paths
 logger = logging.getLogger(__name__)
 
 APP_NAME = "meikipop"
-APP_VERSION = "2.0.0rc3"
+APP_VERSION = "2.0.0"
 MAX_DICT_ENTRIES = 10
 IS_LINUX = sys.platform.startswith('linux')
 IS_WINDOWS = sys.platform.startswith('win')
 IS_MACOS = sys.platform.startswith('darwin')
+# todo should we use this instead?: IS_WAYLAND = IS_LINUX and bool(os.environ.get('WAYLAND_DISPLAY'))
 IS_WAYLAND = IS_LINUX and os.environ.get('XDG_SESSION_TYPE', '').lower() == 'wayland'
 
 # Force xwayland so windows can pop up in arbitary locations

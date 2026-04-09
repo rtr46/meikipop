@@ -1,5 +1,5 @@
 # Modified from AuroraWright's OwOCR
-
+import logging
 import re
 import threading
 import time
@@ -15,10 +15,12 @@ from mss.exception import ScreenShotError
 from mss.screenshot import ScreenShot, Size
 from mss.models import Monitor
 
+logger = logging.getLogger(__name__)  # todo add proper info and debug logs
+
 screencast = None
 screencast_lock = threading.Lock()
 
-token_file = Path('~/.cache/.ocr_screencapture_token').expanduser()
+token_file = Path('~/.cache/.ocr_screencapture_token').expanduser()  # todo this should probably use utils/path.py
 persist_token = str(uuid.UUID(int=0))
 
 if token_file.exists():
@@ -110,7 +112,7 @@ class ScreenCastManager:
             with self.frame_lock:
                 self.last_frame = frame_data
             self.ready_event.set()
-        except:
+        except:  # todo should we "except Exception as e" and add logs?
             self.stop()
             return Gst.FlowReturn.ERROR
         return Gst.FlowReturn.OK
@@ -294,7 +296,7 @@ class MSSWaylandShim:
                     raise ScreenShotError('Source selection timed out')
                 if not screencast.ready_event.wait(timeout=3):
                     raise ScreenShotError('Screencast initialization timed out')
-                time.sleep(1)
+                time.sleep(1)  # todo it seems like we can delete this... needs to be tested
         self._create_monitors()
 
     @property
