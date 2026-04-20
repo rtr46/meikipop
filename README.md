@@ -153,6 +153,8 @@ if you want to import a yomitan dictionary that is possible as well. you can imp
 meikipop import-yomitan-dict-html my_yomitan_dict.zip
 # or create a compact, text only dictionary
 meikipop import-yomitan-dict-text my_yomitan_dict.zip
+# or import multiple dictionaries at once
+meikipop import-yomitan-dict-text dict1.zip dict2.zip
 ```
 
 ## license
