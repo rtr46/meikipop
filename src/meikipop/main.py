@@ -103,10 +103,10 @@ def main():
     subparsers.add_parser("build-dict", help="Build the dictionary from source files")
 
     import_html_parser = subparsers.add_parser("import-yomitan-dict-html", help="Import Yomitan dictionary (HTML format)")
-    import_html_parser.add_argument("dictionary_file", help="Path to the dictionary zip file")
+    import_html_parser.add_argument("dictionary_files", nargs='+', help="Path(s) to the dictionary zip file(s)")
 
     import_text_parser = subparsers.add_parser("import-yomitan-dict-text", help="Import Yomitan dictionary (text format)")
-    import_text_parser.add_argument("dictionary_file", help="Path to the dictionary zip file")
+    import_text_parser.add_argument("dictionary_files", nargs='+', help="Path(s) to the dictionary zip file(s)")
 
     args = parser.parse_args()
 
@@ -114,15 +114,11 @@ def main():
         from meikipop.scripts.build_dictionary import main as build_main
         build_main()
     elif args.command == "import-yomitan-dict-html":
-        import sys
-        sys.argv = ['import_yomitan_dict_html', args.dictionary_file]
         from meikipop.scripts.import_yomitan_dict_html import main as import_html_main
-        import_html_main()
+        import_html_main([*args.dictionary_files])
     elif args.command == "import-yomitan-dict-text":
-        import sys
-        sys.argv = ['import_yomitan_dict_text', args.dictionary_file]
         from meikipop.scripts.import_yomitan_dict_text import main as import_text_main
-        import_text_main()
+        import_text_main([*args.dictionary_files])
     else:
         run_gui()
 
