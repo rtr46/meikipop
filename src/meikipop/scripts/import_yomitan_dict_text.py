@@ -302,13 +302,13 @@ def _has_kanji(text: str) -> bool:
 
 # ── Main ───────────────────────────────────────────────────────────────────────
 
-def main():
+def main(argv=None):
     parser = argparse.ArgumentParser(
         description='Import Yomitan dictionary zip(s) into dictionary.pkl')
     parser.add_argument('zips', nargs='+', help='Path(s) to Yomitan .zip files')
     parser.add_argument('-o', '--output', default=DEFAULT_OUTPUT,
                         help=f'Output pickle path (default: {DEFAULT_OUTPUT})')
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
 
     # Load deconjugator rules (reused as-is from existing data/)
     if not os.path.exists(DECONJUGATOR_PATH):

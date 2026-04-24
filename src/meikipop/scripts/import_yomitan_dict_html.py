@@ -520,7 +520,7 @@ def build_from_zip(
 
 # ── Main ───────────────────────────────────────────────────────────────────────
 
-def main():
+def main(argv=None):
     parser = argparse.ArgumentParser(
         description='Import Yomitan dictionary zip(s) into dictionary.pkl')
     parser.add_argument('zips', nargs='+', help='Path(s) to Yomitan .zip files')
@@ -528,7 +528,7 @@ def main():
                         help=f'Output pickle path (default: {DEFAULT_OUTPUT})')
     parser.add_argument('--no-ruby', dest='ruby', action='store_false', default=True,
                         help='Strip furigana (ruby) annotations from definitions')
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
 
     if not os.path.exists(DECONJUGATOR_PATH):
         print(f"ERROR: {DECONJUGATOR_PATH} not found. "
