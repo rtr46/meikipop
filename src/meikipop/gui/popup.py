@@ -169,13 +169,21 @@ class Popup(QWidget):
             self.setFixedSize(new_size)
         self._last_latest_data = latest_data
 
-        if self._latest_data and self.input_loop.is_virtual_hotkey_down() and config.is_enabled:
-            self.show_popup()
-        else:
-            self.hide_popup()
+        hotkey_down = self.input_loop.is_virtual_hotkey_down()
 
+        # scar: check move first, so we don't move twice in the same frame
         mouse_pos = QCursor.pos()
-        self.move_to(mouse_pos.x(), mouse_pos.y())
+        if not keep_popup_hk and self.is_visible and hotkey_down:
+            self.move_to(mouse_pos.x(), mouse_pos.y())
+
+        keep_popup_hk = config.keep_popup_while_hotkey_held
+        if self._latest_data and hotkey_down and config.is_enabled:
+            if not self.is_visible:
+                self.show_popup()
+                # scar: move immediately after first check for `keep_popup_hk`
+                self.move_to(QCursor.pos().x(), QCursor.pos().y())
+        elif not (keep_popup_hk and hotkey_down and self.is_visible):
+            self.hide_popup()
 
     def _render_kanji_entry(self, entry: KanjiEntry):
         # Colors and sizes from config

@@ -182,7 +182,9 @@ class InputLoop(threading.Thread):
 
                 # trigger hit_scans + lookups
                 if current_mouse_pos != last_mouse_pos:
-                    self.shared_state.hit_scan_queue.trigger()
+                    # scar: cancel hotkey if setting & currently pressing (not first check)
+                    if config.keep_popup_while_hotkey_held and not hotkey_is_pressed:
+                        self.shared_state.hit_scan_queue.trigger()
 
                 if hotkey_was_pressed and not hotkey_is_pressed:
                     logger.info(f"Input: Hotkey '{config.hotkey}' released.")

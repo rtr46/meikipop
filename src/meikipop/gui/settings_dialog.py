@@ -77,6 +77,11 @@ class SettingsDialog(QDialog):
         self._set_expanding(self.hotkey_combo)
         core_layout.addRow("Hotkey:", self.hotkey_combo)
 
+        self.hold_hotkey_check = QCheckBox()
+        self.hold_hotkey_check.setChecked(config.keep_popup_while_hotkey_held)
+        self.hold_hotkey_check.setToolTip("Keep the popup visible as long as the hotkey is held down")
+        core_layout.addRow("Keep Popup While Hotkey Held:", self.hold_hotkey_check)
+
         self.ocr_provider_combo = QComboBox()
         self.ocr_provider_combo.addItems(self.ocr_processor.available_providers.keys())
         self.ocr_provider_combo.setCurrentText(config.ocr_provider)
@@ -421,6 +426,7 @@ class SettingsDialog(QDialog):
 
         # Update all other config values
         config.hotkey = self.hotkey_combo.currentText()
+        config.keep_popup_while_hotkey_held = self.hold_hotkey_check.isChecked()
         config.glens_low_bandwidth = self.glens_compression_check.isChecked()
         config.max_lookup_length = self.max_lookup_spin.value()
         config.auto_scan_mode = self.auto_scan_check.isChecked()
