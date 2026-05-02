@@ -1,0 +1,37 @@
+# .github/workflows/build-flatpak.yml
+name: reusable linux flatpak build
+
+on:
+  workflow_call:
+    outputs:
+      artifact_name:
+        description: "the name of the flatpak artifact"
+        value: ${{ jobs.build-flatpak.outputs.artifact_name }}
+
+jobs:
+  build-flatpak:
+    runs-on: ubuntu-22.04
+    outputs:
+      artifact_name: ${{ steps.upload.outputs.artifact-name }}
+    container:
+      image: ghcr.io/flathub-infra/flatpak-github-actions:kde-6.10
+      options: --privileged
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: generate python flatpak dependencies
+        run: |
+          python3 flatpak/gen_deps.py
+
+      - uses: flatpak/flatpak-github-actions/flatpak-builder@v6
+        with:
+          bundle: meikipop.x64.flatpak
+          manifest-path: flatpak/manifest.yml
+          upload-artifact: false
+
+      - name: upload flatpak artifact
+        id: upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: meikipop-flatpak-x64
+          path: meikipop.x64.flatpak

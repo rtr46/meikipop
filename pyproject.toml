@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "meikipop"
-version = "2.0.2"
+version = "2.0.3"
 description = "Universal Japanese OCR popup dictionary"
 readme = "README.md"
 license = "GPL-3.0"
