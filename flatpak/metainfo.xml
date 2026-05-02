@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<component type="desktop-application">
+  <id>com.github.rtr46.meikipop</id>
+
+  <name>meikipop</name>
+  <summary>Instantly look up Japanese words anywhere on your screen</summary>
+  <developer id="com.github.rtr46">
+    <name>
+        rtr46
+    </name>
+  </developer>
+  <url type="homepage">https://github.com/rtr46/meikipop</url>
+  <content_rating type="oars-1.1" />
+
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>GPL-3.0-or-later</project_license>
+
+  <description>
+    <p>
+      Instantly look up japanese words anywhere on your screen. Meikipop uses optical character recognition (ocr) to read text from websites, games, scanned manga, or even hard-coded video subtitles, giving you effortless dictionary lookups with the press of a key (or even without)!
+    </p>
+  </description>
+
+  <launchable type="desktop-id">com.github.rtr46.meikipop.desktop</launchable>
+  <screenshots>
+    <screenshot type="default">
+      <image>
+        https://github.com/user-attachments/assets/a1834197-3059-438c-a2dc-716e8ec9078f
+      </image>
+    </screenshot>
+  </screenshots>
+</component>
