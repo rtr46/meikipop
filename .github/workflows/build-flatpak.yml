@@ -25,12 +25,13 @@ jobs:
 
       - uses: flatpak/flatpak-github-actions/flatpak-builder@v6
         with:
-          bundle: meikipop.flatpak
+          bundle: meikipop.x64.flatpak
           manifest-path: flatpak/manifest.yml
+          upload-artifact: false
 
       - name: upload flatpak artifact
         id: upload
         uses: actions/upload-artifact@v4
         with:
-          name: meikipop-flatpak
-          path: meikipop.flatpak
+          name: meikipop-flatpak-x64
+          path: meikipop.x64.flatpak
