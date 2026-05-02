@@ -12,7 +12,7 @@ jobs:
   build-flatpak:
     runs-on: ubuntu-22.04
     outputs:
-      artifact_name: ${{ steps.build_flatpak.outputs.bundle }}
+      artifact_name: ${{ steps.upload.outputs.artifact-name }}
     container:
       image: ghcr.io/flathub-infra/flatpak-github-actions:kde-6.10
       options: --privileged
@@ -24,7 +24,13 @@ jobs:
           python3 flatpak/gen_deps.py
 
       - uses: flatpak/flatpak-github-actions/flatpak-builder@v6
-        id: build_flatpak
         with:
           bundle: meikipop.flatpak
           manifest-path: flatpak/manifest.yml
+
+      - name: upload flatpak artifact
+        id: upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: meikipop-flatpak
+          path: meikipop.flatpak

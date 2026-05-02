@@ -31,9 +31,10 @@ jobs:
         with:
           tag_name: ${{ github.ref_name }}
           name: meikipop ${{ github.ref_name }}
-          generate_release_notes: true # This is the magic line
+          generate_release_notes: true
           prerelease: ${{ contains(github.ref_name, '-rc') }}
           files: |
             artifacts/*/*.zip
             artifacts/*/*.tar.gz
             artifacts/*/*.dmg
+            artifacts/*/*.flatpak
