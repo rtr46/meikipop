@@ -81,7 +81,8 @@ it is possible to run meikipop on wayland in principle, but depending on your sp
 
 here are some tips and recommendations:
 * consider switching to x11
-* install via pypi or create an editable install and avoid the linux prebuilt, which only got tested on x11
+* the easiest and most compatible way is trying to run the flatpak distribution of meikipop first, before trying any of the other tips 
+* if the flatpak does not work for you, install via pypi or create an editable install and avoid the linux prebuilt, which only got tested on x11
 * make sure you have xwayland working
 * you may need to install additional python dependencies, depending on your system like `pip install pygobject`
 * you may need to install additional os dependencies, depending on your distribution like:
