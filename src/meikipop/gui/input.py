@@ -14,7 +14,6 @@ if IS_LINUX:
     from Xlib import XK
 elif IS_MACOS:
     import Quartz
-    from AppKit import NSEvent
 else:
     import keyboard
 
@@ -91,44 +90,54 @@ class WindowsKeyboardController:
 
 
 class MacOSKeyboardController:
+    HOTKEY_ALIASES = {
+        'control': 'ctrl',
+        'ctrl': 'ctrl',
+        'shift': 'shift',
+        'option': 'alt',
+        'alt': 'alt',
+        'command': 'cmd',
+        'cmd': 'cmd',
+    }
+
+    HOTKEY_ORDER = ['cmd', 'ctrl', 'shift', 'alt']
+
+    MODIFIER_FLAGS = {
+        'shift': Quartz.kCGEventFlagMaskShift,
+        'ctrl': Quartz.kCGEventFlagMaskControl,
+        'alt': Quartz.kCGEventFlagMaskAlternate,
+        'cmd': Quartz.kCGEventFlagMaskCommand,
+    }
+
     def __init__(self, hotkey_str):
         self.hotkey_str = hotkey_str.lower()
-        self.modifiers = self.hotkey_str.split('+')
+        self.modifiers = self._normalize_modifiers(self.hotkey_str)
+        if not self.modifiers:
+            logger.critical(
+                "Unsupported hotkey '%s' for macOS. Use control/option/shift (or ctrl/alt aliases).",
+                self.hotkey_str,
+            )
+            sys.exit(1)
 
-        # Map common hotkey strings to macOS key codes
-        key_mapping = {
-            'shift': [56, 60],  # Left and Right Shift
-            'ctrl': [59, 62],   # Left and Right Control
-            'alt': [58, 61],    # Left and Right Option/Alt
-            'cmd': [55, 54],    # Left and Right Command
-        }
+    @classmethod
+    def _normalize_modifiers(cls, hotkey_str):
+        seen = set()
+        for raw_mod in hotkey_str.split('+'):
+            mapped = cls.HOTKEY_ALIASES.get(raw_mod.strip())
+            if mapped:
+                seen.add(mapped)
 
-        for mod in self.modifiers:
-            self.keycodes_to_check = key_mapping.get(mod, [])
-            if not self.keycodes_to_check:
-                logger.critical(
-                    f"Unsupported hotkey '{self.hotkey_str}' for macOS. Use 'shift', 'ctrl', 'alt', or 'cmd'.")
-                sys.exit(1)
+        return [mod for mod in cls.HOTKEY_ORDER if mod in seen]
 
     def is_hotkey_pressed(self) -> bool:
         try:
-            # Get current modifier flags
-            flags = NSEvent.modifierFlags()
+            # Read global HID modifier state to reliably detect keys across apps.
+            flags = Quartz.CGEventSourceFlagsState(Quartz.kCGEventSourceStateHIDSystemState)
 
-            # Iterate through all required modifiers in the combo
             for mod in self.modifiers:
-                if mod == 'shift':
-                    if not (flags & (1 << 17) or flags & (1 << 18)):
-                        return False
-                elif mod == 'ctrl':
-                    if not (flags & (1 << 12)):
-                        return False
-                elif mod == 'alt':
-                    if not (flags & (1 << 19)):
-                        return False
-                elif mod == 'cmd':
-                    if not (flags & (1 << 20)):
-                        return False
+                required_flag = self.MODIFIER_FLAGS.get(mod)
+                if required_flag is None or not (flags & required_flag):
+                    return False
             return True
         except Exception as e:
             logger.warning(f"Error checking hotkey state: {e}")
