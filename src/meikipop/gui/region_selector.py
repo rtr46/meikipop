@@ -74,8 +74,10 @@ class RegionSelector(QDialog):
     def update_selection_rect(self):
         mouse_pos = QCursor.pos()
         if not self.has_selection_started:
-            self.setGeometry(self.get_current_screen(mouse_pos).geometry())
-            self.update()
+            current_screen = self.get_current_screen(mouse_pos)
+            if current_screen:
+                self.setGeometry(current_screen.geometry())
+                self.update()
             return
 
         self.end_logical = mouse_pos
