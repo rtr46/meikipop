@@ -18,6 +18,8 @@ from meikipop.ocr.ocr import OcrProcessor
 from meikipop.screenshot.screenmanager import ScreenManager
 from meikipop.utils.lastest_queue import LatestValueQueue
 
+from meikipop.gui.cursor_overlay import CursorOverlay
+
 
 def qt_message_handler(mode, context, message):
     # Check if the message is the specific warning we want to suppress.
@@ -66,6 +68,9 @@ def run_gui():
 
     for t in [lookup, hit_scanner, ocr_processor, screen_manager, input_loop]:
         t.start()
+
+    cursor_overlay = CursorOverlay()
+    cursor_overlay.start()  # show it
 
     ready_message = f"""
     --------------------------------------------------
