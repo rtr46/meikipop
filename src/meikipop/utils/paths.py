@@ -22,7 +22,7 @@ class MeikiPaths:
 
     @property
     def data_dir(self):
-        """Location of dictionary.pkl"""
+        """Location of meikipop's persistent application data."""
         return self._platform_dirs.user_data_dir
     
     @property
@@ -32,8 +32,8 @@ class MeikiPaths:
     
     @property
     def dictionary_path(self):
-        """Location of dictionary.pkl"""
-        return os.path.join(self.data_dir, 'dictionary.pkl')
+        """Location of the safe compressed dictionary."""
+        return os.path.join(self.data_dir, 'dictionary.json.gz')
     
     @property
     def cache_dir(self):

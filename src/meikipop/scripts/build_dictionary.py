@@ -1,6 +1,6 @@
 """
 build_dictionary.py
-Builds dictionary.pkl from downloaded source files.
+Builds the safe compressed dictionary from downloaded source files.
 Downloaded source files are cached in user cache directory and reused on subsequent runs.
 """
 
@@ -8,7 +8,6 @@ import gzip
 import io
 import json
 import os
-import pickle
 import re
 import time
 from collections import Counter, defaultdict
@@ -19,6 +18,7 @@ import xml.etree.ElementTree as StdET
 import requests
 from lxml import etree
 
+from meikipop.dictionary.format import write_dictionary
 from meikipop.utils.paths import paths
 
 
@@ -31,11 +31,12 @@ SYNTHETIC_ID_START = 10_000_000  # safely above any real JMdict seq number
 DEFAULT_FREQ       = 999_999
 
 URLS = {
-    'jmdict_e':  'http://ftp.edrdg.org/pub/Nihongo/JMdict_e.gz',
-    'kanjidic':  'http://www.edrdg.org/kanjidic/kanjidic2.xml.gz',
+    'jmdict_e':  'https://ftp.edrdg.org/pub/Nihongo/JMdict_e.gz',
+    'kanjidic':  'https://www.edrdg.org/kanjidic/kanjidic2.xml.gz',
     'ids':       'https://raw.githubusercontent.com/cjkvi/cjkvi-ids/master/ids.txt',
     'frequency': 'https://api.jiten.moe/api/frequency-list/download?downloadType=csv',
 }
+MAX_SOURCE_BYTES = 512 * 1024 * 1024
 
 XML_LANG      = '{http://www.w3.org/XML/1998/namespace}lang'
 PRIORITY_TAGS = {"news1", "news2", "ichi1", "ichi2", "spec1", "spec2", "gai1", "gai2"}
@@ -87,9 +88,24 @@ def load_or_download(key: str) -> bytes:
             return f.read()
     url = URLS[key]
     print(f"  Downloading {key} from {url} ...")
-    data = requests.get(url, timeout=120).content
-    with open(path, 'wb') as f:
+    with requests.get(url, timeout=120, stream=True) as response:
+        response.raise_for_status()
+        declared_size = int(response.headers.get('content-length', 0))
+        if declared_size > MAX_SOURCE_BYTES:
+            raise ValueError(f"Source {key} exceeds the 512 MiB safety limit")
+        buffer = io.BytesIO()
+        for chunk in response.iter_content(chunk_size=1024 * 1024):
+            if chunk:
+                buffer.write(chunk)
+                if buffer.tell() > MAX_SOURCE_BYTES:
+                    raise ValueError(f"Source {key} exceeds the 512 MiB safety limit")
+        data = buffer.getvalue()
+    temporary_path = f"{path}.tmp"
+    with open(temporary_path, 'wb') as f:
         f.write(data)
+        f.flush()
+        os.fsync(f.fileno())
+    os.replace(temporary_path, path)
     print(f"  Saved {len(data) // 1024} KB to {path}")
     return data
 
@@ -539,8 +555,7 @@ def main():
         'kanji_entries':      kanji_entries,
         'deconjugator_rules': deconjugator_rules,
     }
-    with open(OUTPUT_PATH, 'wb') as f:
-        pickle.dump(payload, f, protocol=pickle.HIGHEST_PROTOCOL)
+    write_dictionary(OUTPUT_PATH, payload)
     size_mb = os.path.getsize(OUTPUT_PATH) / 1_048_576
     print(f"  Saved {size_mb:.1f} MB in {time.time() - t0:.1f}s")
     print("\nBuild complete.")

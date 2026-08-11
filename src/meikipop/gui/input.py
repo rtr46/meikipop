@@ -4,9 +4,8 @@ import sys
 import threading
 import time
 
-from pynput import mouse
-
 from meikipop.config.config import config, IS_LINUX, IS_MACOS
+from meikipop.gui.pointer import get_pointer_position
 
 if IS_LINUX:
     from Xlib import display as xlib_display
@@ -138,7 +137,6 @@ class InputLoop(threading.Thread):
     def __init__(self, shared_state):
         super().__init__(daemon=True, name="InputLoop")
         self.shared_state = shared_state
-        self.mouse_controller = mouse.Controller()
 
         self.hotkey_str = config.hotkey.lower()
         if IS_LINUX:
@@ -160,7 +158,7 @@ class InputLoop(threading.Thread):
                 time.sleep(0.1)
                 continue
             try:
-                current_mouse_pos = self.mouse_controller.position
+                current_mouse_pos = self.get_mouse_pos()
                 try:
                     hotkey_is_pressed = self.keyboard_controller.is_hotkey_pressed()
                 except Exception:
@@ -212,7 +210,4 @@ class InputLoop(threading.Thread):
 
     @staticmethod
     def get_mouse_pos():
-        with mouse.Controller() as mc:
-            pos = mc.position
-            # Convert floats to integers for QPoint compatibility
-            return (int(pos[0]), int(pos[1]))
+        return get_pointer_position()
