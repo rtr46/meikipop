@@ -92,6 +92,19 @@ here are some tips and recommendations:
 * ask your favorite llm for help
 </details>
 
+### arch + hyprland development status
+
+this branch queries Hyprland directly for compositor-global cursor coordinates when `hyprctl` and
+`HYPRLAND_INSTANCE_SIGNATURE` are available. Screen capture still uses the PipeWire portal and the popup still runs
+through XWayland, so native global hotkeys, mixed-scale monitors, and layer-shell popup placement remain active work.
+
+The old downloaded pickle dictionary is intentionally rejected because pickle can execute code while loading. Until a
+release publishes the new `dictionary.json.gz` plus its `.sha256` file, build a local safe dictionary before starting:
+
+```bash
+meikipop build-dict
+```
+
 ## how to use
 
 1.  run the application (`meikipop`).
@@ -104,7 +117,7 @@ here are some tips and recommendations:
 
 you can fully customize meikipop's behavior and appearance. right-click the tray icon and choose "settings" to open the configuration gui.
 
-changes are saved to a platform-specific user data directory which contains `config.ini` and `dictionary.pkl`:
+changes are saved to a platform-specific user data directory which contains `config.ini` and the non-executable `dictionary.json.gz`:
 - windows: `%LOCALAPPDATA%\meikipop\`
 - linux: `~/.config/meikipop/`
 - macos: `~/Library/Application Support/meikipop/`
@@ -161,5 +174,3 @@ meikipop import-yomitan-dict-text dict1.zip dict2.zip
 ## license
 
 meikipop is licensed under the GNU General Public License v3.0. see the `LICENSE` file for the full license text.
-
-

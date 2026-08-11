@@ -1,17 +1,16 @@
 # customdict.py
 import logging
-import pickle
 import time
 import urllib.request
-import zipfile
-import io
 from collections import defaultdict
 
+from meikipop.dictionary.format import copy_verified_download, load_dictionary as load_dictionary_file
 from meikipop.utils.paths import paths
 
 logger = logging.getLogger(__name__)
 
-DICT_URL = "https://github.com/rtr46/meikipop/releases/download/dictionary-latest/dictionary.zip"
+DICT_URL = "https://github.com/rtr46/meikipop/releases/download/dictionary-latest/dictionary.json.gz"
+DICT_SHA256_URL = f"{DICT_URL}.sha256"
 
 DEFAULT_FREQ = 999_999
 
@@ -44,8 +43,7 @@ class Dictionary:
         logger.info(f"Loading dictionary from '{file_path}'")
         start = time.perf_counter()
         try:
-            with open(file_path, 'rb') as f:
-                data = pickle.load(f)
+            data = load_dictionary_file(file_path)
             self.entries            = data['entries']
             self.lookup_map         = data['lookup_map']
             self.kanji_entries      = data.get('kanji_entries', {})
@@ -59,7 +57,7 @@ class Dictionary:
             self._validate()
             return True
         except FileNotFoundError:
-            logger.warning(f"Dictionary file not found. Trying download...")
+            logger.warning("Dictionary file not found. Trying download...")
             if self._download_dictionary():
                 return self.load_dictionary(file_path)  # retry once after download
             logger.error(
@@ -73,10 +71,10 @@ class Dictionary:
 
     def _download_dictionary(self) -> bool:
         try:
-            with urllib.request.urlopen(DICT_URL) as response:
-                data = response.read()
-            with zipfile.ZipFile(io.BytesIO(data)) as zf:
-                zf.extract("dictionary.pkl", path=paths.data_dir)
+            with urllib.request.urlopen(DICT_SHA256_URL, timeout=30) as response:
+                expected_sha256 = response.read(256).decode("ascii").split()[0]
+            with urllib.request.urlopen(DICT_URL, timeout=120) as response:
+                copy_verified_download(response, paths.dictionary_path, expected_sha256)
             logger.info("Dictionary downloaded successfully.")
             return True
         except Exception as e:

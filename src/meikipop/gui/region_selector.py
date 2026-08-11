@@ -2,7 +2,7 @@
 import logging
 
 from PyQt6.QtCore import Qt, QPoint, QRect, QTimer
-from PyQt6.QtGui import QColor, QPainter, QPen, QMouseEvent, QKeyEvent, QGuiApplication, QCursor
+from PyQt6.QtGui import QColor, QGuiApplication, QKeyEvent, QMouseEvent, QPainter, QPen
 from PyQt6.QtWidgets import QDialog
 
 from meikipop.gui.input import InputLoop
@@ -13,7 +13,8 @@ class RegionSelector(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
 
-        self.setGeometry(self.get_current_screen(QCursor.pos()).geometry())
+        initial_x, initial_y = InputLoop.get_mouse_pos()
+        self.setGeometry(self.get_current_screen(QPoint(initial_x, initial_y)).geometry())
 
         # Window setup for a seamless overlay
         self.setWindowFlags(
@@ -59,7 +60,8 @@ class RegionSelector(QDialog):
             painter.drawRect(border_rect)
 
     def mousePressEvent(self, event: QMouseEvent):
-        self.begin_logical = QCursor.pos()
+        x, y = InputLoop.get_mouse_pos()
+        self.begin_logical = QPoint(x, y)
         if not self.begin_logical:  # when user selects upper left corner aka (0,0) aka None, the paint method won't work
             self.begin_logical = QPoint(1, 1)
         self.end_logical = self.begin_logical
@@ -72,7 +74,8 @@ class RegionSelector(QDialog):
         self.update()
 
     def update_selection_rect(self):
-        mouse_pos = QCursor.pos()
+        x, y = InputLoop.get_mouse_pos()
+        mouse_pos = QPoint(x, y)
         if not self.has_selection_started:
             current_screen = self.get_current_screen(mouse_pos)
             if current_screen:

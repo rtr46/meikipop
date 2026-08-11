@@ -1,11 +1,12 @@
 # meikipop/gui/popup.py
+import html
 import logging
 import threading
 from typing import List, Optional
 
 from PyQt6.QtCore import QTimer, QPoint, QSize
 from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QColor, QCursor, QFont, QFontMetrics, QFontInfo
+from PyQt6.QtGui import QColor, QFont, QFontInfo, QFontMetrics
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel, QFrame, QApplication
 
 from meikipop.config.config import config, IS_MACOS
@@ -174,8 +175,8 @@ class Popup(QWidget):
         else:
             self.hide_popup()
 
-        mouse_pos = QCursor.pos()
-        self.move_to(mouse_pos.x(), mouse_pos.y())
+        mouse_x, mouse_y = self.input_loop.get_mouse_pos()
+        self.move_to(mouse_x, mouse_y)
 
     def _render_kanji_entry(self, entry: KanjiEntry):
         # Colors and sizes from config
@@ -186,15 +187,15 @@ class Popup(QWidget):
         fs_def = config.font_size_definitions
         show_details = config.show_examples or config.show_components
 
-        readings_str = ", ".join(entry.readings)
+        readings_str = ", ".join(html.escape(str(reading)) for reading in entry.readings)
         readings_str = f"[{readings_str}]"
 
         header_html = f"""
-                    <span style="font-size:{fs_head}px; color:{c_word}; padding-right: 8px;">{entry.character}</span>
+                    <span style="font-size:{fs_head}px; color:{c_word}; padding-right: 8px;">{html.escape(str(entry.character))}</span>
                     <span style="font-size:{fs_head - 2}px; color:{c_read};"> {readings_str}</span>
         """
 
-        meanings_str = ", ".join(entry.meanings)
+        meanings_str = ", ".join(html.escape(str(meaning)) for meaning in entry.meanings)
         meanings_html = f'<span style="font-size:{fs_def}px; color:{c_text};"> {meanings_str}</span>'
         if not config.compact_mode:
             meanings_html = f'<span style="font-size:{fs_def}px; color:{c_text};"> [字]</span><div>{meanings_html}</div>'
@@ -203,9 +204,9 @@ class Popup(QWidget):
         if config.show_examples:
             ex_parts = []
             for ex in entry.examples:
-                part = (f"<span style='font-size:{fs_head - 2}px; color:{c_word}'>{ex['w']}</span> "
-                        f"<span style='font-size:{fs_def}px; color:{c_read}'>[{ex['r']}]</span> "
-                        f"<span style='font-size:{fs_def}px; color:{c_text}'>{ex['m']}</span>")
+                part = (f"<span style='font-size:{fs_head - 2}px; color:{c_word}'>{html.escape(str(ex['w']))}</span> "
+                        f"<span style='font-size:{fs_def}px; color:{c_read}'>[{html.escape(str(ex['r']))}]</span> "
+                        f"<span style='font-size:{fs_def}px; color:{c_text}'>{html.escape(str(ex['m']))}</span>")
                 ex_parts.append(part)
             if ex_parts:
                 examples_html = f'<div>' \
@@ -215,8 +216,8 @@ class Popup(QWidget):
         if config.show_components:
             comp_parts = []
             for c in entry.components:
-                part = (f"<span style='font-size:{fs_def}px; color:{c_word}'>{c.get('c', '')}</span> "
-                        f"<span style='font-size:{fs_def}px; color:{c_text}'>{c.get('m', '')}</span>")
+                part = (f"<span style='font-size:{fs_def}px; color:{c_word}'>{html.escape(str(c.get('c', '')))}</span> "
+                        f"<span style='font-size:{fs_def}px; color:{c_text}'>{html.escape(str(c.get('m', '')))}</span>")
                 comp_parts.append(part)
             if comp_parts:
                 components_html = f'<div>{", ".join(comp_parts)}</div>'
@@ -259,12 +260,12 @@ class Popup(QWidget):
             max_ratio = max(max_ratio, header_ratio)
 
             # --- HTML construction ---
-            header_html = f'<span style="color: {config.color_highlight_word}; font-size:{config.font_size_header}px;">{entry.written_form}</span>'
-            if entry.reading: header_html += f' <span style="color: {config.color_highlight_reading}; font-size:{config.font_size_header - 2}px;">[{entry.reading}]</span>'
+            header_html = f'<span style="color: {config.color_highlight_word}; font-size:{config.font_size_header}px;">{html.escape(str(entry.written_form))}</span>'
+            if entry.reading: header_html += f' <span style="color: {config.color_highlight_reading}; font-size:{config.font_size_header - 2}px;">[{html.escape(str(entry.reading))}]</span>'
             if entry.deconjugation_process and config.show_deconjugation:
                 deconj_str = " ← ".join(p for p in entry.deconjugation_process if p)
                 if deconj_str:
-                    header_html += f' <span style="color:{config.color_foreground}; font-size:{config.font_size_definitions - 2}px; opacity:0.8;">({deconj_str})</span>'
+                    header_html += f' <span style="color:{config.color_foreground}; font-size:{config.font_size_definitions - 2}px; opacity:0.8;">({html.escape(deconj_str)})</span>'
             if config.show_frequency and entry.freq < 999_999:
                 header_html += f' <span style="color:{config.color_foreground}; font-size:{config.font_size_definitions - 2}px; opacity:0.6;">#{entry.freq}</span>'
             def_text_parts_calc = []
@@ -281,13 +282,13 @@ class Popup(QWidget):
                 if config.show_pos and pos_list:
                     pos_str = f' ({", ".join(pos_list)})'
                     sense_calc += pos_str
-                    sense_html += f'<span style="color:{config.color_foreground}; opacity:0.7;"><i>{pos_str}</i></span> '
+                    sense_html += f'<span style="color:{config.color_foreground}; opacity:0.7;"><i>{html.escape(pos_str)}</i></span> '
                 if config.show_tags and tags_list:
                     tags_str = f' [{", ".join(tags_list)}]'
                     sense_calc += tags_str
-                    sense_html += f'<span style="color:{config.color_foreground}; font-size:{config.font_size_definitions - 2}px; opacity:0.7;">{tags_str}</span> '
+                    sense_html += f'<span style="color:{config.color_foreground}; font-size:{config.font_size_definitions - 2}px; opacity:0.7;">{html.escape(tags_str)}</span> '
                 sense_calc += glosses_str
-                sense_html += glosses_str
+                sense_html += html.escape(str(glosses_str))
                 def_text_parts_calc.append(sense_calc)
                 def_text_parts_html.append(sense_html)
 

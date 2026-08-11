@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "meikipop"
-version = "2.0.4"
+version = "2.1.0.dev1"
 description = "Universal Japanese OCR popup dictionary"
 readme = "README.md"
 license = "GPL-3.0"
@@ -31,6 +31,11 @@ dependencies = [
     "platformdirs",
 ]
 
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3,<9",
+]
+
 [project.scripts]
 meikipop = "meikipop.main:main"
 
@@ -45,3 +50,6 @@ include = ["meikipop*"]
 
 [tool.setuptools.package-data]
 meikipop = ["scripts/deconjugator.json", "resources/icon.ico", "resources/icon.inactive.ico"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
