@@ -30,8 +30,8 @@ jobs:
 
       - name: compress dictionary
         run: |
-          mv /home/runner/.local/share/meikipop/dictionary.pkl .
-          zip dictionary.zip dictionary.pkl
+          mv /home/runner/.local/share/meikipop/dictionary.json.gz .
+          sha256sum dictionary.json.gz > dictionary.json.gz.sha256
 
       - name: update dictionary-latest release
         env:
@@ -42,4 +42,5 @@ jobs:
             --title "dictionary (latest)" \
             --notes "most recent meikipop dictionary file" \
             --prerelease \
-            dictionary.zip
+            dictionary.json.gz \
+            dictionary.json.gz.sha256

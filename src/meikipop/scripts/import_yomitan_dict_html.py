@@ -1,12 +1,12 @@
 """
 import_yomitan_dict_html.py
 Imports one or more Yomitan/Yomichan dictionary zip files and produces a
-dictionary.pkl in the same format as build_dictionary.py.
+dictionary.json.gz in the same format as build_dictionary.py.
 
 Usage:
     python import_yomitan_dict_html.py dict1.zip [dict2.zip ...] [-o output.pkl] [--no-ruby]
 
-Multiple zips are merged into one pickle. Entry IDs are namespaced by dictionary
+Multiple zips are merged into one safe dictionary. Entry IDs are namespaced by dictionary
 index to avoid collisions.
 
 Structured-content definitions are converted to Qt-compatible HTML at import
@@ -17,7 +17,6 @@ annotations
 import argparse
 import json
 import os
-import pickle
 import re
 import sys
 import time
@@ -26,6 +25,7 @@ from collections import defaultdict
 from typing import Optional
 
 from meikipop.utils.paths import paths
+from meikipop.dictionary.format import write_dictionary
 
 DATA_DIR = 'data'
 DEFAULT_OUTPUT = paths.dictionary_path
@@ -522,10 +522,10 @@ def build_from_zip(
 
 def main(argv=None):
     parser = argparse.ArgumentParser(
-        description='Import Yomitan dictionary zip(s) into dictionary.pkl')
+        description='Import Yomitan dictionary zip(s) into dictionary.json.gz')
     parser.add_argument('zips', nargs='+', help='Path(s) to Yomitan .zip files')
     parser.add_argument('-o', '--output', default=DEFAULT_OUTPUT,
-                        help=f'Output pickle path (default: {DEFAULT_OUTPUT})')
+                        help=f'Output dictionary path (default: {DEFAULT_OUTPUT})')
     parser.add_argument('--no-ruby', dest='ruby', action='store_false', default=True,
                         help='Strip furigana (ruby) annotations from definitions')
     args = parser.parse_args(argv)
@@ -581,8 +581,7 @@ def main(argv=None):
         'kanji_entries': {},
         'deconjugator_rules': deconjugator_rules,
     }
-    with open(args.output, 'wb') as f:
-        pickle.dump(payload, f, protocol=pickle.HIGHEST_PROTOCOL)
+    write_dictionary(args.output, payload)
 
     size_mb = os.path.getsize(args.output) / 1_048_576
     print(f"Saved {size_mb:.1f} MB in {time.time() - t0:.1f}s")
