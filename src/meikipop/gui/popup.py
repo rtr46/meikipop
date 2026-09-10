@@ -8,8 +8,9 @@ from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QColor, QCursor, QFont, QFontMetrics, QFontInfo
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel, QFrame, QApplication
 
-from meikipop.config.config import config, IS_MACOS
+from meikipop.config.config import config, IS_MACOS, IS_WAYLAND
 from meikipop.dictionary.lookup import DictionaryEntry, KanjiEntry
+from meikipop.gui.input import InputLoop
 from meikipop.gui.magpie_manager import magpie_manager
 
 # macOS-specific imports for focus management
@@ -174,8 +175,16 @@ class Popup(QWidget):
         else:
             self.hide_popup()
 
-        mouse_pos = QCursor.pos()
+        mouse_pos = self._cursor_pos()
         self.move_to(mouse_pos.x(), mouse_pos.y())
+
+    def _cursor_pos(self):
+        if not IS_WAYLAND:
+            return QCursor.pos()
+        # get_mouse_pos returns physical pixels on Wayland, convert to logical ones for QWidget
+        x, y = InputLoop.get_mouse_pos()
+        ratio = QApplication.primaryScreen().devicePixelRatio()
+        return QPoint(int(x / ratio), int(y / ratio))
 
     def _render_kanji_entry(self, entry: KanjiEntry):
         # Colors and sizes from config
