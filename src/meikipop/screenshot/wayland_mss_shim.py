@@ -8,7 +8,8 @@ from pathlib import Path
 
 import gi
 gi.require_version('Gst', '1.0')
-from gi.repository import GLib, Gst, Gio
+gi.require_version('GstVideo', '1.0')
+from gi.repository import GLib, Gst, GstVideo, Gio
 
 from meikipop.utils.paths import paths
 
@@ -34,6 +35,8 @@ class ScreenCastManager:
     def __init__(self):
         self.screen_cast_iface = 'org.freedesktop.portal.ScreenCast'
         self.frame_lock = threading.Lock()
+        self.cursor_lock = threading.Lock()
+        self.last_cursor = None
         self.selected_event = threading.Event()
         self.ready_event = threading.Event()
         self.request_token_counter = 0
@@ -136,7 +139,7 @@ class ScreenCastManager:
         fd = out_fd_list.get(fd_index)
 
         pipeline_str = (
-            f'pipewiresrc fd={fd} path={node_id} ! '
+            f'pipewiresrc name=pwsrc fd={fd} path={node_id} ! '
             'videoconvert ! '
             'videorate drop-only=true ! '
             'video/x-raw,format={BGRA,BGRx},max-framerate=30/1 ! '
@@ -148,7 +151,20 @@ class ScreenCastManager:
         appsink = self.pipeline.get_by_name('sink')
         appsink.connect('new-sample', self._on_new_sample)
 
+        # grab cursor meta at the source
+        pwsrc = self.pipeline.get_by_name('pwsrc')
+        pwsrc.get_static_pad('src').add_probe(Gst.PadProbeType.BUFFER, self._on_src_buffer)
+
         self.pipeline.set_state(Gst.State.PLAYING)
+
+    def _on_src_buffer(self, pad, info):
+        buffer = info.get_buffer()
+        if buffer is not None:
+            meta = GstVideo.buffer_get_video_region_of_interest_meta_id(buffer, 0)
+            if meta is not None:
+                with self.cursor_lock:
+                    self.last_cursor = (meta.x, meta.y)
+        return Gst.PadProbeReturn.OK
 
     def _on_start_response(self, connection, sender, object_path, interface, signal, parameters):
         response, results = parameters.unpack()
@@ -218,6 +234,7 @@ class ScreenCastManager:
                 'multiple': GLib.Variant('b', False),
                 'types': GLib.Variant('u', 1),
                 'framerate': GLib.Variant('u', 30),
+                'cursor_mode': GLib.Variant('u', 4),
                 'persist_mode': GLib.Variant('u', 2),
                 'restore_token': GLib.Variant('s', persist_token)
             },
@@ -231,10 +248,10 @@ class ScreenCastManager:
 
     def _initialize_screencast(self):
         Gst.init(None)
-        
+
         context = GLib.MainContext.new()
         context.push_thread_default()
-        
+
         try:
             self.loop = GLib.MainLoop.new(context)
             self.bus = Gio.bus_get_sync(Gio.BusType.SESSION, None)
@@ -259,7 +276,7 @@ class ScreenCastManager:
             raise ScreenShotError(f'Error initializing screencast: {e}')
         finally:
             context.pop_thread_default()
-            
+
     def request_frame(self):
         if self.ready_event.is_set():
             with self.frame_lock:
@@ -267,11 +284,18 @@ class ScreenCastManager:
                     return self.last_frame
         return (None, 0, 0)
 
+    def request_cursor(self):
+        if self.ready_event.is_set():
+            with self.cursor_lock:
+                return self.last_cursor
+        return None
+
     def start(self):
         self.pipeline = None
         self.loop = None
         self.session = None
         self.last_frame = None
+        self.last_cursor = None
         self.selected_event.clear()
 
         self.init_thread = threading.Thread(target=self._initialize_screencast, daemon=True)
@@ -382,3 +406,9 @@ class MSSModuleShim:
 
     def __getattr__(self, name):
         return getattr(real_mss, name)
+
+
+def get_wl_cursor_pos():
+    if not screencast:
+        return None
+    return screencast.request_cursor()
