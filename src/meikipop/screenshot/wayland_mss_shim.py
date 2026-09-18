@@ -1,141 +1,265 @@
 # Modified from AuroraWright's OwOCR
 import logging
+import re
 import threading
-import base64
 import time
-import obsws_python as obs
-from PIL import Image
-import io
+import uuid
+from pathlib import Path
+
+import gi
+gi.require_version('Gst', '1.0')
+from gi.repository import GLib, Gst, Gio
+
+from meikipop.utils.paths import paths
+
+import mss as real_mss
 from mss.exception import ScreenShotError
 from mss.screenshot import ScreenShot, Size
 from mss.models import Monitor
 
-logger = logging.getLogger(__name__)
-
-# disable annoying debug output from obsws_python
-logging.getLogger("obsws_python").setLevel(logging.WARNING)
+logger = logging.getLogger(__name__)  # todo add proper info and debug logs
 
 screencast = None
 screencast_lock = threading.Lock()
 
-class OBSWaylandManager:
+token_file = Path(paths.cache_dir) / '.ocr_screencapture_token'
+persist_token = str(uuid.UUID(int=0))
+
+if token_file.exists():
+    with open(token_file, "r") as file:
+        persist_token = file.read().strip()
+
+
+class ScreenCastManager:
     def __init__(self):
-        # some frames stuff
+        self.screen_cast_iface = 'org.freedesktop.portal.ScreenCast'
         self.frame_lock = threading.Lock()
+        self.selected_event = threading.Event()
         self.ready_event = threading.Event()
-        self.last_frame = None
-        self.running = False
-        self.client = None
-
-        # obs websocket configurations
-        self.host = "localhost"
-        self.port = 7274
-        self.password = ""
-
-        # ok start now
+        self.request_token_counter = 0
+        self.session_token_counter = 0
+        self.restore_token = None
         self.start()
-    
-    def _capturing_loop(self):
-        # connect first
-        try:
-            # try to initilize a client
-            self.client = obs.ReqClient(
-                # should import from configuration
-                host=self.host,
-                port=self.port,
-                password=self.password,
 
-                # timeout
-                timeout=10
-            )
-            logger.info("connected to obs websocket server.")
+    def __del__(self):
+        self.stop()
 
-            # get obs version (useless but it prove that obs is connected)
-            resp = self.client.get_version()
-            logger.info(f"obs version: {resp.obs_version}")
-        except Exception as e:
-            logger.error(f"failed to connect to obs websocket server, error: {e}")
-            raise RuntimeError("failed to connect to obs websocket server")
-        
-        # dimension size
-        canvas_width = None
-        canvas_height = None
-        cached_scene_name = None
+    def _new_request_path(self):
+        self.request_token_counter += 1
+        token = f'u{self.request_token_counter}'
+        path = f'/org/freedesktop/portal/desktop/request/{self.sender_name}/{token}'
+        return path, token
 
-        while self.running:
+    def _new_session_path(self):
+        self.session_token_counter += 1
+        token = f'u{self.session_token_counter}'
+        path = f'/org/freedesktop/portal/desktop/session/{self.sender_name}/{token}'
+        return path, token
+
+    def _screen_cast_call(self, method: str, request_path: str, callback, variant: GLib.Variant):
+        self.bus.signal_subscribe(
+            'org.freedesktop.portal.Desktop',
+            'org.freedesktop.portal.Request',
+            'Response',
+            request_path,
+            None,
+            Gio.DBusSignalFlags.NO_MATCH_RULE,
+            callback,
+        )
+
+        self.bus.call_sync(
+            'org.freedesktop.portal.Desktop',
+            '/org/freedesktop/portal/desktop',
+            self.screen_cast_iface,
+            method,
+            variant,
+            None,
+            Gio.DBusCallFlags.NONE,
+            -1,
+            None,
+        )
+
+    def _on_session_closed(self, *args, **kwargs):
+        self.stop()
+
+    def _on_gst_message(self, bus, message):
+        t = message.type
+        if t in (Gst.MessageType.EOS, Gst.MessageType.ERROR):
+            self.stop()
+
+    def _process_sample(self, sample):
+        buffer = sample.get_buffer()
+        caps = sample.get_caps()
+        caps_struct = caps.get_structure(0)
+        width = caps_struct.get_value('width')
+        height = caps_struct.get_value('height')
+
+        success, map_info = buffer.map(Gst.MapFlags.READ)
+        if success:
             try:
-                if cached_scene_name is None:
-                    try:
-                        curr_scene_info = self.client.get_current_program_scene()
-                        cached_scene_name = curr_scene_info.current_program_scene_name
-                    except Exception as e:
-                        logger.error(f"cannot get the current scene name, error: {e}")
-                        time.sleep(0.5) # wait another half second and hope that the scene name arrive on next loop
-                        continue
+                data = bytes(map_info.data)
+                return data, width, height
+            finally:
+                buffer.unmap(map_info)
+        return None, width, height
 
-                # dynamically fetch canvas size from obs
-                if canvas_width is None or canvas_height is None:
-                    try:
-                        video_settings = self.client.get_video_settings()
-                        canvas_width = video_settings.base_width
-                        canvas_height =video_settings.base_height
-                    except Exception as e:
-                        logger.warn(f"cannot fetch obs settings, fallbacks to 1920x1080, error: {e}")
-                        canvas_width = 1920
-                        canvas_height = 1080
+    def _on_new_sample(self, appsink):
+        try:
+            sample = appsink.emit('pull-sample')
+            if sample is None:
+                raise ValueError
+            frame_data = self._process_sample(sample)
+            if frame_data[0] is None:
+                raise ValueError
+            with self.frame_lock:
+                self.last_frame = frame_data
+            self.ready_event.set()
+        except:  # todo should we "except Exception as e" and add logs?
+            self.stop()
+            return Gst.FlowReturn.ERROR
+        return Gst.FlowReturn.OK
 
-                # get image
-                try:
-                    resp = self.client.get_source_screenshot(
-                        name=str(cached_scene_name),
-                        img_format="png",
-                        width=int(canvas_width),
-                        height=int(canvas_height),
-                        quality=-1 # -1 is the default quality
-                    )
-                except Exception as e:
-                    logger.debug(f"failed to screenshot. scene might have changed, error: {e}")
-                    cached_scene_name = None
-                    time.sleep(0.1)
-                    continue
+    def _play_pipewire_stream(self, node_id):
+        result, out_fd_list = self.bus.call_with_unix_fd_list_sync(
+            'org.freedesktop.portal.Desktop',
+            '/org/freedesktop/portal/desktop',
+            self.screen_cast_iface,
+            'OpenPipeWireRemote',
+            GLib.Variant('(oa{sv})', (self.session, {})),
+            GLib.VariantType.new('(h)'),
+            Gio.DBusCallFlags.NONE,
+            -1,
+            None,
+            None,
+        )
+        fd_index = result.unpack()[0]
+        fd = out_fd_list.get(fd_index)
 
-                if not resp or not hasattr(resp, 'image_data'):
-                    raise ValueError("image_data attribute doesn't exist in the response of self.client.get_source_screenshot(...). OBS might have returned empty response.")
-                
-                # get raw image bytes
-                raw_data = resp.image_data.split(",", 1)[-1]
-                png_bytes = base64.b64decode(raw_data)
+        pipeline_str = (
+            f'pipewiresrc fd={fd} path={node_id} ! '
+            'videoconvert ! '
+            'videorate drop-only=true ! '
+            'video/x-raw,format={BGRA,BGRx},max-framerate=30/1 ! '
+            'appsink name=sink max-buffers=1 drop=true emit-signals=true enable-last-sample=false qos=false sync=false'
+        )
+        self.pipeline = Gst.parse_launch(pipeline_str)
+        bus = self.pipeline.get_bus()
+        bus.connect('message', self._on_gst_message)
+        appsink = self.pipeline.get_by_name('sink')
+        appsink.connect('new-sample', self._on_new_sample)
 
-                # load the encoded png file from bytes
-                with Image.open(io.BytesIO(png_bytes)) as img:
-                    raw_rgba_img = img.convert("RGBA")
+        self.pipeline.set_state(Gst.State.PLAYING)
 
-                    # convert RGBA to RGBA bytes
-                    r, g, b, a = raw_rgba_img.split()
-                    bgra_img = Image.merge("RGBA", (b, g, r, a))
-                    img_bytes = bgra_img.tobytes()
+    def _on_start_response(self, connection, sender, object_path, interface, signal, parameters):
+        response, results = parameters.unpack()
+        if response != 0:
+            self.stop()
+            raise ScreenShotError(f'Failed to start screencast: {response}')
 
-                    # get the image size from frame directly
-                    frame_width, frame_height = img.size
+        self.selected_event.set()
 
-                # set last_frame
-                with self.frame_lock:
-                    self.last_frame = (
-                        img_bytes,
-                        frame_width,
-                        frame_height
-                    )
+        if results.get('restore_token'):
+            with open(token_file, "w") as file:
+                file.write(results['restore_token'])
+        if results.get('streams'):
+            node_id, stream_properties = results['streams'][0]
+            self._play_pipewire_stream(node_id)
+        else:
+            self.stop()
+            raise ScreenShotError('No streams available')
 
-                if not self.ready_event.is_set():
-                    self.ready_event.set()
+    def _on_select_sources_response(self, connection, sender, object_path, interface, signal, parameters):
+        response, results = parameters.unpack()
+        if response != 0:
+            self.stop()
+            raise ScreenShotError(f'Failed to select sources: {response}')
 
-                # i don't know, but doing this will make it sleeps for 30 frames per second like the original code
-                time.sleep(1 / 30)
+        request_path, request_token = self._new_request_path()
+        variant = GLib.Variant('(osa{sv})', (
+            self.session,
+            '',
+            {
+                'handle_token': GLib.Variant('s', request_token),
+                'multiple': GLib.Variant('b', False),
+                'types': GLib.Variant('u', 1 | 2),
+                'framerate': GLib.Variant('u', 30),
+            },
+        ))
+        self._screen_cast_call(
+            "Start",
+            request_path,
+            self._on_start_response,
+            variant,
+        )
 
-            except Exception as e:
-                logger.debug(f"error in the capturing loop when capturing frame, error: {e}")
-                time.sleep(0.1)
+    def _on_create_session_response(self, connection, sender, object_path, interface, signal, parameters):
+        response, results = parameters.unpack()
+        if response != 0:
+            self.stop()
+            raise ScreenShotError(f'Failed to create session: {response}')
 
+        self.session = results['session_handle']
+
+        self.bus.signal_subscribe(
+            'org.freedesktop.portal.Desktop',
+            'org.freedesktop.portal.Session',
+            'Closed',
+            self.session,
+            None,
+            Gio.DBusSignalFlags.NONE,
+            self._on_session_closed,
+        )
+
+        request_path, request_token = self._new_request_path()
+        variant = GLib.Variant('(oa{sv})', (
+            self.session,
+            {
+                'handle_token': GLib.Variant('s', request_token),
+                'multiple': GLib.Variant('b', False),
+                'types': GLib.Variant('u', 1),
+                'framerate': GLib.Variant('u', 30),
+                'persist_mode': GLib.Variant('u', 2),
+                'restore_token': GLib.Variant('s', persist_token)
+            },
+        ))
+        self._screen_cast_call(
+            "SelectSources",
+            request_path,
+            self._on_select_sources_response,
+            variant
+        )
+
+    def _initialize_screencast(self):
+        Gst.init(None)
+        
+        context = GLib.MainContext.new()
+        context.push_thread_default()
+        
+        try:
+            self.loop = GLib.MainLoop.new(context)
+            self.bus = Gio.bus_get_sync(Gio.BusType.SESSION, None)
+            self.sender_name = re.sub(r'\.', r'_', self.bus.get_unique_name()[1:])
+
+            session_path, session_token = self._new_session_path()
+            request_path, request_token = self._new_request_path()
+            variant =  GLib.Variant('(a{sv})', ({
+                'handle_token': GLib.Variant('s', request_token),
+                'session_handle_token': GLib.Variant('s', session_token),
+            },))
+            self._screen_cast_call(
+                "CreateSession",
+                request_path,
+                self._on_create_session_response,
+                variant
+            )
+
+            self.loop.run()
+        except Exception as e:
+            self.stop()
+            raise ScreenShotError(f'Error initializing screencast: {e}')
+        finally:
+            context.pop_thread_default()
+            
     def request_frame(self):
         if self.ready_event.is_set():
             with self.frame_lock:
@@ -144,73 +268,56 @@ class OBSWaylandManager:
         return (None, 0, 0)
 
     def start(self):
+        self.pipeline = None
+        self.loop = None
+        self.session = None
         self.last_frame = None
-        self.ready_event.clear()
-        self.running = True
+        self.selected_event.clear()
 
-        self.init_thread = threading.Thread(target=self._capturing_loop, daemon=True)
+        self.init_thread = threading.Thread(target=self._initialize_screencast, daemon=True)
         self.init_thread.start()
 
-
-    def __del__(self):
-        self.stop()
-    
     def stop(self):
-        self.running = False
+        if self.pipeline:
+            self.pipeline.set_state(Gst.State.NULL)
+
+        if self.loop:
+            self.loop.quit()
+
+        self.selected_event.set()
         self.ready_event.clear()
-        if self.client:
-            try:
-                self.client.disconnect()
-            except:
-                logger.info("cannot disconnect the obs websocket connection")
-                pass
 
 
-class OBSWaylandShim: 
+class MSSWaylandShim:
     def __init__(self):
         global screencast
         with screencast_lock:
             if not screencast:
-                screencast = OBSWaylandManager()
+                screencast = ScreenCastManager()
+                if not screencast.selected_event.wait(timeout=60):
+                    raise ScreenShotError('Source selection timed out')
                 if not screencast.ready_event.wait(timeout=3):
-                    raise ScreenShotError('Screencast initialization timed out') 
+                    raise ScreenShotError('Screencast initialization timed out')
+                time.sleep(1)  # todo it seems like we can delete this... needs to be tested
         self._create_monitors()
 
     @property
     def monitors(self):
         return self._monitors
 
-    def _grab(self, sct_params):
-        # client must be present and active before perform any actions
-        if not self.client:
-            logger.error("cannot perform grab() without a working obs connection")
-            raise RuntimeError("self.client might still be None; therefore, grab() cannot be used")
-        
-        resp = self.client.get_source_screenshot(
-            name="Screen Capture",
-            img_format="png",
-            quality=-1 # -1 is default quality
-        )
-
-        # base64 decode the newly retrieved image
-        img_data = base64.b64decode(resp.image_data.split(",", 1)[1])
-        
-        # return just like mss
-        return ScreenShot()
-
     def grab(self, sct_params):
         frame_data = self._grab_screenshot(sct_params)
         bgra_data, crop_width, crop_height = frame_data
 
         return ScreenShot(bgra_data, self._monitors[0], size=Size(crop_width, crop_height))
-    
+
     def _create_monitors(self):
         self._monitors = []
 
         frame = screencast.request_frame()
-        if frame is None or frame[0] is None:
-            raise ScreenShotError("frame or frame[0] is None, which is invalid")
-        
+        if frame[0] is None:
+            raise ScreenShotError('Invalid frame received')
+
         _, width, height = frame
 
         fake_monitor = Monitor({
@@ -220,18 +327,14 @@ class OBSWaylandShim:
             'height': height
         })
 
-        # what?
-        # let's copy like the old code
         self._monitors.append(fake_monitor)
         self._monitors.append(fake_monitor)
-
 
     def _grab_screenshot(self, sct_params):
-        frame =  screencast.request_frame()
-        if frame is None or frame[0] is None:
-            raise ScreenShotError("frame or frame[0] is None, which is invalid")
-        
-        # copy from the original code
+        frame = screencast.request_frame()
+        if frame[0] is None:
+            raise ScreenShotError('Invalid frame received')
+
         bgra_data, full_width, full_height = frame
 
         if sct_params != self._monitors[0]:
@@ -265,16 +368,17 @@ class OBSWaylandShim:
                 return cropped_data, final_crop_width, final_crop_height
 
         return bgra_data, full_width, full_height
-    
+
     def __enter__(self):
         return self
-    
+
     def __exit__(self, exc_type, exc_val, exc_tb):
         pass
 
+
 class MSSModuleShim:
     def mss(self):
-        return OBSWaylandShim()
-    
+        return MSSWaylandShim()
+
     def __getattr__(self, name):
         return getattr(real_mss, name)

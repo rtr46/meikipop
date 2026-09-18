@@ -38,7 +38,11 @@ class Config:
             'auto_scan_mode_lookups_without_hotkey': True,
             'auto_scan_interval_seconds': 0.5,
             'auto_scan_on_mouse_move': True,
-            'magpie_compatibility': True
+            'magpie_compatibility': True,
+            'use_obs': False,
+            'obs_host': '127.0.0.1',
+            'obs_port': '',
+            'obs_password': ''
         },
         'Theme': {
             'theme_name': 'Nazeka',

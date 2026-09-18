@@ -8,10 +8,14 @@ from PIL import Image
 from meikipop.config.config import config, IS_WAYLAND
 from meikipop.gui.region_selector import RegionSelector
 
-if IS_WAYLAND:
+if IS_WAYLAND and not config.use_obs:
     from . import wayland_mss_shim
 
     mss = wayland_mss_shim.MSSModuleShim()
+elif config.use_obs:
+    from . import obs_mss_shim
+
+    mss = obs_mss_shim.MSSModuleShim()
 else:
     import mss
 

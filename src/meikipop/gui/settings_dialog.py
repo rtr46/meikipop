@@ -4,7 +4,7 @@ from PyQt6.QtGui import QColor, QIcon, QFontDatabase
 from PyQt6.QtWidgets import (QWidget, QDialog, QFormLayout, QComboBox,
                              QSpinBox, QCheckBox, QPushButton, QColorDialog, QVBoxLayout, QHBoxLayout,
                              QGroupBox, QDialogButtonBox, QLabel, QSlider, QDoubleSpinBox,
-                             QTabWidget, QSizePolicy, QFontComboBox)
+                             QTabWidget, QSizePolicy, QFontComboBox, QLineEdit)
 
 from meikipop.dictionary.lookup import Lookup
 from meikipop.config.config import config, APP_NAME, IS_WINDOWS
@@ -171,7 +171,43 @@ class SettingsDialog(QDialog):
 
         behavior_group.setLayout(behavior_layout)
         self.tab_general_layout.addWidget(behavior_group)
+
+        # --- Group 4: OBS Capturing backend ---
+        obs_backend_group = QGroupBox("OBS Capturing Backend")
+        self.obs_settings_layout = QFormLayout()
+        self.form_layouts.append(self.obs_settings_layout)
+
+        # someone please make the use_obs checkbox hide or make opacity of the the value below lower if possible
+        self.use_obs = QCheckBox()
+        self.use_obs.setChecked(bool(getattr(config, "use_obs", False)))
+        self.obs_settings_layout.addRow("Use OBS as Capturing Backend", self.use_obs)
+
+        self.obs_host = QLineEdit()
+        self.obs_host.setText(str(getattr(config, "obs_host", "127.0.0.1")))
+        self.obs_host.setPlaceholderText("e.g., 127.0.0.1")
+        self.obs_settings_layout.addRow("OBS websocket host:", self.obs_host)
+
+        self.obs_port = QSpinBox()
+        self.obs_port.setRange(1, 65535)
+        self.obs_port.setValue(int(getattr(config, "obs_port", 4455)))
+        self.obs_settings_layout.addRow("OBS websocket port:", self.obs_port)
+
+        self.obs_ws_passwd_checkbox = QCheckBox()
+        has_passwd = bool(getattr(config, "obs_password", ""))
+        self.obs_ws_passwd_checkbox.setChecked(has_passwd)
+        self.obs_ws_passwd_checkbox.toggled.connect(self._toggle_passwd_field)
+        self.obs_settings_layout.addRow("Requires Password:", self.obs_ws_passwd_checkbox)
+
+        self.obs_passwd = QLineEdit()
+        self.obs_passwd.setEchoMode(QLineEdit.EchoMode.Password)
+        self.obs_passwd.setText(str(getattr(config, "obs_password", "")))
+        self.obs_settings_layout.addRow("OBS websocket password:", self.obs_passwd)
+
+        obs_backend_group.setLayout(self.obs_settings_layout)
+        self.tab_general_layout.addWidget(obs_backend_group)
         self.tab_general_layout.addStretch()
+
+        self._toggle_passwd_field(has_passwd)
 
         # ==========================================
         # TAB 2: Popup Content
@@ -412,6 +448,18 @@ class SettingsDialog(QDialog):
             setattr(config, key, color.name())
             self._update_color_buttons()
             self._mark_as_custom()
+    
+    def _toggle_passwd_field(self, checked):
+        if hasattr(self.obs_settings_layout, "setRowVisible"):
+            self.obs_settings_layout.setRowVisible(self.obs_passwd, checked)
+        else:
+            self.obs_passwd.setVisible(checked)
+            label_widget = self.obs_settings_layout.labelForField(self.obs_passwd)
+            if label_widget:
+                label_widget.setVisible(checked)
+
+        if not checked:
+            self.obs_passwd.clear()
 
     def save_and_accept(self):
         # Update OCR Provider
@@ -427,6 +475,10 @@ class SettingsDialog(QDialog):
         config.auto_scan_interval_seconds = self.auto_scan_interval_spin.value()
         config.auto_scan_mode_lookups_without_hotkey = self.auto_scan_no_hotkey_check.isChecked()
         config.auto_scan_on_mouse_move = self.auto_scan_mouse_move_check.isChecked()
+        config.use_obs = self.use_obs.isChecked()
+        config.obs_host = self.obs_host.text()
+        config.obs_port = self.obs_port.text()
+        config.obs_password = self.obs_password.value() if self.obs_ws_passwd_checkbox.isChecked() else ""
 
         if IS_WINDOWS:
             config.magpie_compatibility = self.magpie_check.isChecked()
