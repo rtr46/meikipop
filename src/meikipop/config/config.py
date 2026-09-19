@@ -14,6 +14,7 @@ MAX_DICT_ENTRIES = 10
 IS_LINUX = sys.platform.startswith('linux')
 IS_WINDOWS = sys.platform.startswith('win')
 IS_MACOS = sys.platform.startswith('darwin')
+IS_X11 = IS_LINUX and os.environ.get('XDG_SESSION_TYPE', '').lower() == 'x11'
 # todo should we use this instead?: IS_WAYLAND = IS_LINUX and bool(os.environ.get('WAYLAND_DISPLAY'))
 IS_WAYLAND = IS_LINUX and os.environ.get('XDG_SESSION_TYPE', '').lower() == 'wayland'
 
@@ -38,7 +39,11 @@ class Config:
             'auto_scan_mode_lookups_without_hotkey': True,
             'auto_scan_interval_seconds': 0.5,
             'auto_scan_on_mouse_move': True,
-            'magpie_compatibility': True
+            'magpie_compatibility': True,
+            'use_obs': False,
+            'obs_host': '127.0.0.1',
+            'obs_port': '',
+            'obs_password': ''
         },
         'Theme': {
             'theme_name': 'Nazeka',
