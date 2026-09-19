@@ -21,7 +21,7 @@ logging.getLogger("obsws_python").setLevel(logging.WARNING)
 screencast = None
 screencast_lock = threading.Lock()
 
-class OBSWaylandManager:
+class OBSCaptureManager:
     def __init__(self):
         # some frames stuff
         self.frame_lock = threading.Lock()
@@ -189,12 +189,12 @@ class OBSWaylandManager:
                 pass
 
 
-class OBSWaylandShim: 
+class OBSCaptureShim: 
     def __init__(self):
         global screencast
         with screencast_lock:
             if not screencast:
-                screencast = OBSWaylandManager()
+                screencast = OBSCaptureManager()
                 if not screencast.ready_event.wait(timeout=3):
                     raise ScreenShotError('Screencast initialization timed out') 
         self._create_monitors()
@@ -298,7 +298,7 @@ class OBSWaylandShim:
 class MSSModuleShim:
     def mss(self):
         if config.use_obs and config.obs_host and config.obs_port:
-            return OBSWaylandShim()
+            return OBSCaptureShim()
         
         # fallback to default mss if user doesn't use obs
         logger.info(f"""
