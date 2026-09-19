@@ -7,7 +7,7 @@ from PyQt6.QtWidgets import (QWidget, QDialog, QFormLayout, QComboBox,
                              QTabWidget, QSizePolicy, QFontComboBox, QLineEdit)
 
 from meikipop.dictionary.lookup import Lookup
-from meikipop.config.config import config, APP_NAME, IS_WINDOWS
+from meikipop.config.config import config, APP_NAME, IS_WINDOWS, IS_X11
 from meikipop.gui.input import InputLoop
 from meikipop.gui.popup import Popup
 from meikipop.ocr.ocr import OcrProcessor
@@ -173,38 +173,44 @@ class SettingsDialog(QDialog):
         self.tab_general_layout.addWidget(behavior_group)
 
         # --- Group 4: OBS Capturing backend ---
-        obs_backend_group = QGroupBox("OBS Capturing Backend")
-        self.obs_settings_layout = QFormLayout()
-        self.form_layouts.append(self.obs_settings_layout)
+        # for users outside windows and x11 only
+        if not IS_WINDOWS and not IS_X11:
+            obs_backend_group = QGroupBox("OBS Capturing Backend")
+            self.obs_settings_layout = QFormLayout()
+            self.form_layouts.append(self.obs_settings_layout)
 
-        self.use_obs = QCheckBox()
-        self.use_obs.setChecked(bool(getattr(config, "use_obs", False)))
-        self.use_obs.toggled.connect(self._update_use_obs_state)
-        self.obs_settings_layout.addRow("Use OBS as Capturing Backend", self.use_obs)
+            self.use_obs = QCheckBox()
+            self.use_obs.setChecked(bool(getattr(config, "use_obs", False)))
+            self.use_obs.toggled.connect(self._update_use_obs_state)
+            # 2 lines in the tips should be read since they are useful
+            self.use_obs.setToolTip(
+                "Useful if you have capturing issues on Wayland.\n\n!! You are required to restart the program after switching the toggle !!"
+            )
+            self.obs_settings_layout.addRow("Use OBS as Capturing Backend", self.use_obs)
 
-        self.obs_host = QLineEdit()
-        self.obs_host.setText(str(getattr(config, "obs_host", "127.0.0.1")))
-        self.obs_host.setPlaceholderText("e.g., 127.0.0.1")
-        self.obs_settings_layout.addRow("OBS websocket host:", self.obs_host)
+            self.obs_host = QLineEdit()
+            self.obs_host.setText(str(getattr(config, "obs_host", "127.0.0.1")))
+            self.obs_host.setPlaceholderText("e.g., 127.0.0.1")
+            self.obs_settings_layout.addRow("OBS websocket host:", self.obs_host)
 
-        self.obs_port = QSpinBox()
-        self.obs_port.setRange(1, 65535)
-        self.obs_port.setValue(int(getattr(config, "obs_port", 4455)))
-        self.obs_settings_layout.addRow("OBS websocket port:", self.obs_port)
+            self.obs_port = QSpinBox()
+            self.obs_port.setRange(1, 65535)
+            self.obs_port.setValue(int(getattr(config, "obs_port", 4455)))
+            self.obs_settings_layout.addRow("OBS websocket port:", self.obs_port)
 
-        self.obs_ws_passwd_checkbox = QCheckBox()
-        self.obs_ws_passwd_checkbox.setChecked(bool(getattr(config, "obs_password", "")))
-        self.obs_ws_passwd_checkbox.toggled.connect(self._update_passwd_field)
-        self.obs_settings_layout.addRow("Requires Password:", self.obs_ws_passwd_checkbox)
+            self.obs_ws_passwd_checkbox = QCheckBox()
+            self.obs_ws_passwd_checkbox.setChecked(bool(getattr(config, "obs_password", "")))
+            self.obs_ws_passwd_checkbox.toggled.connect(self._update_passwd_field)
+            self.obs_settings_layout.addRow("Requires Password:", self.obs_ws_passwd_checkbox)
 
-        self.obs_passwd = QLineEdit()
-        self.obs_passwd.setEchoMode(QLineEdit.EchoMode.Password)
-        self.obs_passwd.setText(str(getattr(config, "obs_password", "")))
-        self.obs_settings_layout.addRow("OBS websocket password:", self.obs_passwd)
+            self.obs_passwd = QLineEdit()
+            self.obs_passwd.setEchoMode(QLineEdit.EchoMode.Password)
+            self.obs_passwd.setText(str(getattr(config, "obs_password", "")))
+            self.obs_settings_layout.addRow("OBS websocket password:", self.obs_passwd)
 
-        obs_backend_group.setLayout(self.obs_settings_layout)
-        self.tab_general_layout.addWidget(obs_backend_group)
-        self.tab_general_layout.addStretch()
+            obs_backend_group.setLayout(self.obs_settings_layout)
+            self.tab_general_layout.addWidget(obs_backend_group)
+            self.tab_general_layout.addStretch()
 
         # ==========================================
         # TAB 2: Popup Content
@@ -365,10 +371,14 @@ class SettingsDialog(QDialog):
         # Initialize UI States
         self._update_color_buttons()
         self._update_auto_scan_state(self.auto_scan_check.isChecked())
-        self._update_passwd_field(self.obs_ws_passwd_checkbox.isChecked())
-        self._update_use_obs_state(self.use_obs.isChecked())
         self._update_glens_state(self.ocr_provider_combo.currentText())
         self._update_kanji_options_state(self.show_kanji_check.isChecked())
+
+        # only need to call these functions if user is not on windows and not on x11
+        # these functions are used for obs settings
+        if not IS_WINDOWS and not IS_X11:
+            self._update_passwd_field(self.obs_ws_passwd_checkbox.isChecked())
+            self._update_use_obs_state(self.use_obs.isChecked())
 
     def _set_expanding(self, widget):
         """Helper to let a widget expand horizontally"""
@@ -483,10 +493,12 @@ class SettingsDialog(QDialog):
         config.auto_scan_interval_seconds = self.auto_scan_interval_spin.value()
         config.auto_scan_mode_lookups_without_hotkey = self.auto_scan_no_hotkey_check.isChecked()
         config.auto_scan_on_mouse_move = self.auto_scan_mouse_move_check.isChecked()
-        config.use_obs = self.use_obs.isChecked()
-        config.obs_host = self.obs_host.text()
-        config.obs_port = self.obs_port.value()
-        config.obs_password = self.obs_passwd.text() if self.obs_ws_passwd_checkbox.isChecked() else ""
+
+        if not IS_WINDOWS and not IS_X11:
+            config.use_obs = self.use_obs.isChecked()
+            config.obs_host = self.obs_host.text()
+            config.obs_port = self.obs_port.value()
+            config.obs_password = self.obs_passwd.text() if self.obs_ws_passwd_checkbox.isChecked() else ""
 
         if IS_WINDOWS:
             config.magpie_compatibility = self.magpie_check.isChecked()

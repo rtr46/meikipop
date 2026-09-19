@@ -5,14 +5,14 @@ import time
 
 from PIL import Image
 
-from meikipop.config.config import config, IS_WAYLAND
+from meikipop.config.config import config, IS_WINDOWS, IS_X11, IS_WAYLAND
 from meikipop.gui.region_selector import RegionSelector
 
 if IS_WAYLAND and not config.use_obs:
     from . import wayland_mss_shim
 
     mss = wayland_mss_shim.MSSModuleShim()
-elif config.use_obs:
+elif not IS_WINDOWS and not IS_X11 and config.use_obs:
     from . import obs_mss_shim
 
     mss = obs_mss_shim.MSSModuleShim()
