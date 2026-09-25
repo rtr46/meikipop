@@ -1,12 +1,15 @@
 # meikipop/gui/input.py
+import fcntl
+import glob
 import logging
+import os
 import sys
 import threading
 import time
 
 from pynput import mouse
 
-from meikipop.config.config import config, IS_LINUX, IS_MACOS
+from meikipop.config.config import config, IS_LINUX, IS_MACOS, IS_WAYLAND
 
 if IS_LINUX:
     from Xlib import display as xlib_display
@@ -20,6 +23,10 @@ else:
 
 
 logger = logging.getLogger(__name__)
+
+_mouse_controller = mouse.Controller()
+if IS_WAYLAND:
+    from meikipop.screenshot.wayland_mss_shim import get_wl_cursor_pos
 
 class LinuxX11KeyboardController:
     def __init__(self, hotkey_str):
@@ -74,6 +81,107 @@ class LinuxX11KeyboardController:
             return True
         except XError:
             return False
+
+
+class LinuxEvdevKeyboardController:
+    EV_KEY = 0x01
+    KEY_MAX = 0x2ff
+    KEY_BITMAP_BYTES = (KEY_MAX + 1) // 8
+
+    KEY_LEFTCTRL = 29
+    KEY_LEFTSHIFT = 42
+    KEY_RIGHTSHIFT = 54
+    KEY_LEFTALT = 56
+    KEY_RIGHTCTRL = 97
+    KEY_RIGHTALT = 100
+
+    KEYCODES = {
+        'shift': (KEY_LEFTSHIFT, KEY_RIGHTSHIFT),
+        'ctrl': (KEY_LEFTCTRL, KEY_RIGHTCTRL),
+        'alt': (KEY_LEFTALT, KEY_RIGHTALT),
+    }
+
+    # _IOC bit layout for reading KEY_BITMAP_BYTES from the E group
+    _IOC_READ = (2 << 30) | (KEY_BITMAP_BYTES << 16) | (ord('E') << 8)
+    # what keys is this device capable of emitting?
+    EVIOCGBIT_EV_KEY = _IOC_READ | (0x20 + EV_KEY)
+    # what keys is this device emitting right now?
+    EVIOCGKEY = _IOC_READ | 0x18
+
+    def __init__(self, hotkey_str):
+        self.fds = []
+        self.modifier_groups = []
+        for key in hotkey_str.lower().split('+'):
+            keycodes = self.KEYCODES.get(key)
+            if not keycodes:
+                logger.critical(f"Unsupported hotkey '{key}' for Linux. Use 'shift', 'ctrl', or 'alt'.")
+                sys.exit(1)
+            self.modifier_groups.append(keycodes)
+        self.fds = self._open_keyboards()
+
+    @classmethod
+    def _open_keyboards(cls):
+        # we're gonna poll over input devices to check for modifier presses,
+        # so strip out all the ones that we are sure cannot emit the keys we want
+        fds = []
+        for path in sorted(glob.glob('/dev/input/event*')):
+            try:
+                fd = os.open(path, os.O_RDONLY)
+            except OSError:
+                continue
+            if cls._reports_modifiers(fd):
+                fds.append(fd)
+            else:
+                os.close(fd)
+        return fds
+
+    @staticmethod
+    def _bit_is_set(bitmap, code):
+        return bool(bitmap[code // 8] >> (code % 8) & 1)
+
+    @classmethod
+    def _reports_modifiers(cls, fd):
+        # keyboards are input devices that have LSHIFT as part of their capability map
+        bitmap = bytearray(cls.KEY_BITMAP_BYTES)
+        try:
+            fcntl.ioctl(fd, cls.EVIOCGBIT_EV_KEY, bitmap)
+        except OSError:
+            return False
+        return cls._bit_is_set(bitmap, cls.KEY_LEFTSHIFT)
+
+    @classmethod
+    def has_readable_devices(cls):
+        fds = cls._open_keyboards()
+        for fd in fds:
+            os.close(fd)
+        return bool(fds)
+
+    def is_hotkey_pressed(self) -> bool:
+        bitmap = bytearray(self.KEY_BITMAP_BYTES)
+        held = bytearray(self.KEY_BITMAP_BYTES)
+        # check whether modifier keys are pressed on any keyboard we have
+        for fd in self.fds:
+            try:
+                fcntl.ioctl(fd, self.EVIOCGKEY, bitmap)
+            except OSError:
+                continue
+            for i in range(self.KEY_BITMAP_BYTES):
+                held[i] |= bitmap[i]
+        for group in self.modifier_groups:
+            if not any(self._bit_is_set(held, code) for code in group):
+                return False
+        return True
+
+    def close(self):
+        for fd in self.fds:
+            try:
+                os.close(fd)
+            except OSError:
+                pass
+        self.fds = []
+
+    def __del__(self):
+        self.close()
 
 
 class WindowsKeyboardController:
@@ -134,6 +242,19 @@ class MacOSKeyboardController:
             logger.warning(f"Error checking hotkey state: {e}")
             return False
 
+def make_keyboard_controller(hotkey_str):
+    if IS_LINUX:
+        if IS_WAYLAND:
+            if LinuxEvdevKeyboardController.has_readable_devices():
+                return LinuxEvdevKeyboardController(hotkey_str)
+            logger.warning("No readable devices in /dev/input, the hotkey will only work over "
+                           "XWayland windows. Add your user to the 'input' group and log back in.")
+        return LinuxX11KeyboardController(hotkey_str)
+    if IS_MACOS:
+        return MacOSKeyboardController(hotkey_str)
+    return WindowsKeyboardController(hotkey_str)
+
+
 class InputLoop(threading.Thread):
     def __init__(self, shared_state):
         super().__init__(daemon=True, name="InputLoop")
@@ -141,12 +262,7 @@ class InputLoop(threading.Thread):
         self.mouse_controller = mouse.Controller()
 
         self.hotkey_str = config.hotkey.lower()
-        if IS_LINUX:
-            self.keyboard_controller = LinuxX11KeyboardController(self.hotkey_str)
-        elif IS_MACOS:
-            self.keyboard_controller = MacOSKeyboardController(self.hotkey_str)
-        else: # IS_WINDOWS
-            self.keyboard_controller = WindowsKeyboardController(self.hotkey_str)
+        self.keyboard_controller = make_keyboard_controller(self.hotkey_str)
 
         self.started_auto_mode = False
 
@@ -160,7 +276,7 @@ class InputLoop(threading.Thread):
                 time.sleep(0.1)
                 continue
             try:
-                current_mouse_pos = self.mouse_controller.position
+                current_mouse_pos = self.get_mouse_pos()
                 try:
                     hotkey_is_pressed = self.keyboard_controller.is_hotkey_pressed()
                 except Exception:
@@ -203,16 +319,14 @@ class InputLoop(threading.Thread):
     def reapply_settings(self):
         logger.debug(f"InputLoop: Re-applying settings. New hotkey: '{config.hotkey}'.")
         self.hotkey_str = config.hotkey.lower()
-        if IS_LINUX:
-            self.keyboard_controller = LinuxX11KeyboardController(self.hotkey_str)
-        elif IS_MACOS:
-            self.keyboard_controller = MacOSKeyboardController(self.hotkey_str)
-        else: # IS_WINDOWS
-            self.keyboard_controller = WindowsKeyboardController(self.hotkey_str)
+        self.keyboard_controller = make_keyboard_controller(self.hotkey_str)
 
     @staticmethod
     def get_mouse_pos():
-        with mouse.Controller() as mc:
-            pos = mc.position
-            # Convert floats to integers for QPoint compatibility
-            return (int(pos[0]), int(pos[1]))
+        if IS_WAYLAND:
+            pos = get_wl_cursor_pos()
+            if pos is not None:
+                return pos
+        pos = _mouse_controller.position
+        # Convert floats to integers for QPoint compatibility
+        return (int(pos[0]), int(pos[1]))
