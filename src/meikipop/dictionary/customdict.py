@@ -1,5 +1,6 @@
 # customdict.py
 import logging
+import os
 import pickle
 import time
 import urllib.request
@@ -8,6 +9,7 @@ import io
 from collections import defaultdict
 
 from meikipop.utils.paths import paths
+from meikipop.config.config import config
 
 logger = logging.getLogger(__name__)
 
@@ -44,8 +46,10 @@ class Dictionary:
         logger.info(f"Loading dictionary from '{file_path}'")
         start = time.perf_counter()
         try:
+            dict_ts = None
             with open(file_path, 'rb') as f:
                 data = pickle.load(f)
+                dict_ts = os.fstat(f.fileno()).st_mtime_ns
             self.entries            = data['entries']
             self.lookup_map         = data['lookup_map']
             self.kanji_entries      = data.get('kanji_entries', {})
@@ -56,7 +60,10 @@ class Dictionary:
                 f"Dictionary loaded in {time.perf_counter() - start:.2f}s"
                 f"({len(self.entries)} core entries, {n_refs} lookup refs)"
             )
-            self._validate()
+            if config.validated_dict_ts != dict_ts:
+                issues = self._validate()
+                config.validated_dict_ts = dict_ts if issues == 0 else -1
+                config.save()
             return True
         except FileNotFoundError:
             logger.warning(f"Dictionary file not found. Trying download...")
@@ -158,3 +165,4 @@ class Dictionary:
         else:
             logger.warning(f"Dictionary validation found {issues} issue(s) — "
                            f"some entries may display incorrectly.")
+        return issues
