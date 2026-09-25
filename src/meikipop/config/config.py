@@ -9,7 +9,7 @@ from meikipop.utils.paths import paths
 logger = logging.getLogger(__name__)
 
 APP_NAME = "meikipop"
-APP_VERSION = "2.0.4"
+APP_VERSION = "2.0.5"
 MAX_DICT_ENTRIES = 10
 IS_LINUX = sys.platform.startswith('linux')
 IS_WINDOWS = sys.platform.startswith('win')
@@ -38,7 +38,8 @@ class Config:
             'auto_scan_mode_lookups_without_hotkey': True,
             'auto_scan_interval_seconds': 0.5,
             'auto_scan_on_mouse_move': True,
-            'magpie_compatibility': True
+            'magpie_compatibility': True,
+            'validated_dict_ts': -1
         },
         'Theme': {
             'theme_name': 'Nazeka',

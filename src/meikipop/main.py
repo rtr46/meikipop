@@ -8,7 +8,7 @@ from PyQt6.QtCore import qInstallMessageHandler
 from PyQt6.QtWidgets import QApplication
 
 from meikipop.utils.logger import setup_logging
-from meikipop.config.config import config, APP_NAME, APP_VERSION
+from meikipop.config.config import APP_NAME, APP_VERSION
 from meikipop.dictionary.lookup import Lookup
 from meikipop.gui.input import InputLoop
 from meikipop.gui.popup import Popup
