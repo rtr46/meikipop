@@ -11,6 +11,7 @@ from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel, QFrame, QApplication
 from meikipop.config.config import config, IS_MACOS
 from meikipop.dictionary.lookup import DictionaryEntry, KanjiEntry
 from meikipop.gui.magpie_manager import magpie_manager
+from meikipop.utils.csv_export import csv_exporter
 
 # macOS-specific imports for focus management
 if IS_MACOS:
@@ -34,6 +35,7 @@ class Popup(QWidget):
         self.input_loop = input_loop
 
         self.is_visible = False
+        self._digits_down = set()
         self.timer = QTimer(self)
         self.timer.timeout.connect(self.process_latest_data_loop)
         self.timer.start(10)
@@ -175,10 +177,27 @@ class Popup(QWidget):
         else:
             self.hide_popup()
 
+        self._handle_csv_keys()
+
         mouse_pos = QCursor.pos()
         self.move_to(mouse_pos.x(), mouse_pos.y())
 
-    def _render_kanji_entry(self, entry: KanjiEntry):
+    def _handle_csv_keys(self):
+        """While the popup is shown, pressing 1-9 saves the matching entry to the CSV file."""
+        if not csv_exporter.enabled or not self.is_visible or not self._latest_data:
+            self._digits_down.clear()
+            return
+        entries = self._latest_data
+        for n in range(1, min(len(entries), 9) + 1):
+            down = self.input_loop.is_key_pressed(str(n))
+            if down and n not in self._digits_down:
+                csv_exporter.append(entries[n - 1])
+            if down:
+                self._digits_down.add(n)
+            else:
+                self._digits_down.discard(n)
+
+    def _render_kanji_entry(self, entry: KanjiEntry, number: int = 0):
         # Colors and sizes from config
         c_word = config.color_highlight_word
         c_read = config.color_highlight_reading
@@ -190,8 +209,9 @@ class Popup(QWidget):
         readings_str = ", ".join(entry.readings)
         readings_str = f"[{readings_str}]"
 
+        num_html = f'<b>{number}.</b> ' if csv_exporter.enabled and 0 < number <= 9 else ''
         header_html = f"""
-                    <span style="font-size:{fs_head}px; color:{c_word}; padding-right: 8px;">{entry.character}</span>
+                    {num_html}<span style="font-size:{fs_head}px; color:{c_word}; padding-right: 8px;">{entry.character}</span>
                     <span style="font-size:{fs_head - 2}px; color:{c_read};"> {readings_str}</span>
         """
 
@@ -251,16 +271,17 @@ class Popup(QWidget):
 
                 max_ratio = max(max_ratio, 0.7)
 
-                all_html_parts.append(self._render_kanji_entry(entry))
+                all_html_parts.append(self._render_kanji_entry(entry, i + 1))
                 continue
 
-            header_text_calc = entry.written_form
+            header_text_calc = ("0. " if csv_exporter.enabled else "") + entry.written_form
             if entry.reading: header_text_calc += f" [{entry.reading}]"
             header_ratio = len(header_text_calc) / self.header_chars_per_line
             max_ratio = max(max_ratio, header_ratio)
 
             # --- HTML construction ---
-            header_html = f'<span style="color: {config.color_highlight_word}; font-size:{config.font_size_header}px;">{entry.written_form}</span>'
+            num_prefix = f'<b>{i + 1}.</b> ' if csv_exporter.enabled and i < 9 else ''
+            header_html = f'{num_prefix}<span style="color: {config.color_highlight_word}; font-size:{config.font_size_header}px;">{entry.written_form}</span>'
             if entry.reading: header_html += f' <span style="color: {config.color_highlight_reading}; font-size:{config.font_size_header - 2}px;">[{entry.reading}]</span>'
             if entry.deconjugation_process and config.show_deconjugation:
                 deconj_str = " ← ".join(p for p in entry.deconjugation_process if p)

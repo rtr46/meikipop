@@ -75,6 +75,16 @@ class LinuxX11KeyboardController:
         except XError:
             return False
 
+    def is_key_pressed(self, key: str) -> bool:
+        try:
+            keysym = XK.string_to_keysym(key)
+            keycode = self.display.keysym_to_keycode(keysym) if keysym else 0
+            if not keycode:
+                return False
+            return bool((self.display.query_keymap()[keycode // 8] >> (keycode % 8)) & 1)
+        except XError:
+            return False
+
 
 class WindowsKeyboardController:
     def __init__(self, hotkey_str):
@@ -86,6 +96,12 @@ class WindowsKeyboardController:
         except ImportError:
             logger.critical("FATAL: The 'keyboard' library failed to import a backend. This often means it needs to be run with administrator/sudo privileges.")
             sys.exit(1)
+        except Exception:
+            return False
+
+    def is_key_pressed(self, key: str) -> bool:
+        try:
+            return keyboard.is_pressed(key)
         except Exception:
             return False
 
@@ -132,6 +148,17 @@ class MacOSKeyboardController:
             return True
         except Exception as e:
             logger.warning(f"Error checking hotkey state: {e}")
+            return False
+
+    _DIGIT_KEYCODES = {'1': 18, '2': 19, '3': 20, '4': 21, '5': 23, '6': 22, '7': 26, '8': 28, '9': 25}
+
+    def is_key_pressed(self, key: str) -> bool:
+        keycode = self._DIGIT_KEYCODES.get(key)
+        if keycode is None:
+            return False
+        try:
+            return bool(Quartz.CGEventSourceKeyState(Quartz.kCGEventSourceStateCombinedSessionState, keycode))
+        except Exception:
             return False
 
 class InputLoop(threading.Thread):
@@ -199,6 +226,9 @@ class InputLoop(threading.Thread):
     def is_virtual_hotkey_down(self):
         return self.keyboard_controller.is_hotkey_pressed() or (
                 config.auto_scan_mode and config.auto_scan_mode_lookups_without_hotkey)
+
+    def is_key_pressed(self, key: str) -> bool:
+        return self.keyboard_controller.is_key_pressed(key)
 
     def reapply_settings(self):
         logger.debug(f"InputLoop: Re-applying settings. New hotkey: '{config.hotkey}'.")

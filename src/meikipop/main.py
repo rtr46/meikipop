@@ -1,11 +1,12 @@
 # meikipop/main.py
 import argparse
+import os
 import signal
 import sys
 import threading
 
 from PyQt6.QtCore import qInstallMessageHandler
-from PyQt6.QtWidgets import QApplication
+from PyQt6.QtWidgets import QApplication, QFileDialog
 
 from meikipop.utils.logger import setup_logging
 from meikipop.config.config import APP_NAME, APP_VERSION
@@ -16,6 +17,7 @@ from meikipop.gui.tray import TrayIcon
 from meikipop.ocr.hit_scan import HitScanner
 from meikipop.ocr.ocr import OcrProcessor
 from meikipop.screenshot.screenmanager import ScreenManager
+from meikipop.utils.csv_export import csv_exporter
 from meikipop.utils.lastest_queue import LatestValueQueue
 
 
@@ -54,6 +56,14 @@ def run_gui():
     app = QApplication(sys.argv)
     app.setQuitOnLastWindowClosed(False)
 
+    # ask where to save looked-up words; an existing file is appended to, cancelling disables export
+    csv_path, _ = QFileDialog.getSaveFileName(
+        None, "meikipop: CSV file to save entries to (existing files are appended to)", "meikipop.csv",
+        "CSV files (*.csv);;All files (*)", options=QFileDialog.Option.DontConfirmOverwrite)
+    if csv_path and not os.path.splitext(csv_path)[1]:
+        csv_path += ".csv"
+    csv_exporter.set_path(csv_path)
+
     input_loop = InputLoop(shared_state)
     popup_window = Popup(shared_state, input_loop)
 
@@ -72,6 +82,7 @@ def run_gui():
     {APP_NAME}.{APP_VERSION} is running in the background.
 
       - To configure or change scan area: Right-click the icon in your system tray.
+      - To save a hovered entry to the CSV file: press its number (1-9) while the popup is shown.
       - To exit: Press Ctrl+C in this terminal.
 
     --------------------------------------------------
