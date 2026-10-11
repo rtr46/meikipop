@@ -10,6 +10,8 @@ from typing import Dict, List, Tuple
 from meikipop.config.config import config, MAX_DICT_ENTRIES, DICT_PATH
 from meikipop.dictionary.customdict import Dictionary, WRITTEN_FORM_INDEX, READING_INDEX, FREQUENCY_INDEX, ENTRY_ID_INDEX, DEFAULT_FREQ
 from meikipop.dictionary.deconjugator import Deconjugator, Form
+from meikipop.dictionary.pitch_accent import PitchAccentDictionary
+
 
 KANJI_REGEX = re.compile(r'[\u4e00-\u9faf]')
 JAPANESE_SEPARATORS = {
@@ -31,6 +33,7 @@ class DictionaryEntry:
     freq: int
     deconjugation_process: tuple
     priority: float = 0.0
+    pitch_accents: tuple[int, ...] = ()
 
 
 @dataclass
@@ -50,6 +53,8 @@ class Lookup(threading.Thread):
         self.last_hit_result = None
 
         self.dictionary = Dictionary()
+        self.pitch_dictionary = PitchAccentDictionary()
+
         self.lookup_cache: OrderedDict = OrderedDict()
         self.CACHE_SIZE = 500
 
@@ -267,6 +272,10 @@ class Lookup(threading.Thread):
                 freq=d['freq'],
                 deconjugation_process=d['deconjugation_process'],
                 priority=d['priority'],
+                pitch_accents=self.pitch_dictionary.lookup(
+                    d['written_form'],
+                    d['reading'],
+                ),
             ))
         return results
 
