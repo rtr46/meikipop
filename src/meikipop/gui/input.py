@@ -135,10 +135,11 @@ class MacOSKeyboardController:
             return False
 
 class InputLoop(threading.Thread):
+    _mouse_controller = None
+
     def __init__(self, shared_state):
         super().__init__(daemon=True, name="InputLoop")
         self.shared_state = shared_state
-        self.mouse_controller = mouse.Controller()
 
         self.hotkey_str = config.hotkey.lower()
         if IS_LINUX:
@@ -160,7 +161,7 @@ class InputLoop(threading.Thread):
                 time.sleep(0.1)
                 continue
             try:
-                current_mouse_pos = self.mouse_controller.position
+                current_mouse_pos = self.get_mouse_pos()
                 try:
                     hotkey_is_pressed = self.keyboard_controller.is_hotkey_pressed()
                 except Exception:
@@ -212,7 +213,10 @@ class InputLoop(threading.Thread):
 
     @staticmethod
     def get_mouse_pos():
-        with mouse.Controller() as mc:
-            pos = mc.position
-            # Convert floats to integers for QPoint compatibility
-            return (int(pos[0]), int(pos[1]))
+        try:
+            pos = InputLoop._mouse_controller.position
+        except Exception:
+            InputLoop._mouse_controller = mouse.Controller()
+            pos = InputLoop._mouse_controller.position
+        # Convert floats to integers for QPoint compatibility
+        return int(pos[0]), int(pos[1])
