@@ -46,7 +46,7 @@ class SharedState:
         self.screen_lock = threading.RLock()
 
 
-def run_gui():
+def run_gui(csv_export: bool = False):
     setup_logging()
     shared_state = SharedState()
 
@@ -56,13 +56,14 @@ def run_gui():
     app = QApplication(sys.argv)
     app.setQuitOnLastWindowClosed(False)
 
-    # ask where to save looked-up words; an existing file is appended to, cancelling disables export
-    csv_path, _ = QFileDialog.getSaveFileName(
-        None, "meikipop: CSV file to save entries to (existing files are appended to)", "meikipop.csv",
-        "CSV files (*.csv);;All files (*)", options=QFileDialog.Option.DontConfirmOverwrite)
-    if csv_path and not os.path.splitext(csv_path)[1]:
-        csv_path += ".csv"
-    csv_exporter.set_path(csv_path)
+    if csv_export:
+        # ask where to save looked-up words; an existing file is appended to, cancelling disables export
+        csv_path, _ = QFileDialog.getSaveFileName(
+            None, "meikipop: CSV file to save entries to (existing files are appended to)", "meikipop.csv",
+            "CSV files (*.csv);;All files (*)", options=QFileDialog.Option.DontConfirmOverwrite)
+        if csv_path and not os.path.splitext(csv_path)[1]:
+            csv_path += ".csv"
+        csv_exporter.set_path(csv_path)
 
     input_loop = InputLoop(shared_state)
     popup_window = Popup(shared_state, input_loop)
@@ -77,13 +78,14 @@ def run_gui():
     for t in [lookup, hit_scanner, ocr_processor, screen_manager, input_loop]:
         t.start()
 
+    csv_hint = ("      - To save a hovered entry to the CSV file: press its number (1-9) while the popup is shown.\n"
+                if csv_export else "")
     ready_message = f"""
     --------------------------------------------------
     {APP_NAME}.{APP_VERSION} is running in the background.
 
       - To configure or change scan area: Right-click the icon in your system tray.
-      - To save a hovered entry to the CSV file: press its number (1-9) while the popup is shown.
-      - To exit: Press Ctrl+C in this terminal.
+{csv_hint}      - To exit: Press Ctrl+C in this terminal.
 
     --------------------------------------------------
     """
@@ -104,9 +106,9 @@ def run_gui():
     sys.exit(exit_code)
 
 
-def main():
+def main(csv_export: bool = False):
     parser = argparse.ArgumentParser(
-        prog="meikipop",
+        prog="meikislop" if csv_export else "meikipop",
         description="Universal Japanese OCR popup dictionary"
     )
     subparsers = parser.add_subparsers(dest="command", help="Available commands")
@@ -131,7 +133,12 @@ def main():
         from meikipop.scripts.import_yomitan_dict_text import main as import_text_main
         import_text_main([*args.dictionary_files])
     else:
-        run_gui()
+        run_gui(csv_export)
+
+
+def slop():
+    """Entry point for `meikislop`: meikipop plus CSV export of hovered entries."""
+    main(csv_export=True)
 
 
 if __name__ == "__main__":

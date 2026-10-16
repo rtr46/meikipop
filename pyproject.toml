@@ -33,6 +33,7 @@ dependencies = [
 
 [project.scripts]
 meikipop = "meikipop.main:main"
+meikislop = "meikipop.main:slop"
 
 [project.entry-points."meikipop.scripts"]
 build-dict = "meikipop.scripts.build_dictionary:main"
