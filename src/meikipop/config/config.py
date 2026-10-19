@@ -39,7 +39,11 @@ class Config:
             'auto_scan_interval_seconds': 0.5,
             'auto_scan_on_mouse_move': True,
             'magpie_compatibility': True,
-            'validated_dict_ts': -1
+            'validated_dict_ts': -1,
+            'popup_width': 800,
+            'popup_height': 300,
+            'click_to_close': True,
+            'mouse_away_distance': 75,
         },
         'Theme': {
             'theme_name': 'Nazeka',

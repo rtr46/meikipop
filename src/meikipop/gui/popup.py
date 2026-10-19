@@ -6,7 +6,8 @@ from typing import List, Optional
 from PyQt6.QtCore import QTimer, QPoint, QSize
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QColor, QCursor, QFont, QFontMetrics, QFontInfo
-from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel, QFrame, QApplication
+from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel, QFrame, QApplication, QScrollArea
+from pynput import mouse
 
 from meikipop.config.config import config, IS_MACOS
 from meikipop.dictionary.lookup import DictionaryEntry, KanjiEntry
@@ -65,12 +66,27 @@ class Popup(QWidget):
         self.content_layout = QVBoxLayout(self.frame)
         self.content_layout.setContentsMargins(10, 10, 10, 10)
 
+        self.scroll_area = QScrollArea()
+        self.scroll_area.setWidgetResizable(True)
+        self.scroll_area.setFrameShape(QFrame.Shape.NoFrame)
+        self.scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.scroll_area.setStyleSheet("background: transparent; border: none;")
+        
         self.display_label = QLabel()
         self.display_label.setWordWrap(True)
         self.display_label.setTextFormat(Qt.TextFormat.RichText)
-        self.content_layout.addWidget(self.display_label)
+        
+        self.scroll_area.setWidget(self.display_label)
+        self.content_layout.addWidget(self.scroll_area)
 
         self.hide()
+        self.mouse_listener = mouse.Listener(on_click=self._on_global_click)
+        self.mouse_listener.start()
+
+    def _on_global_click(self, x, y, button, pressed):
+        # Only close if the setting is enabled and the popup is currently visible
+        if getattr(config, 'click_to_close', True) and pressed and self.is_visible:
+            QTimer.singleShot(0, self.hide_popup)
 
     def _apply_frame_stylesheet(self):
         bg_color = QColor(config.color_background)
@@ -168,15 +184,16 @@ class Popup(QWidget):
             full_html, new_size = self._calculate_content_and_size_char_count(latest_data)
             self.display_label.setText(full_html)
             self.setFixedSize(new_size)
-        self._last_latest_data = latest_data
-
-        if self._latest_data and self.input_loop.is_virtual_hotkey_down() and config.is_enabled:
             self.show_popup()
-        else:
-            self.hide_popup()
+        self._last_latest_data = latest_data
 
         mouse_pos = QCursor.pos()
         self.move_to(mouse_pos.x(), mouse_pos.y())
+
+        if not getattr(config, 'click_to_close', True) and self.is_visible:
+            current_pos = QCursor.pos()
+            if (current_pos - self._popup_show_mouse_pos).manhattanLength() > config.mouse_away_distance:
+                self.hide_popup()
 
     def _render_kanji_entry(self, entry: KanjiEntry):
         # Colors and sizes from config
@@ -307,11 +324,12 @@ class Popup(QWidget):
             definitions_html_final = f'{" " if config.compact_mode else "<br>"}<span style="font-size:{config.font_size_definitions}px;">{full_def_text_html}</span>'
             all_html_parts.append(f"{header_html}{definitions_html_final}")
 
-        optimal_content_width = self.max_content_width * min(1.0, max_ratio)
-        optimal_content_width = max(optimal_content_width, 200)
-
         full_html = "".join(all_html_parts)
         self.probe_label.setText(full_html)
+
+        # Calculate the dynamic size as originally intended
+        optimal_content_width = self.max_content_width * min(1.0, max_ratio)
+        optimal_content_width = max(optimal_content_width, 200)
 
         final_height = self.probe_label.heightForWidth(int(optimal_content_width))
 
@@ -320,87 +338,41 @@ class Popup(QWidget):
         horizontal_padding = margins.left() + margins.right() + (border_width * 2)
         vertical_padding = margins.top() + margins.bottom() + (border_width * 2)
 
-        final_size = QSize(int(optimal_content_width) + horizontal_padding, final_height + vertical_padding)
+        # Use the existing config settings as the upper bounds
+        max_w = getattr(config, 'popup_width', 800)
+        max_h = getattr(config, 'popup_height', 300)
+
+        final_w = min(int(optimal_content_width) + horizontal_padding, max_w)
+        final_h = min(final_height + vertical_padding, max_h)
+
+        final_size = QSize(final_w, final_h)
         return full_html, final_size
 
     def move_to(self, x, y):
-        cursor_point = QPoint(x, y)
-        screen = QApplication.screenAt(cursor_point) or QApplication.primaryScreen()
-        screen_geo = screen.geometry()
+        screens = QApplication.screens()
+        target_screen = None
+        
+        # Find the monitor at x=0 (your main DP-2 monitor)
+        for screen in screens:
+            if screen.geometry().left() == 0:
+                target_screen = screen
+                break
+                
+        if not target_screen:
+            target_screen = screens[0] if screens else None
+            
+        if not target_screen:
+            return
+            
+        screen_geo = target_screen.geometry()
         popup_size = self.size()
-        offset = 15
 
-        ratio = screen.devicePixelRatio()
-        x, y = magpie_manager.transform_raw_to_visual((int(x), int(y)), ratio)
+        if popup_size.width() <= 0 or popup_size.height() <= 0:
+            return
 
-        # --- Positioning logic based on mode ---
-        mode = config.popup_position_mode
-
-        if mode == 'visual_novel_mode':
-            # --- Vertical Position (VN Mode) ---
-            screen_height = screen_geo.height()
-            cursor_y_in_screen = y - screen_geo.top()
-            is_below = True
-            if cursor_y_in_screen > (2 * screen_height / 3):  # Lower third
-                is_below = False  # Place above
-            elif cursor_y_in_screen < (screen_height / 3):  # Upper third
-                is_below = True  # Place below
-            else:  # Middle third
-                is_below = cursor_y_in_screen < (screen_height / 2)
-            final_y = (y + offset) if is_below else (y - popup_size.height() - offset)
-
-            # Vertical Push
-            if final_y < screen_geo.top(): final_y = screen_geo.top()
-            if final_y + popup_size.height() > screen_geo.bottom():
-                final_y = screen_geo.bottom() - popup_size.height()
-
-            # --- Horizontal Position (VN Mode) ---
-            screen_width = screen_geo.width()
-            cursor_x_in_screen = x - screen_geo.left()
-            # Define anchor points for interpolation
-            pos_right = x + offset
-            pos_center = x - popup_size.width() / 2.0
-            pos_left = x - popup_size.width() - offset
-
-            # Interpolate smoothly between right, center, and left alignment
-            if cursor_x_in_screen < screen_width / 2.0:
-                ratio = cursor_x_in_screen / (screen_width / 2.0)
-                final_x = pos_right * (1 - ratio) + pos_center * ratio
-            else:
-                ratio = (cursor_x_in_screen - (screen_width / 2.0)) / (screen_width / 2.0)
-                final_x = pos_center * (1 - ratio) + pos_left * ratio
-
-        elif mode == 'flip_horizontally':
-            # X: Flip, Y: Push
-            preferred_x = x + offset
-            final_x = preferred_x if preferred_x + popup_size.width() <= screen_geo.right() else x - popup_size.width() - offset
-
-            final_y = y + offset
-            if final_y + popup_size.height() > screen_geo.bottom(): final_y = screen_geo.bottom() - popup_size.height()
-            if final_y < screen_geo.top(): final_y = screen_geo.top()
-
-        elif mode == 'flip_vertically':
-            # X: Push, Y: Flip
-            final_x = x + offset
-            if final_x + popup_size.width() > screen_geo.right(): final_x = screen_geo.right() - popup_size.width()
-            if final_x < screen_geo.left(): final_x = screen_geo.left()
-
-            preferred_y = y + offset
-            final_y = preferred_y if preferred_y + popup_size.height() <= screen_geo.bottom() else y - popup_size.height() - offset
-
-        else:  # 'flip_both'
-            # X: Flip
-            preferred_x = x + offset
-            final_x = preferred_x if preferred_x + popup_size.width() <= screen_geo.right() else x - popup_size.width() - offset
-
-            # Y: Flip
-            preferred_y = y + offset
-            final_y = preferred_y if preferred_y + popup_size.height() <= screen_geo.bottom() else y - popup_size.height() - offset
-
-        # Final clamp to ensure the popup is always fully visible.
-        # This acts as a safeguard against any edge cases.
-        final_x = max(screen_geo.left(), min(final_x, screen_geo.right() - popup_size.width()))
-        final_y = max(screen_geo.top(), min(final_y, screen_geo.bottom() - popup_size.height()))
+        # Center the popup perfectly
+        final_x = screen_geo.left() + (screen_geo.width() - popup_size.width()) // 2
+        final_y = screen_geo.top() + (screen_geo.height() - popup_size.height()) // 2
 
         self.move(int(final_x), int(final_y))
 
@@ -410,6 +382,7 @@ class Popup(QWidget):
             return
         self.hide()
         self.is_visible = False
+        self.shared_state.popup_is_active = False
         QTimer.singleShot(50, lambda: self._release_lock_safely())  # prevent popup from being screenshotted
         self._restore_focus_on_mac()
 
@@ -422,6 +395,8 @@ class Popup(QWidget):
         # logger.debug(f"show_popup triggered while visibility:{self.is_visible}")
         if self.is_visible:
             return
+        from PyQt6.QtGui import QCursor
+        self._popup_show_mouse_pos = QCursor.pos()
         logger.debug("show_popup acquiring lock...")
         self.shared_state.screen_lock.acquire()
         logger.debug("...successfully acquired lock by show_popup")
@@ -432,6 +407,7 @@ class Popup(QWidget):
             self.raise_()
 
         self.is_visible = True
+        self.shared_state.popup_is_active = True
 
     def reapply_settings(self):
         logger.debug("Popup: Re-applying settings and triggering font recalibration.")

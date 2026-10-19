@@ -48,6 +48,10 @@ class ScreenManager(threading.Thread):
                     continue
                 self.shared_state.screenshot_trigger_event.wait()
                 self.shared_state.screenshot_trigger_event.clear()
+                if self.shared_state.popup_is_active:
+                    logger.debug("Popup is active. Pausing Scan.")
+                    self._sleep_and_handle_loop_exit(0.2)
+                    continue
                 if not self.shared_state.running: break
                 logger.debug("Screenshot: Triggered!")
 
@@ -109,7 +113,13 @@ class ScreenManager(threading.Thread):
         with mss.mss() as sct:
             if screen_index < len(sct.monitors):
                 logger.info(f"Set scan area to screen {screen_index}")
-                self.monitor = sct.monitors[screen_index]
+            
+                # Hardcode the exact bounds for screen 1 (DP-2) to fix the cropped bottom
+                if screen_index == 1:
+                    self.monitor = {"left": 0, "top": 0, "width": 2560, "height": 1440}
+                else:
+                    self.monitor = sct.monitors[screen_index]
+                
             else:
                 logger.error(f"Cannot set scan screen: index {screen_index} is out of bounds.")
 

@@ -169,6 +169,26 @@ class SettingsDialog(QDialog):
         self.compact_check.setChecked(config.compact_mode)
         behavior_layout.addRow("Compact Mode:", self.compact_check)
 
+        self.click_to_close_check = QCheckBox()
+        self.click_to_close_check.setChecked(config.click_to_close)
+        behavior_layout.addRow("Click Anywhere to Close:", self.click_to_close_check)
+
+        self.popup_width_spin = QSpinBox()
+        self.popup_width_spin.setRange(100, 3000)
+        self.popup_width_spin.setValue(config.popup_width)
+        behavior_layout.addRow("Max Popup Width:", self.popup_width_spin)
+
+        self.popup_height_spin = QSpinBox()
+        self.popup_height_spin.setRange(100, 3000)
+        self.popup_height_spin.setValue(config.popup_height)
+        behavior_layout.addRow("Max Popup Height:", self.popup_height_spin)
+
+        self.mouse_away_dist_spin = QSpinBox()
+        self.mouse_away_dist_spin.setRange(10, 500)
+        self.mouse_away_dist_spin.setValue(config.mouse_away_distance)
+        self.mouse_away_dist_spin.setToolTip("Only needed if 'Click Anywhere to Close' is unchecked.")
+        behavior_layout.addRow("Mouse Away Distance (px):", self.mouse_away_dist_spin)
+
         behavior_group.setLayout(behavior_layout)
         self.tab_general_layout.addWidget(behavior_group)
         self.tab_general_layout.addStretch()
@@ -431,6 +451,10 @@ class SettingsDialog(QDialog):
         if IS_WINDOWS:
             config.magpie_compatibility = self.magpie_check.isChecked()
         config.compact_mode = self.compact_check.isChecked()
+        config.click_to_close = self.click_to_close_check.isChecked()
+        config.popup_width = self.popup_width_spin.value()
+        config.popup_height = self.popup_height_spin.value()
+        config.mouse_away_distance = self.mouse_away_dist_spin.value()
         config.show_all_glosses = self.show_glosses_check.isChecked()
         config.show_deconjugation = self.show_deconj_check.isChecked()
         config.show_pos = self.show_pos_check.isChecked()
@@ -452,7 +476,8 @@ class SettingsDialog(QDialog):
         # Tell the live components to re-apply settings
         self.input_loop.reapply_settings()
         self.popup_window.reapply_settings()
-        self.tray_icon.reapply_settings()
+        if self.tray_icon:
+            self.tray_icon.reapply_settings()
         self.ocr_processor.shared_state.screenshot_trigger_event.set()
 
         self.accept()

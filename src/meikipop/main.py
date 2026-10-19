@@ -4,7 +4,7 @@ import signal
 import sys
 import threading
 
-from PyQt6.QtCore import qInstallMessageHandler
+from PyQt6.QtCore import qInstallMessageHandler, QTimer
 from PyQt6.QtWidgets import QApplication
 
 from meikipop.utils.logger import setup_logging
@@ -13,6 +13,7 @@ from meikipop.dictionary.lookup import Lookup
 from meikipop.gui.input import InputLoop
 from meikipop.gui.popup import Popup
 from meikipop.gui.tray import TrayIcon
+from meikipop.gui.settings_dialog import SettingsDialog
 from meikipop.ocr.hit_scan import HitScanner
 from meikipop.ocr.ocr import OcrProcessor
 from meikipop.screenshot.screenmanager import ScreenManager
@@ -39,6 +40,7 @@ class SharedState:
         self.ocr_queue = LatestValueQueue()
         self.hit_scan_queue = LatestValueQueue()
         self.lookup_queue = LatestValueQueue()
+        self.popup_is_active = False
 
         # screen lock - used by screen manager and popup
         self.screen_lock = threading.RLock()
@@ -77,6 +79,19 @@ def run_gui():
     --------------------------------------------------
     """
     print(ready_message)
+
+    def launch_settings():
+        dialog = SettingsDialog(
+            ocr_processor=ocr_processor,
+            popup_window=popup_window,
+            input_loop=input_loop,
+            lookup=lookup,
+            tray_icon=tray_icon
+        )
+        dialog.exec()
+
+    # Listen for SIGUSR1 to open settings from Waybar/CLI
+    signal.signal(signal.SIGUSR1, lambda signum, frame: QTimer.singleShot(0, launch_settings))
 
     def signal_handler(sig, frame):
         QApplication.quit()
