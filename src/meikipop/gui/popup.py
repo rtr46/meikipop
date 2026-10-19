@@ -338,12 +338,16 @@ class Popup(QWidget):
         horizontal_padding = margins.left() + margins.right() + (border_width * 2)
         vertical_padding = margins.top() + margins.bottom() + (border_width * 2)
 
-        # Use the existing config settings as the upper bounds
-        max_w = getattr(config, 'popup_width', 800)
-        max_h = getattr(config, 'popup_height', 300)
-
-        final_w = min(int(optimal_content_width) + horizontal_padding, max_w)
-        final_h = min(final_height + vertical_padding, max_h)
+        # Only apply max bounds (and thus the scrollbar) if the popup is centered and permanent
+        if config.popup_position_mode == 'center' and config.click_to_close:
+            max_w = config.popup_width
+            max_h = config.popup_height
+            final_w = min(int(optimal_content_width) + horizontal_padding, max_w)
+            final_h = min(final_height + vertical_padding, max_h)
+        else:
+            # Original fully dynamic sizing for mouse-following modes
+            final_w = int(optimal_content_width) + horizontal_padding
+            final_h = final_height + vertical_padding
 
         final_size = QSize(final_w, final_h)
         return full_html, final_size
