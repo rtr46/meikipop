@@ -352,27 +352,97 @@ class Popup(QWidget):
         screens = QApplication.screens()
         target_screen = None
         
-        # Find the monitor at x=0 (your main DP-2 monitor)
         for screen in screens:
             if screen.geometry().left() == 0:
                 target_screen = screen
                 break
                 
         if not target_screen:
-            target_screen = screens[0] if screens else None
+            target_screen = QApplication.primaryScreen()
             
         if not target_screen:
             return
             
         screen_geo = target_screen.geometry()
         popup_size = self.size()
-
+        
         if popup_size.width() <= 0 or popup_size.height() <= 0:
             return
 
-        # Center the popup perfectly
-        final_x = screen_geo.left() + (screen_geo.width() - popup_size.width()) // 2
-        final_y = screen_geo.top() + (screen_geo.height() - popup_size.height()) // 2
+        mode = config.popup_position_mode
+
+        # --- NEW CENTER MODE ---
+        if mode == 'center':
+            final_x = screen_geo.left() + (screen_geo.width() - popup_size.width()) // 2
+            final_y = screen_geo.top() + (screen_geo.height() - popup_size.height()) // 2
+            self.move(int(final_x), int(final_y))
+            return
+        
+        # --- ORIGINAL LOGIC FOR OTHER MODES ---
+        # Determine which screen the cursor is actually on
+        cursor_point = QPoint(x, y)
+        cursor_screen = QApplication.screenAt(cursor_point) or QApplication.primaryScreen()
+        cursor_geo = cursor_screen.geometry()
+
+        offset = 15
+        ratio = cursor_screen.devicePixelRatio()
+        # (Note: We keep your magpie_manager transform if you need it, but it was in the original)
+        
+        if mode == 'visual_novel_mode':
+            # Vertical Position (VN Mode)
+            screen_height = cursor_geo.height()
+            cursor_y_in_screen = y - cursor_geo.top()
+            is_below = True
+            if cursor_y_in_screen > (2 * screen_height / 3):
+                is_below = False
+            elif cursor_y_in_screen < (screen_height / 3):
+                is_below = True
+            else:
+                is_below = cursor_y_in_screen < (screen_height / 2)
+            final_y = (y + offset) if is_below else (y - popup_size.height() - offset)
+
+            # Vertical Push
+            if final_y < cursor_geo.top(): final_y = cursor_geo.top()
+            if final_y + popup_size.height() > cursor_geo.bottom():
+                final_y = cursor_geo.bottom() - popup_size.height()
+
+            # Horizontal Position (VN Mode)
+            screen_width = cursor_geo.width()
+            cursor_x_in_screen = x - cursor_geo.left()
+            pos_right = x + offset
+            pos_center = x - popup_size.width() / 2.0
+            pos_left = x - popup_size.width() - offset
+
+            if cursor_x_in_screen < screen_width / 2.0:
+                ratio = cursor_x_in_screen / (screen_width / 2.0)
+                final_x = pos_right * (1 - ratio) + pos_center * ratio
+            else:
+                ratio = (cursor_x_in_screen - (screen_width / 2.0)) / (screen_width / 2.0)
+                final_x = pos_center * (1 - ratio) + pos_left * ratio
+
+        elif mode == 'flip_horizontally':
+            preferred_x = x + offset
+            final_x = preferred_x if preferred_x + popup_size.width() <= cursor_geo.right() else x - popup_size.width() - offset
+            final_y = y + offset
+            if final_y + popup_size.height() > cursor_geo.bottom(): final_y = cursor_geo.bottom() - popup_size.height()
+            if final_y < cursor_geo.top(): final_y = cursor_geo.top()
+
+        elif mode == 'flip_vertically':
+            final_x = x + offset
+            if final_x + popup_size.width() > cursor_geo.right(): final_x = cursor_geo.right() - popup_size.width()
+            if final_x < cursor_geo.left(): final_x = cursor_geo.left()
+            preferred_y = y + offset
+            final_y = preferred_y if preferred_y + popup_size.height() <= cursor_geo.bottom() else y - popup_size.height() - offset
+
+        else:  # 'flip_both'
+            preferred_x = x + offset
+            final_x = preferred_x if preferred_x + popup_size.width() <= cursor_geo.right() else x - popup_size.width() - offset
+            preferred_y = y + offset
+            final_y = preferred_y if preferred_y + popup_size.height() <= cursor_geo.bottom() else y - popup_size.height() - offset
+
+        # Final clamp to ensure the popup is always fully visible.
+        final_x = max(cursor_geo.left(), min(final_x, cursor_geo.right() - popup_size.width()))
+        final_y = max(cursor_geo.top(), min(final_y, cursor_geo.bottom() - popup_size.height()))
 
         self.move(int(final_x), int(final_y))
 

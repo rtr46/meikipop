@@ -151,12 +151,13 @@ class SettingsDialog(QDialog):
         self.form_layouts.append(behavior_layout)
 
         self.popup_position_combo = QComboBox()
-        self.popup_position_combo.addItems(["Flip Both", "Flip Vertically", "Flip Horizontally", "Visual Novel Mode"])
+        self.popup_position_combo.addItems(["Flip Both", "Flip Vertically", "Flip Horizontally", "Visual Novel Mode", "Center"])
         self.popup_mode_map = {
             "Flip Both": "flip_both",
             "Flip Vertically": "flip_vertically",
             "Flip Horizontally": "flip_horizontally",
-            "Visual Novel Mode": "visual_novel_mode"
+            "Visual Novel Mode": "visual_novel_mode",
+            "Center": "center"
         }
         current_friendly_name = next(
             (k for k, v in self.popup_mode_map.items() if v == config.popup_position_mode), "Flip Vertically"
