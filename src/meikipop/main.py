@@ -40,8 +40,14 @@ class SharedState:
         self.hit_scan_queue = LatestValueQueue()
         self.lookup_queue = LatestValueQueue()
 
-        # screen lock - used by screen manager and popup
+        # screen lock - serialises screenshot capture
         self.screen_lock = threading.RLock()
+
+        # The popup must not be included in screenshots that are sent to OCR.
+        # ScreenManager asks the popup to hide (the Qt object lives on the GUI
+        # thread), waits for it to be gone, captures, and then lets it reappear.
+        self.capture_requested = threading.Event()
+        self.popup_hidden_for_capture = threading.Event()
 
 
 def run_gui():

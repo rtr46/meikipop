@@ -29,14 +29,16 @@ class ScreenManager(threading.Thread):
         self.last_mouse_pos = None
         self.input_loop = input_loop
         if config.scan_region == "region":
-            self.set_scan_region()
+            if not self.set_scan_region():
+                logger.info("Region selection cancelled; using the full monitor layout.")
+                self.set_scan_screen(0)
         else:
             try:
                 screen_idx = int(config.scan_region)
                 self.set_scan_screen(screen_idx)
             except (ValueError, IndexError):
-                logger.warning(f"Invalid screen '{config.scan_region}' in config, defaulting to screen 1.")
-                self.set_scan_screen(1)
+                logger.warning(f"Invalid screen '{config.scan_region}' in config, defaulting to screen 0.")
+                self.set_scan_screen(0)
 
     def run(self):
         logger.debug("Screenshot thread started.")
@@ -64,12 +66,26 @@ class ScreenManager(threading.Thread):
                     continue
                 self.last_mouse_pos = self.input_loop.get_mouse_pos()
 
-                logger.debug("screenmanager acquiring lock...")
-                with self.shared_state.screen_lock:
-                    logger.debug("...successfully acquired lock by screenmanager")
-                    start_time = time.perf_counter()
-                    screenshot = self.take_screenshot()
-                logger.debug("...successfully released lock by screenmanager")
+                # Ask the popup to hide so it is not baked into the screenshot
+                # (OCR would otherwise see the popup and lose the text behind
+                # it). This replaces the old behaviour of the popup holding
+                # screen_lock for as long as it was visible, which starved the
+                # capture loop and left OCR stuck on stale screen contents.
+                self.shared_state.popup_hidden_for_capture.clear()
+                self.shared_state.capture_requested.set()
+                try:
+                    hide_start = time.perf_counter()
+                    hidden = self.shared_state.popup_hidden_for_capture.wait(timeout=0.3)
+                    logger.debug("capture: popup hidden=%s after %.0fms", hidden,
+                                 (time.perf_counter() - hide_start) * 1000)
+                    logger.debug("screenmanager acquiring lock...")
+                    with self.shared_state.screen_lock:
+                        logger.debug("...successfully acquired lock by screenmanager")
+                        start_time = time.perf_counter()
+                        screenshot = self.take_screenshot()
+                    logger.debug("...successfully released lock by screenmanager")
+                finally:
+                    self.shared_state.capture_requested.clear()
                 processing_duration = time.perf_counter() - start_time
                 logger.debug(f"Screenshot {screenshot.size} complete in {processing_duration:.2f}s")
 

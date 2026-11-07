@@ -45,6 +45,7 @@ class Popup(QWidget):
         self.is_calibrated = False
         self.header_chars_per_line = 50
         self.def_chars_per_line = 50
+        self._hiding_for_capture = False
 
         self.setWindowFlags(
             Qt.WindowType.FramelessWindowHint |
@@ -150,6 +151,10 @@ class Popup(QWidget):
 
         return best_fit if best_fit > 0 else 50
 
+    def _mark_hidden_for_capture(self):
+        self._hiding_for_capture = False
+        self.shared_state.popup_hidden_for_capture.set()
+
     def set_latest_data(self, data):
         with self._data_lock:
             self._latest_data = data
@@ -162,6 +167,22 @@ class Popup(QWidget):
         if not self.is_calibrated:
             self._calibrate_empirically()
 
+        # The screen manager is about to take a screenshot for OCR. Get out of
+        # the way so the popup is not captured, then let the next timer tick
+        # show it again.
+        if self.shared_state.capture_requested.is_set():
+            logger.debug("popup: capture requested, visible=%s", self.is_visible)
+            if self.is_visible:
+                self.hide_popup()
+                self._hiding_for_capture = True
+                # Give the compositor a few frames to actually remove the
+                # surface before the screenshot is taken.
+                QTimer.singleShot(100, self._mark_hidden_for_capture)
+            elif not self._hiding_for_capture:
+                self.shared_state.popup_hidden_for_capture.set()
+            return
+
+        self._hiding_for_capture = False
         latest_data = self.get_latest_data()
         if latest_data and latest_data != self._last_latest_data:
             # update popup content
@@ -175,8 +196,14 @@ class Popup(QWidget):
         else:
             self.hide_popup()
 
-        mouse_pos = QCursor.pos()
-        self.move_to(mouse_pos.x(), mouse_pos.y())
+        # QCursor.pos() is unreliable on Wayland (it often reports a stale or
+        # window-relative position). Prefer the compositor's cursor position,
+        # which the input loop already polls.
+        mouse_pos = getattr(self.input_loop, 'last_mouse_pos', None)
+        if not mouse_pos or mouse_pos == (0, 0):
+            qt_pos = QCursor.pos()
+            mouse_pos = (qt_pos.x(), qt_pos.y())
+        self.move_to(mouse_pos[0], mouse_pos[1])
 
     def _render_kanji_entry(self, entry: KanjiEntry):
         # Colors and sizes from config
@@ -410,21 +437,13 @@ class Popup(QWidget):
             return
         self.hide()
         self.is_visible = False
-        QTimer.singleShot(50, lambda: self._release_lock_safely())  # prevent popup from being screenshotted
         self._restore_focus_on_mac()
-
-    def _release_lock_safely(self):
-        logger.debug("hide_popup releasing lock...")
-        self.shared_state.screen_lock.release()
-        logger.debug("...successfully released lock by hide_popup")
 
     def show_popup(self):
         # logger.debug(f"show_popup triggered while visibility:{self.is_visible}")
         if self.is_visible:
             return
-        logger.debug("show_popup acquiring lock...")
-        self.shared_state.screen_lock.acquire()
-        logger.debug("...successfully acquired lock by show_popup")
+        logger.debug("popup: showing")
 
         self._store_active_window_on_mac()
         self.show()

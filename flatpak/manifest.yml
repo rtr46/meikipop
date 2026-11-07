@@ -11,7 +11,9 @@ finish-args:
   - "--device=dri"
   - "--share=ipc"
   - "--share=network"
-  - --talk-name=org.kde.StatusNotifierWatcher
+  - "--talk-name=org.kde.StatusNotifierWatcher"
+  - "--talk-name=org.freedesktop.Flatpak"
+  - "--filesystem=xdg-run/hypr:ro"
   - "--filesystem=xdg-config/meikipop:rw"
   - "--filesystem=xdg-config/screen_ai:rw"
   - "--filesystem=xdg-data/meikipop:rw"

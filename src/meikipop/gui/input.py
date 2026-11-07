@@ -7,6 +7,7 @@ import time
 from pynput import mouse
 
 from meikipop.config.config import config, IS_LINUX, IS_MACOS
+from meikipop.utils import hyprland
 
 if IS_LINUX:
     from Xlib import display as xlib_display
@@ -150,6 +151,10 @@ class InputLoop(threading.Thread):
             self.keyboard_controller = WindowsKeyboardController(self.hotkey_str)
 
         self.started_auto_mode = False
+        # Last position observed by the input loop (Hyprland coordinates on
+        # Wayland). The popup uses this for placement because QCursor.pos() is
+        # unreliable under Wayland.
+        self.last_mouse_pos = (0, 0)
 
     def run(self):
         logger.debug("Input thread started.")
@@ -189,6 +194,7 @@ class InputLoop(threading.Thread):
                     logger.info(f"Input: Hotkey '{config.hotkey}' released.")
 
                 last_mouse_pos = current_mouse_pos
+                self.last_mouse_pos = current_mouse_pos
                 hotkey_was_pressed = hotkey_is_pressed
                 self.hotkey_is_pressed = hotkey_is_pressed
             except:
@@ -213,6 +219,12 @@ class InputLoop(threading.Thread):
 
     @staticmethod
     def get_mouse_pos():
+        # Hyprland's compositor coordinates are authoritative on Wayland.
+        # XWayland reports a different coordinate space, which breaks hit
+        # scanning on multi-monitor layouts (and after monitor changes).
+        hyprland_pos = hyprland.get_cursor_pos()
+        if hyprland_pos is not None:
+            return hyprland_pos
         try:
             pos = InputLoop._mouse_controller.position
         except Exception:

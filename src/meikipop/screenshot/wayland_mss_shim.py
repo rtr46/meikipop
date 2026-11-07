@@ -1,6 +1,9 @@
 # Modified from AuroraWright's OwOCR
 import logging
+import os
 import re
+import shutil
+import subprocess
 import threading
 import time
 import uuid
@@ -9,7 +12,9 @@ from pathlib import Path
 import gi
 gi.require_version('Gst', '1.0')
 from gi.repository import GLib, Gst, Gio
+from PIL import Image
 
+from meikipop.utils import hyprland
 from meikipop.utils.paths import paths
 
 import mss as real_mss
@@ -30,6 +35,255 @@ if token_file.exists():
         persist_token = file.read().strip()
 
 
+def _in_flatpak():
+    return os.path.exists('/.flatpak-info')
+
+
+def _grim_command():
+    """Return the argv prefix used to run grim, or None when unavailable."""
+    if _in_flatpak():
+        if shutil.which('flatpak-spawn') is None:
+            return None
+        return ['flatpak-spawn', '--host', 'grim']
+    if shutil.which('grim') is None:
+        return None
+    return ['grim']
+
+
+_grim_available_cache = None
+
+
+def _grim_available():
+    """Return True when grim can be invoked for Wayland screen capture.
+
+    Inside the Flatpak sandbox grim cannot use wlr-screencopy itself, but the
+    host copy can through ``flatpak-spawn --host`` (requires the
+    ``org.freedesktop.Flatpak`` talk permission). Only the command's
+    availability is checked here, so this stays fast while the screen is
+    locked; capture failures are handled by the screenshot loop.
+    """
+    global _grim_available_cache
+    if _grim_available_cache is not None:
+        return _grim_available_cache
+
+    prefix = _grim_command()
+    if not prefix or not hyprland.available():
+        _grim_available_cache = False
+        return False
+
+    try:
+        result = subprocess.run(
+            prefix + ['-h'],
+            capture_output=True, timeout=5,
+            stdin=subprocess.DEVNULL,
+        )
+        # grim -h exits successfully and prints its usage text.
+        available = result.returncode == 0 and b'Usage: grim' in result.stdout
+    except Exception:
+        logger.debug("grim availability test failed", exc_info=True)
+        available = False
+
+    _grim_available_cache = available
+    if available:
+        logger.info("Using grim (from the host) for Wayland screen capture")
+    else:
+        logger.info("grim is not usable; falling back to the screen-cast portal")
+    return available
+
+
+def _parse_ppm(data):
+    """Parse a binary P6 PPM into RGB bytes."""
+    pos = 0
+
+    def next_token():
+        nonlocal pos
+        while pos < len(data):
+            char = data[pos:pos + 1]
+            if char.isspace():
+                pos += 1
+            elif char == b'#':
+                newline = data.find(b'\n', pos)
+                pos = len(data) if newline < 0 else newline + 1
+            else:
+                break
+        start = pos
+        while pos < len(data):
+            char = data[pos:pos + 1]
+            if char.isspace() or char == b'#':
+                break
+            pos += 1
+        return data[start:pos]
+
+    if next_token() != b'P6':
+        raise ScreenShotError('grim did not return a binary PPM image')
+    width = int(next_token())
+    height = int(next_token())
+    maxval = int(next_token())
+    if maxval != 255:
+        raise ScreenShotError(f'Unsupported PPM max value: {maxval}')
+
+    # Exactly one whitespace character separates the header from the pixels.
+    if data[pos:pos + 2] == b'\r\n':
+        pos += 2
+    elif data[pos:pos + 1] in (b'\n', b'\r', b' ', b'\t'):
+        pos += 1
+
+    expected = width * height * 3
+    pixels = data[pos:pos + expected]
+    if len(pixels) != expected:
+        raise ScreenShotError('grim returned truncated pixel data')
+    return pixels, width, height
+
+
+def _capture_with_grim(left, top, width, height):
+    prefix = _grim_command()
+    if not prefix:
+        raise ScreenShotError('grim is not available')
+
+    grim_args = [
+        '-s', '1',
+        '-g', f'{left},{top} {width}x{height}',
+        '-t', 'ppm',
+        '-',
+    ]
+
+    if _in_flatpak():
+        # The host grim process is not a child of this sandbox, so a Python
+        # timeout cannot reliably kill it. Have the host's timeout(1) do it.
+        command = prefix[:2] + ['timeout', '4'] + prefix[2:] + grim_args
+    else:
+        command = prefix + grim_args
+
+    result = subprocess.run(
+        command,
+        capture_output=True,
+        timeout=8 if _in_flatpak() else 5,
+        stdin=subprocess.DEVNULL,
+    )
+    if result.returncode != 0:
+        message = result.stderr.decode('utf-8', errors='replace').strip()
+        if result.returncode == 124:
+            message = 'grim timed out (is the screen locked?)'
+        raise ScreenShotError(message or 'grim failed to capture the screen')
+
+    pixels, width, height = _parse_ppm(result.stdout)
+    # ScreenShot expects BGRx raw pixels (the x byte is ignored downstream).
+    bgra = Image.frombytes('RGB', (width, height), pixels).tobytes('raw', 'BGRX')
+    return bytearray(bgra), width, height
+
+
+_layout = None
+_layout_lock = threading.Lock()
+
+
+def _full_layout(monitors):
+    left = min(int(monitor['x']) for monitor in monitors)
+    top = min(int(monitor['y']) for monitor in monitors)
+    right = max(int(monitor['x']) + int(monitor['width']) for monitor in monitors)
+    bottom = max(int(monitor['y']) + int(monitor['height']) for monitor in monitors)
+    return {
+        'left': left,
+        'top': top,
+        'width': right - left,
+        'height': bottom - top,
+    }
+
+
+def _shared_layout(monitors):
+    """Return the geometry dict shared with ScreenManager and hit scanning.
+
+    It is updated in place in ``GrimWaylandShim.grab`` so the object held by
+    ScreenManager always describes the monitor that was actually captured.
+    """
+    global _layout
+    with _layout_lock:
+        if _layout is None:
+            _layout = _full_layout(monitors)
+        return _layout
+
+
+class GrimWaylandShim:
+    """Capture the monitor under the cursor through the host's grim binary."""
+
+    def __init__(self):
+        monitors = hyprland.get_monitors()
+        if not monitors:
+            raise ScreenShotError('Could not read the Hyprland monitor layout')
+        _shared_layout(monitors)
+
+    @property
+    def monitors(self):
+        monitors = hyprland.get_monitors()
+        if not monitors:
+            return [_layout, _layout]
+        layout = _shared_layout(monitors)
+        # mss convention: index 0 is the whole/most relevant monitor.
+        return [layout, layout]
+
+    def grab(self, sct_params):
+        monitors = hyprland.get_monitors()
+        if not monitors:
+            raise ScreenShotError('Could not read the Hyprland monitor layout')
+        layout = _shared_layout(monitors)
+
+        is_layout_request = sct_params is layout or sct_params == layout
+
+        if is_layout_request:
+            # Capture the monitor under the cursor. The shared layout dict is
+            # updated in place so ScreenManager and hit scanning always use the
+            # geometry of the monitor that was actually captured, even after the
+            # user moves to another display or the layout changes.
+            cursor = hyprland.get_cursor_pos()
+            target = None
+            if cursor is not None:
+                cx, cy = cursor
+                for monitor in monitors:
+                    mx, my = int(monitor['x']), int(monitor['y'])
+                    mw, mh = int(monitor['width']), int(monitor['height'])
+                    if mx <= cx < mx + mw and my <= cy < my + mh:
+                        target = monitor
+                        break
+
+            if target is not None:
+                left, top = int(target['x']), int(target['y'])
+                width, height = int(target['width']), int(target['height'])
+                with _layout_lock:
+                    layout.update({
+                        'left': left,
+                        'top': top,
+                        'width': width,
+                        'height': height,
+                    })
+            else:
+                full = _full_layout(monitors)
+                left, top = full['left'], full['top']
+                width, height = full['width'], full['height']
+        else:
+            left, top = int(sct_params['left']), int(sct_params['top'])
+            width, height = int(sct_params['width']), int(sct_params['height'])
+
+        # Clamp the requested region to the current monitor layout.
+        full = _full_layout(monitors)
+        right = min(left + width, full['left'] + full['width'])
+        bottom = min(top + height, full['top'] + full['height'])
+        left = max(left, full['left'])
+        top = max(top, full['top'])
+        width = right - left
+        height = bottom - top
+        if width <= 0 or height <= 0:
+            raise ScreenShotError('Requested capture region is outside the monitor layout')
+
+        bgra, width, height = _capture_with_grim(left, top, width, height)
+        monitor = {'left': left, 'top': top, 'width': width, 'height': height}
+        return ScreenShot(bgra, monitor, size=Size(width, height))
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        pass
+
+
 class ScreenCastManager:
     def __init__(self):
         self.screen_cast_iface = 'org.freedesktop.portal.ScreenCast'
@@ -39,6 +293,7 @@ class ScreenCastManager:
         self.request_token_counter = 0
         self.session_token_counter = 0
         self.restore_token = None
+        self.stream_position = (0, 0)
         self.start()
 
     def __del__(self):
@@ -163,6 +418,27 @@ class ScreenCastManager:
                 file.write(results['restore_token'])
         if results.get('streams'):
             node_id, stream_properties = results['streams'][0]
+
+            def _unwrap(value):
+                return value.unpack() if hasattr(value, 'unpack') else value
+
+            # xdg-desktop-portal-hyprland always reports position (0, 0), but it
+            # does report the captured monitor's name as mapping_id. Look up the
+            # real position from Hyprland so hit scanning can translate global
+            # mouse coordinates into frame-relative coordinates on multi-monitor
+            # setups.
+            mapping_id = _unwrap(stream_properties.get('mapping_id'))
+            position_x, position_y = (0, 0)
+            for monitor in hyprland.get_monitors() or []:
+                if monitor.get('name') == str(mapping_id):
+                    position_x, position_y = int(monitor['x']), int(monitor['y'])
+                    break
+            self.stream_position = (position_x, position_y)
+
+            logger.info(
+                "Wayland screencast: mapping_id=%s, position=(%d,%d)",
+                str(mapping_id), position_x, position_y,
+            )
             self._play_pipewire_stream(node_id)
         else:
             self.stop()
@@ -309,7 +585,17 @@ class MSSWaylandShim:
         frame_data = self._grab_screenshot(sct_params)
         bgra_data, crop_width, crop_height = frame_data
 
-        return ScreenShot(bgra_data, self._monitors[0], size=Size(crop_width, crop_height))
+        if sct_params is self._monitors[0]:
+            monitor = self._monitors[0]
+        else:
+            monitor = {
+                'left': int(sct_params['left']),
+                'top': int(sct_params['top']),
+                'width': crop_width,
+                'height': crop_height,
+            }
+
+        return ScreenShot(bgra_data, monitor, size=Size(crop_width, crop_height))
 
     def _create_monitors(self):
         self._monitors = []
@@ -320,9 +606,12 @@ class MSSWaylandShim:
 
         _, width, height = frame
 
+        # The portal reports the stream at (0, 0); use the real compositor
+        # position resolved from mapping_id so global coordinates line up.
+        origin_x, origin_y = getattr(screencast, 'stream_position', (0, 0))
         fake_monitor = Monitor({
-            'top': 0,
-            'left': 0,
+            'top': origin_y,
+            'left': origin_x,
             'width': width,
             'height': height
         })
@@ -336,10 +625,11 @@ class MSSWaylandShim:
             raise ScreenShotError('Invalid frame received')
 
         bgra_data, full_width, full_height = frame
+        origin_x, origin_y = getattr(screencast, 'stream_position', (0, 0))
 
         if sct_params != self._monitors[0]:
-            crop_top = sct_params['top']
-            crop_left = sct_params['left']
+            crop_top = sct_params['top'] - origin_y
+            crop_left = sct_params['left'] - origin_x
             crop_width = sct_params['width']
             crop_height = sct_params['height']
 
@@ -378,6 +668,8 @@ class MSSWaylandShim:
 
 class MSSModuleShim:
     def mss(self):
+        if _grim_available():
+            return GrimWaylandShim()
         return MSSWaylandShim()
 
     def __getattr__(self, name):
