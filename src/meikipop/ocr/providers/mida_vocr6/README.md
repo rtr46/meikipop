@@ -7,15 +7,19 @@ Text detection by **mida** (`mida_ocr_l.onnx`, MeikiOCR's author's line detector
 ## Setup
 
 1. Copy this folder to `src/meikipop/ocr/providers/mida_vocr6/`.
-2. Put **`mida_ocr_l.onnx`** in the models folder (the log names the exact path if it is missing):
-    - Windows `%LOCALAPPDATA%\meikipop\models\mida_vocr6\`
-    - Linux `~/.local/share/meikipop/models/mida_vocr6/`
-    - macOS `~/Library/Application Support/meikipop/models/mida_vocr6/`
-    - or any directory named in the environment variable `MEIKIPOP_MIDA_VOCR_DIR`
+2. Select the provider. The first start downloads both models into the models folder (about 4 MB, sha256-checked); after
+   that it works offline:
+   - `mida_ocr_l.onnx` (1.75 MB) from the author's Hugging Face repo, [rtr46/mida](https://huggingface.co/rtr46/mida)
+     (`mida_l_alpha_v0.0.1.onnx`; the decode is tuned on exactly this file)
+   - `VOCR6.2_L_fast.onnx` (2.5 MB) from vita-vn-ocr's pre-release `v0.5.1-onnx.2`
 
-   Only the file with sha256 `9f72bce5...8aed` is accepted: the decode was tuned on it.
-3. Select the provider. The first start downloads `VOCR6.2_L_fast.onnx` (2.5 MB, sha256-checked) from vita-vn-ocr's
-   pre-release `v0.5.1-onnx.2` into the same folder; after that it works offline.
+   The models folder is `%LOCALAPPDATA%\meikipop\models\mida_vocr6\` on Windows,
+   `~/.local/share/meikipop/models/mida_vocr6/`
+   on Linux, `~/Library/Application Support/meikipop/models/mida_vocr6/` on macOS, or the directory named in the
+   environment
+   variable `MEIKIPOP_MIDA_VOCR_DIR`. To set up offline, put the two files there yourself: a file with the right sha256
+   is
+   never downloaded again.
 
 No new dependencies (`numpy`, `opencv`, `onnxruntime`, `Pillow`, `platformdirs` come with meikipop / meikiocr).
 Tested on onnxruntime 1.20.1 (what meikipop pins on Windows) and 1.29.
@@ -48,4 +52,4 @@ Tested on onnxruntime 1.20.1 (what meikipop pins on Windows) and 1.29.
 | `mida_detector.py`         | decode ported from vita-vn-ocr's `eval/mida_det.py` (GPL-3.0-or-later)                                     |
 | `vocr_onnx.py`             | vita-vn-ocr's `tools/vocr_onnx.py` (GPL-3.0-or-later), recognizer path only, with a refit cell calibration |
 | `VOCR6.2_L_fast.onnx`      | downloaded at first use. **Non-commercial use only** (see the release's `VOCR6-ATTRIBUTION.md`)            |
-| `mida_ocr_l.onnx`          | yours. Its licence is not stated by its author, so it is neither bundled nor downloaded                    |
+| `mida_ocr_l.onnx`          | downloaded at first use from the author's Hugging Face repo (rtr46/mida)                                   |

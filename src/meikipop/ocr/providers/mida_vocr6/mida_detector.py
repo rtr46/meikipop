@@ -1,5 +1,6 @@
 # meikipop/ocr/providers/mida_vocr6/mida_detector.py
-"""The mida line detector (`mida_ocr_l.onnx`) on ONNX Runtime's CPU provider, horizontal lines only.
+"""The mida line detector (`mida_ocr_l.onnx`; the decode is tuned on the one file pinned in models.py) on ONNX Runtime's
+CPU provider, horizontal lines only.
 
 Adapted from `eval/mida_det.py` of https://github.com/bee-san/vita-vn-ocr (GPL-3.0-or-later). The network (read from the
 file by that project's authors): input "images" float32 (1, 3, h, w), BGR, 0-1; output "maps" (1, 4, ceil(h/8), ceil(w/8)):
@@ -12,16 +13,11 @@ The crop is then padded for the recognizer, which reads slightly better with som
 scenes): each end grows by END_GROW x the line's height plus a small fixed pad. There is NO padding across the line:
 that would make the reported boxes ~1.5x taller than the text and merge name plates into dialogue paragraphs.
 """
-import hashlib
-from pathlib import Path
 from typing import List, Tuple
 
 import cv2
 import numpy as np
 import onnxruntime as ort
-
-# The file the decode was tuned on: it is the only one accepted.
-MIDA_SHA256 = "9f72bce58b50b1837bb16e81c5c035d32d9cd45d84dcef56f0b6fb2ef25e8aed"
 
 STRIDE = 8
 FIT_W, FIT_H = 960, 544  # the frame is fit inside this for the network only (up or down)
@@ -32,10 +28,6 @@ END_PAD_BASE = 4  # plus max(2, round(4 * frame height / 544)) source px
 
 class MidaDetector:
     def __init__(self, model_path, threads: int = 4):
-        data = Path(model_path).read_bytes()
-        if hashlib.sha256(data).hexdigest() != MIDA_SHA256:
-            raise ValueError(f"{model_path} is not the mida_ocr_l.onnx this provider was tuned on "
-                             f"(sha256 {MIDA_SHA256[:8]}...). Refusing to load it.")
         so = ort.SessionOptions()
         so.intra_op_num_threads = max(1, threads)
         so.inter_op_num_threads = 1
@@ -43,7 +35,7 @@ class MidaDetector:
         so.add_session_config_entry("session.intra_op.allow_spinning", "0")  # no idle spinning in a background app
         so.add_session_config_entry("session.inter_op.allow_spinning", "0")
         so.enable_mem_pattern = False  # the input size varies per scan
-        self.sess = ort.InferenceSession(data, so, providers=["CPUExecutionProvider"])  # the bytes that were checked
+        self.sess = ort.InferenceSession(str(model_path), so, providers=["CPUExecutionProvider"])
 
     def detect(self, rgb: np.ndarray) -> List[Tuple[int, int, int, int]]:
         """Horizontal text lines of an H x W x 3 RGB uint8 image as integer crops (x, y, w, h), top to bottom."""

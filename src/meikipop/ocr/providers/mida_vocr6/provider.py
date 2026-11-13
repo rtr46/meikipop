@@ -35,7 +35,7 @@ class MidaVocr6Provider(OcrProvider):
 
     def __init__(self):
         logger.info(f"initializing {self.NAME} provider...")
-        mida_path = models.find_mida()  # raises with instructions if missing
+        mida_path = models.ensure_mida()  # downloads on first use
         vocr_path = models.ensure_vocr()  # downloads on first use
         self.detector = MidaDetector(mida_path, threads=THREADS)
 
