@@ -8,6 +8,7 @@ from meikipop.config.config import APP_NAME, config, IS_WINDOWS
 from meikipop.gui.settings_dialog import SettingsDialog
 from meikipop.ocr.ocr import OcrProcessor
 from meikipop.utils.paths import paths
+from meikipop.utils.console import console_manager
 
 
 class TrayIcon(QSystemTrayIcon):
@@ -94,6 +95,12 @@ class TrayIcon(QSystemTrayIcon):
 
         self.update_scan_area_check()
 
+        # Furigana Mode toggle
+        self.furigana_action = self.menu.addAction("Furigana Mode")
+        self.furigana_action.setCheckable(True)
+        self.furigana_action.setChecked(config.furigana_mode)
+        self.furigana_action.triggered.connect(self._on_furigana_mode_toggled)
+
         self.menu.addSeparator()
 
         self.enable_action = self.menu.addAction("Pause meikipop")
@@ -102,6 +109,15 @@ class TrayIcon(QSystemTrayIcon):
         self.activated.connect(self.on_tray_activated)
 
         self.menu.addSeparator()
+
+        # Console window toggle (only when meikipop owns its console, i.e. it wasn't started from a terminal)
+        self.console_action = None
+        if console_manager.can_toggle:
+            self.console_action = self.menu.addAction("Show Console")
+            self.console_action.setCheckable(True)
+            self.console_action.setChecked(console_manager.is_visible())
+            self.console_action.triggered.connect(self._on_console_toggled)
+            self.menu.aboutToShow.connect(self._sync_console_action)
 
         self.menu.addAction("Quit").triggered.connect(QApplication.instance().quit)
 
@@ -165,6 +181,21 @@ class TrayIcon(QSystemTrayIcon):
                 config.scan_region = str(index)
                 config.save()
 
+    def _on_furigana_mode_toggled(self, checked):
+        if checked != config.furigana_mode:
+            config.furigana_mode = checked
+            config.save()
+
+    def _on_console_toggled(self, checked):
+        if checked:
+            console_manager.show()
+        else:
+            console_manager.hide()
+
+    def _sync_console_action(self):
+        if self.console_action:
+            self.console_action.setChecked(console_manager.is_visible())
+
     def _on_ocr_provider_selected(self, action):
         provider_name = action.text()
         if provider_name != config.ocr_provider:
@@ -177,6 +208,8 @@ class TrayIcon(QSystemTrayIcon):
             if action.text() == config.ocr_provider:
                 action.setChecked(True)
                 break
+
+        self.furigana_action.setChecked(config.furigana_mode)
 
         # Update Scan Mode selection
         for action in self.scan_mode_action_group.actions():

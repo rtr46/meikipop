@@ -6,10 +6,10 @@ from typing import List, Optional
 from PyQt6.QtCore import QTimer, QPoint, QSize
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QColor, QCursor, QFont, QFontMetrics, QFontInfo
-from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel, QFrame, QApplication
+from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel, QFrame, QApplication, QGraphicsDropShadowEffect
 
 from meikipop.config.config import config, IS_MACOS
-from meikipop.dictionary.lookup import DictionaryEntry, KanjiEntry
+from meikipop.dictionary.lookup import DictionaryEntry, KanjiEntry, KANJI_REGEX
 from meikipop.gui.magpie_manager import magpie_manager
 
 # macOS-specific imports for focus management
@@ -26,7 +26,9 @@ class Popup(QWidget):
     def __init__(self, shared_state, input_loop):
         super().__init__()
         self._latest_data = None
-        self._last_latest_data = None
+        self._latest_source_text = None
+        self._last_render_key = None
+        self._current_view = None  # 'full' or 'furigana'
         self._data_lock = threading.Lock()
         self._previous_active_window_on_mac = None
 
@@ -59,7 +61,6 @@ class Popup(QWidget):
         main_layout.setContentsMargins(0, 0, 0, 0)
 
         self.frame = QFrame()
-        self._apply_frame_stylesheet()
         main_layout.addWidget(self.frame)
 
         self.content_layout = QVBoxLayout(self.frame)
@@ -70,19 +71,51 @@ class Popup(QWidget):
         self.display_label.setTextFormat(Qt.TextFormat.RichText)
         self.content_layout.addWidget(self.display_label)
 
+        self.furigana_padding = 4
+        self._apply_frame_stylesheet()
+
         self.hide()
 
-    def _apply_frame_stylesheet(self):
+    def _apply_frame_stylesheet(self, view='full'):
         bg_color = QColor(config.color_background)
         r, g, b = bg_color.red(), bg_color.green(), bg_color.blue()
         a = config.background_opacity
         self.probe_label.setFont(QFont(config.font_family))
+
+        is_bare_furigana = view == 'furigana' and not config.furigana_show_box
+        if is_bare_furigana:
+            frame_style = "background-color: transparent; border: none;"
+        elif view == 'furigana':
+            frame_style = (f"background-color: rgba({r}, {g}, {b}, {a}); border-radius: 4px; "
+                           f"border: 1px solid #555;")
+        else:
+            frame_style = (f"background-color: rgba({r}, {g}, {b}, {a}); border-radius: 8px; "
+                           f"border: 1px solid #555;")
+
+        if view == 'furigana':
+            p = self.furigana_padding
+            self.content_layout.setContentsMargins(p, p, p, p)
+            self.display_label.setWordWrap(False)
+            self.display_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        else:
+            self.content_layout.setContentsMargins(10, 10, 10, 10)
+            self.display_label.setWordWrap(True)
+            self.display_label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
+
+        # A subtle shadow keeps box-less furigana readable on any background.
+        if is_bare_furigana:
+            shadow = QGraphicsDropShadowEffect()
+            shadow.setBlurRadius(4)
+            shadow.setOffset(0, 0)
+            shadow.setColor(QColor(0, 0, 0, 230))
+            self.display_label.setGraphicsEffect(shadow)
+        else:
+            self.display_label.setGraphicsEffect(None)
+
         self.frame.setStyleSheet(f"""
             QFrame {{
-                background-color: rgba({r}, {g}, {b}, {a});
+                {frame_style}
                 color: {config.color_foreground};
-                border-radius: 8px;
-                border: 1px solid #555;
             }}
             QLabel {{
                 background-color: transparent;
@@ -150,33 +183,97 @@ class Popup(QWidget):
 
         return best_fit if best_fit > 0 else 50
 
-    def set_latest_data(self, data):
+    def set_latest_data(self, data, source_text=None):
         with self._data_lock:
             self._latest_data = data
+            self._latest_source_text = source_text
 
     def get_latest_data(self):
         with self._data_lock:
             return self._latest_data
 
+    def get_latest_data_and_source(self):
+        with self._data_lock:
+            return self._latest_data, self._latest_source_text
+
     def process_latest_data_loop(self):
         if not self.is_calibrated:
             self._calibrate_empirically()
 
-        latest_data = self.get_latest_data()
-        if latest_data and latest_data != self._last_latest_data:
-            # update popup content
-            full_html, new_size = self._calculate_content_and_size_char_count(latest_data)
-            self.display_label.setText(full_html)
-            self.setFixedSize(new_size)
-        self._last_latest_data = latest_data
+        latest_data, source_text = self.get_latest_data_and_source()
 
-        if self._latest_data and self.input_loop.is_virtual_hotkey_down() and config.is_enabled:
+        # decide what to show: the full dictionary popup, just the furigana, or nothing
+        view = None
+        furigana = None
+        if latest_data and config.is_enabled:
+            if config.furigana_mode:
+                if self.input_loop.is_real_hotkey_down():
+                    view = 'full'
+                else:
+                    furigana = self._get_best_furigana(latest_data, source_text)
+                    if furigana:
+                        view = 'furigana'
+            elif self.input_loop.is_virtual_hotkey_down():
+                view = 'full'
+
+        render_key = (view, furigana, latest_data if view == 'full' else None)
+        if view and render_key != self._last_render_key:
+            if view != self._current_view:
+                self._apply_frame_stylesheet(view)
+                self._current_view = view
+            if view == 'full':
+                full_html, new_size = self._calculate_content_and_size_char_count(latest_data)
+            else:
+                full_html, new_size = self._calculate_furigana_content_and_size(furigana)
+            if full_html and new_size:
+                self.display_label.setText(full_html)
+                self.setFixedSize(new_size)
+                self._last_render_key = render_key
+            else:
+                view = None
+
+        if view:
             self.show_popup()
         else:
             self.hide_popup()
 
         mouse_pos = QCursor.pos()
         self.move_to(mouse_pos.x(), mouse_pos.y())
+
+    @staticmethod
+    def _get_best_furigana(entries, source_text) -> Optional[str]:
+        """Returns the reading of the single most likely dictionary entry, or None if no furigana is needed."""
+        best = next((e for e in entries if isinstance(e, DictionaryEntry)), None)
+        if best is None or not best.reading or not best.written_form:
+            return None  # kana-only word: nothing to annotate
+        if not KANJI_REGEX.search(best.written_form):
+            return None
+        if source_text:
+            # only show furigana if the hovered text itself contains kanji (e.g. not when hovering plain kana)
+            hovered = source_text.strip()[:max(len(best.written_form), 1)]
+            if not KANJI_REGEX.search(hovered):
+                return None
+        return best.reading
+
+    def _furigana_font(self) -> QFont:
+        font = QFont(config.font_family)
+        font.setPixelSize(max(config.font_size_header - 2, 1))
+        return font
+
+    def _calculate_furigana_content_and_size(self, reading: str) -> tuple[Optional[str], Optional[QSize]]:
+        if not reading:
+            return None, None
+        font_size = max(config.font_size_header - 2, 1)
+        html = f'<span style="color: {config.color_highlight_reading}; font-size:{font_size}px;">{reading}</span>'
+
+        metrics = QFontMetrics(self._furigana_font())
+        text_height = metrics.height()
+        text_width = metrics.horizontalAdvance(reading) + 4  # small safety margin for rich text rendering
+
+        padding = (self.furigana_padding + 1) * 2  # layout margins + 1px border on each side
+        height = text_height + padding
+        width = max(text_width + padding, height)  # never narrower than tall, so short readings don't look squashed
+        return html, QSize(int(width), int(height))
 
     def _render_kanji_entry(self, entry: KanjiEntry):
         # Colors and sizes from config
@@ -435,6 +532,8 @@ class Popup(QWidget):
 
     def reapply_settings(self):
         logger.debug("Popup: Re-applying settings and triggering font recalibration.")
+        self._current_view = None
+        self._last_render_key = None
         self._apply_frame_stylesheet()
         # By setting is_calibrated to False, the main loop will automatically
         # run _calibrate_empirically() again with the new font settings.

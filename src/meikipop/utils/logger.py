@@ -1,8 +1,7 @@
 # meikipop/utils/logger.py
 import logging
-import sys
-
 from meikipop.config.config import APP_NAME
+from meikipop.utils.console import console_manager
 
 TRACE_LEVEL_NUM = 5
 logging.addLevelName(TRACE_LEVEL_NUM, "TRACE")
@@ -21,12 +20,10 @@ def setup_logging():
         datefmt='%H:%M:%S'
     )
 
-    handler = logging.StreamHandler(sys.stdout)
-    handler.setFormatter(log_formatter)
-
     logger = logging.getLogger()
     logger.setLevel(logging.INFO)  # logging.INFO or TRACE_LEVEL_NUM
 
     if logger.hasHandlers():
         logger.handlers.clear()
-    logger.addHandler(handler)
+    # logs go to stdout (if any) and to a buffer that is replayed when the console is opened from the tray menu
+    console_manager.install_logging(logger, log_formatter)

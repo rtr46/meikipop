@@ -74,7 +74,7 @@ class Lookup(threading.Thread):
                 self.last_hit_result = hit_result
 
                 lookup_result = self.lookup(self.last_hit_result) if self.last_hit_result else None
-                self.popup_window.set_latest_data(lookup_result)
+                self.popup_window.set_latest_data(lookup_result, self.last_hit_result)
             except:
                 logger.exception("An unexpected error occurred in the lookup loop. Continuing...")
         logger.debug("Lookup thread stopped.")

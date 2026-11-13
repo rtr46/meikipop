@@ -150,6 +150,7 @@ class InputLoop(threading.Thread):
             self.keyboard_controller = WindowsKeyboardController(self.hotkey_str)
 
         self.started_auto_mode = False
+        self.hotkey_is_pressed = False
 
     def run(self):
         logger.debug("Input thread started.")
@@ -196,6 +197,9 @@ class InputLoop(threading.Thread):
             finally:
                 time.sleep(0.01)
         logger.debug("Input thread stopped.")
+
+    def is_real_hotkey_down(self):
+        return self.keyboard_controller.is_hotkey_pressed()
 
     def is_virtual_hotkey_down(self):
         return self.keyboard_controller.is_hotkey_pressed() or (

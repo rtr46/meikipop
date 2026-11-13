@@ -171,6 +171,29 @@ class SettingsDialog(QDialog):
 
         behavior_group.setLayout(behavior_layout)
         self.tab_general_layout.addWidget(behavior_group)
+
+        # --- Group 4: Furigana Mode ---
+        furigana_group = QGroupBox("Furigana Mode")
+        furigana_layout = QFormLayout()
+        self.form_layouts.append(furigana_layout)
+
+        self.furigana_mode_check = QCheckBox()
+        self.furigana_mode_check.setChecked(config.furigana_mode)
+        self.furigana_mode_check.setToolTip(
+            "Only show the most likely reading (furigana) of the hovered word.\n"
+            "Hold the hotkey to show the full dictionary popup instead.\n"
+            "Showing furigana without pressing the hotkey works best with Auto Scan enabled.")
+        self.furigana_mode_check.toggled.connect(self._update_furigana_state)
+        furigana_layout.addRow("Enable Furigana Mode:", self.furigana_mode_check)
+
+        self.furigana_box_check_label = QLabel("Show Box Behind Furigana:")
+        self.furigana_box_check = QCheckBox()
+        self.furigana_box_check.setChecked(config.furigana_show_box)
+        self.furigana_box_check.setToolTip("If disabled, only the furigana text itself is shown, without a background box.")
+        furigana_layout.addRow(self.furigana_box_check_label, self.furigana_box_check)
+
+        furigana_group.setLayout(furigana_layout)
+        self.tab_general_layout.addWidget(furigana_group)
         self.tab_general_layout.addStretch()
 
         # ==========================================
@@ -334,6 +357,7 @@ class SettingsDialog(QDialog):
         self._update_auto_scan_state(self.auto_scan_check.isChecked())
         self._update_glens_state(self.ocr_provider_combo.currentText())
         self._update_kanji_options_state(self.show_kanji_check.isChecked())
+        self._update_furigana_state(self.furigana_mode_check.isChecked())
 
     def _set_expanding(self, widget):
         """Helper to let a widget expand horizontally"""
@@ -373,6 +397,11 @@ class SettingsDialog(QDialog):
         self.auto_scan_interval_spin_label.setEnabled(is_checked)
         self.auto_scan_no_hotkey_check_label.setEnabled(is_checked)
         self.auto_scan_mouse_move_check_label.setEnabled(is_checked)
+
+    def _update_furigana_state(self, is_checked):
+        """Grays out furigana sub-options if furigana mode is off."""
+        self.furigana_box_check.setEnabled(is_checked)
+        self.furigana_box_check_label.setEnabled(is_checked)
 
     def _update_glens_state(self, current_provider):
         """Grays out Google Lens options if another provider is selected."""
@@ -431,6 +460,8 @@ class SettingsDialog(QDialog):
         if IS_WINDOWS:
             config.magpie_compatibility = self.magpie_check.isChecked()
         config.compact_mode = self.compact_check.isChecked()
+        config.furigana_mode = self.furigana_mode_check.isChecked()
+        config.furigana_show_box = self.furigana_box_check.isChecked()
         config.show_all_glosses = self.show_glosses_check.isChecked()
         config.show_deconjugation = self.show_deconj_check.isChecked()
         config.show_pos = self.show_pos_check.isChecked()

@@ -60,7 +60,9 @@ class Config:
             'color_highlight_word': '#88D8FF',
             'color_highlight_reading': '#90EE90',
             'background_opacity': 245,
-            'popup_position_mode': 'visual_novel_mode'
+            'popup_position_mode': 'visual_novel_mode',
+            'furigana_mode': False,
+            'furigana_show_box': True
         }
     }
 

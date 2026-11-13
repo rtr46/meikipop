@@ -8,6 +8,7 @@ from PyQt6.QtCore import qInstallMessageHandler
 from PyQt6.QtWidgets import QApplication
 
 from meikipop.utils.logger import setup_logging
+from meikipop.utils.console import console_manager
 from meikipop.config.config import APP_NAME, APP_VERSION
 from meikipop.dictionary.lookup import Lookup
 from meikipop.gui.input import InputLoop
@@ -45,6 +46,7 @@ class SharedState:
 
 
 def run_gui():
+    console_manager.hide_on_startup()
     setup_logging()
     shared_state = SharedState()
 
@@ -72,11 +74,11 @@ def run_gui():
     {APP_NAME}.{APP_VERSION} is running in the background.
 
       - To configure or change scan area: Right-click the icon in your system tray.
-      - To exit: Press Ctrl+C in this terminal.
+      - To exit: Choose 'Quit' in the tray menu or press Ctrl+C in this terminal.
 
     --------------------------------------------------
     """
-    print(ready_message)
+    console_manager.print(ready_message)
 
     def signal_handler(sig, frame):
         QApplication.quit()
