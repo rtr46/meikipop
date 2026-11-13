@@ -18,6 +18,10 @@ https://github.com/user-attachments/assets/a1834197-3059-438c-a2dc-716e8ec9078f
 
 ## new in this version
 
+hover any text and hold the hotkey for the full dictionary popup:
+
+![dictionary popup while scanning](docs/images/dictionary-popup.png)
+
 *   **furigana mode:** just hover a word to see its reading in a small box centered over the cursor. hold the hotkey for the full dictionary popup. toggle it in the tray menu or settings.
 
     ![furigana mode](docs/images/furigana.png)
