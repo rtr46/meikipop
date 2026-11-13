@@ -112,7 +112,8 @@ changes are saved to a platform-specific user data directory which contains `con
 ## using alternative ocr backends...
 
 meikipop's architecture allows you to choose whatever ocr suits your use case best:
-- meikiocr (default/local): possibly the fastest local ocr worth using on cpu and can run even faster on nvidia gpus. primarily designed for video games with horizontal text. poor accuracy for vertical text.
+- meikiocr (default/local): ~~possibly the fastest local~~ ocr worth using on cpu and can run even faster on nvidia gpus. primarily designed for video games with horizontal text. poor accuracy for vertical text.
+- mida + VOCR6 (local): experimental ocr pipeline that is >3x faster than meikiocr at nearly the same accuracy.
 - google lens (remote): high accuracy, but requires an internet connection and has higher latency then the local options.
 - chrome screen ai (local): alternative local ocr worth checking out if meikiocr does not fit your use case. requires additional setup ([instructions](https://github.com/rtr46/meikipop/releases/tag/v1.10.0))
 - owocr: owocr lets you choose from even more ocr backends (see below)
