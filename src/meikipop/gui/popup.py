@@ -8,7 +8,10 @@ from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QColor, QCursor, QFont, QFontMetrics, QFontInfo
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel, QFrame, QApplication, QGraphicsDropShadowEffect
 
-from meikipop.config.config import config, IS_MACOS
+from meikipop.config.config import config, IS_MACOS, IS_WINDOWS
+
+if IS_WINDOWS:
+    import ctypes
 from meikipop.dictionary.lookup import DictionaryEntry, KanjiEntry, KANJI_REGEX
 from meikipop.gui.magpie_manager import magpie_manager
 
@@ -433,7 +436,25 @@ class Popup(QWidget):
         # --- Positioning logic based on mode ---
         mode = config.popup_position_mode
 
-        if mode == 'visual_novel_mode':
+        if self._current_view == 'furigana':
+            # Furigana: always centered horizontally on the cursor.
+            final_x = x - popup_size.width() / 2.0
+
+            # Same above/below choice as VN mode, but with a larger gap below so the
+            # cursor arrow (which hangs down from its hotspot) doesn't overlap the box.
+            offset_above = 14
+            offset_below = 22
+            screen_height = screen_geo.height()
+            cursor_y_in_screen = y - screen_geo.top()
+            if cursor_y_in_screen > (2 * screen_height / 3):
+                is_below = False
+            elif cursor_y_in_screen < (screen_height / 3):
+                is_below = True
+            else:
+                is_below = cursor_y_in_screen < (screen_height / 2)
+            final_y = (y + offset_below) if is_below else (y - popup_size.height() - offset_above)
+
+        elif mode == 'visual_novel_mode':
             # --- Vertical Position (VN Mode) ---
             screen_height = screen_geo.height()
             cursor_y_in_screen = y - screen_geo.top()
@@ -499,7 +520,25 @@ class Popup(QWidget):
         final_x = max(screen_geo.left(), min(final_x, screen_geo.right() - popup_size.width()))
         final_y = max(screen_geo.top(), min(final_y, screen_geo.bottom() - popup_size.height()))
 
-        self.move(int(final_x), int(final_y))
+        self.move(round(final_x), round(final_y))
+        self._keep_on_top()
+
+    def _keep_on_top(self):
+        """Re-assert topmost z-order on Windows so tooltips/hover popups from other apps
+        (e.g. browser link previews) don't cover the popup. Throttled to ~10x/sec."""
+        if not IS_WINDOWS or not self.is_visible:
+            return
+        self._topmost_tick = getattr(self, '_topmost_tick', 0) + 1
+        if self._topmost_tick % 10:
+            return
+        try:
+            hwnd = int(self.winId())
+            HWND_TOPMOST = -1
+            SWP_NOSIZE, SWP_NOMOVE, SWP_NOACTIVATE = 0x0001, 0x0002, 0x0010
+            ctypes.windll.user32.SetWindowPos(ctypes.c_void_p(hwnd), ctypes.c_void_p(HWND_TOPMOST), 0, 0, 0, 0,
+                                              SWP_NOSIZE | SWP_NOMOVE | SWP_NOACTIVATE)
+        except Exception:
+            pass
 
     def hide_popup(self):
         # logger.debug(f"hide_popup triggered while visibility:{self.is_visible}")
@@ -525,6 +564,7 @@ class Popup(QWidget):
 
         self._store_active_window_on_mac()
         self.show()
+        self._topmost_tick = -1  # re-assert topmost on the very next move
         if IS_MACOS:
             self.raise_()
 

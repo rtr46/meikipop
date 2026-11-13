@@ -3,6 +3,7 @@ import logging
 import threading
 from typing import List
 
+from meikipop.config.config import config
 from meikipop.gui.magpie_manager import magpie_manager
 from meikipop.ocr.interface import Paragraph
 
@@ -16,26 +17,44 @@ class HitScanner(threading.Thread):
         self.input_loop = input_loop
         self.screen_manager = screen_manager
         self.last_ocr_result = None
+        self._results_by_geometry = {}  # follow-mouse mode: last ocr result of each screen
 
     def run(self):
         logger.debug("HitScanner thread started.")
         while self.shared_state.running:
             try:
-                ocr_result = self.shared_state.hit_scan_queue.get()
+                item = self.shared_state.hit_scan_queue.get()
                 if not self.shared_state.running: break
                 logger.debug("HitScanner: Triggered")
-                hit_scan_result = self.hit_scan(ocr_result)
+                paragraphs, geometry = self._resolve_ocr_result(item)
+                hit_scan_result = self.hit_scan(paragraphs, geometry)
                 self.shared_state.lookup_queue.put(hit_scan_result)
             except:
                 logger.exception("An unexpected error occurred in the hit scan loop. Continuing...")
         logger.debug("HitScanner thread stopped.")
 
-    def hit_scan(self, paragraphs: List[Paragraph]):
-        if not paragraphs:
+    def _resolve_ocr_result(self, item):
+        """Returns (paragraphs, geometry) to hit scan against. In follow-mouse mode, every screen keeps
+        its own last ocr result, so moving back to an already scanned screen works instantly."""
+        if item is None:  # results were invalidated (e.g. ocr provider switched)
+            self._results_by_geometry.clear()
+            return None, None
+        paragraphs, geometry = item
+        if config.scan_region != "mouse":
+            self._results_by_geometry.clear()
+            return paragraphs, geometry
+        self._results_by_geometry[geometry] = paragraphs
+        current_geometry = self.screen_manager.get_scan_geometry()
+        return self._results_by_geometry.get(current_geometry), current_geometry
+
+    def hit_scan(self, paragraphs: List[Paragraph], geometry):
+        if not paragraphs or not geometry:
             return None
 
         mouse_x, mouse_y = magpie_manager.transform_raw_to_visual(self.input_loop.get_mouse_pos(), 1)
-        mouse_off_x, mouse_off_y, img_w, img_h = self.screen_manager.get_scan_geometry()
+        mouse_off_x, mouse_off_y, img_w, img_h = geometry
+        if not img_w or not img_h:
+            return None
         relative_x = mouse_x - mouse_off_x
         relative_y = mouse_y - mouse_off_y
         norm_x, norm_y = relative_x / img_w, relative_y / img_h

@@ -20,6 +20,7 @@ class OcrProcessor(threading.Thread):
         self.shared_state = shared_state
         self.screen_manager = screen_manager
         self.ocr_backend: Optional[OcrProvider] = None
+        self._provider_instances: Dict[str, OcrProvider] = {}  # reuse instances so toggling is instant
 
         self.available_providers = self._discover_providers()
         if not self.available_providers:
@@ -32,8 +33,9 @@ class OcrProcessor(threading.Thread):
         logger.debug("OCR thread started.")
         while self.shared_state.running:
             try:
-                screenshot = self.shared_state.ocr_queue.get()
+                item = self.shared_state.ocr_queue.get()
                 if not self.shared_state.running: break
+                screenshot, geometry = item
 
                 logger.debug("OCR: Triggered!")
 
@@ -43,7 +45,7 @@ class OcrProcessor(threading.Thread):
                     f"{self.ocr_backend.NAME} found {len(ocr_result) if ocr_result else 0} paragraphs in {(time.perf_counter() - start_time):.3f}s.")
                 # todo keep last ocr result?
 
-                self.shared_state.hit_scan_queue.put(ocr_result)
+                self.shared_state.hit_scan_queue.put((ocr_result, geometry))
             except:
                 logger.exception("An unexpected error occurred in the ocr loop. Continuing...")
             finally:
@@ -60,7 +62,13 @@ class OcrProcessor(threading.Thread):
             logger.info(f"Switching OCR provider to '{provider_name}'...")
             provider_class = self.available_providers[provider_name]
             try:
-                self.ocr_backend = provider_class()
+                if self.ocr_backend:
+                    self._provider_instances[self.ocr_backend.NAME] = self.ocr_backend
+                instance = self._provider_instances.get(provider_name)
+                if instance is None:
+                    instance = provider_class()
+                    self._provider_instances[provider_name] = instance
+                self.ocr_backend = instance
                 logger.info(f"Successfully switched OCR provider to '{self.ocr_backend.NAME}'")
                 config.ocr_provider = self.ocr_backend.NAME
                 config.save()  # todo fix tray showing wrong provider

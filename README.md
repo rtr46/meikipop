@@ -16,6 +16,22 @@ https://github.com/user-attachments/assets/a1834197-3059-438c-a2dc-716e8ec9078f
 *   **region or fullscreen:** scan your entire screen or select a specific region (like a game window or manga page) to improve performance.
 *   **pluggable ocr backend:** lets you choose whatever ocr suits you best. whether you want the highest accuracy remote ocr, that runs great even on low-end hardware or you want blazingly fast and private local ocr.
 
+## new in this version
+
+*   **furigana mode:** just hover a word to see its reading in a small box centered over the cursor. hold the hotkey for the full dictionary popup. toggle it in the tray menu or settings.
+
+    ![furigana mode](docs/images/furigana.png)
+
+*   **ocr quick switch (windows):** press a hotkey (default `ctrl+alt+o`) to switch between two ocr providers, e.g. local meikiocr for normal reading and google lens for hard text. a small notice shows which one is active. set it up in settings → general.
+
+    ![ocr switch notice](docs/images/ocr-switch.png) ![ocr quick switch settings](docs/images/settings-quick-switch.png)
+
+*   **scan area: screen under mouse:** only scans the screen your mouse is on, so multi-monitor setups send much smaller images (faster with google lens). each screen keeps its last result, so moving back to a screen works instantly.
+
+    ![scan area menu](docs/images/scan-area.png)
+
+*   **no console window:** on windows the console is hidden by default and can be shown from the tray menu.
+
 ## philosophy & limitations
 
 meikipop is designed to do one thing and do it exceptionally well: provide fast, frictionless, on-screen dictionary lookups.

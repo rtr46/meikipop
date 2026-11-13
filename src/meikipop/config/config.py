@@ -9,7 +9,7 @@ from meikipop.utils.paths import paths
 logger = logging.getLogger(__name__)
 
 APP_NAME = "meikipop"
-APP_VERSION = "2.0.6"
+APP_VERSION = "2.1.0"
 MAX_DICT_ENTRIES = 10
 IS_LINUX = sys.platform.startswith('linux')
 IS_WINDOWS = sys.platform.startswith('win')
@@ -39,6 +39,9 @@ class Config:
             'auto_scan_interval_seconds': 0.5,
             'auto_scan_on_mouse_move': True,
             'magpie_compatibility': True,
+            'ocr_toggle_hotkey': 'ctrl+alt+o',
+            'ocr_toggle_provider_a': 'meikiocr (local)',
+            'ocr_toggle_provider_b': 'Google Lens (remote)',
             'validated_dict_ts': -1
         },
         'Theme': {

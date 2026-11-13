@@ -25,10 +25,13 @@ class ScreenManager(threading.Thread):
         self.shared_state = shared_state
         self.monitor = None
         self.last_ocr_put_time = 0.0
-        self.last_screenshot = None
+        self.last_screenshots = {}  # geometry -> last screenshot taken of that area (skip unchanged content)
         self.last_mouse_pos = None
         self.input_loop = input_loop
-        if config.scan_region == "region":
+        self._monitors = []
+        if config.scan_region == "mouse":
+            self.set_scan_follow_mouse()
+        elif config.scan_region == "region":
             self.set_scan_region()
         else:
             try:
@@ -68,20 +71,28 @@ class ScreenManager(threading.Thread):
                 with self.shared_state.screen_lock:
                     logger.debug("...successfully acquired lock by screenmanager")
                     start_time = time.perf_counter()
+                    if config.scan_region == "mouse":
+                        monitor = self.monitor_under_mouse()
+                        if monitor:
+                            self.monitor = monitor
+                    geometry = self.get_monitor_geometry(self.monitor)
                     screenshot = self.take_screenshot()
                 logger.debug("...successfully released lock by screenmanager")
                 processing_duration = time.perf_counter() - start_time
                 logger.debug(f"Screenshot {screenshot.size} complete in {processing_duration:.2f}s")
 
-                if self.last_screenshot and self.last_screenshot.raw == screenshot.raw:
+                last_screenshot = self.last_screenshots.get(geometry)
+                if last_screenshot and last_screenshot.raw == screenshot.raw:
                     logger.debug(f"Screen content didnt change... skipping ocr")
                     self._sleep_and_handle_loop_exit(0.1)
                     continue
 
-                self.last_screenshot = screenshot
+                if config.scan_region != "mouse":
+                    self.last_screenshots.clear()  # only one area is ever scanned in the other modes
+                self.last_screenshots[geometry] = screenshot
                 self.last_mouse_pos = self.input_loop.get_mouse_pos()
                 img = Image.frombytes("RGB", screenshot.size, screenshot.bgra, "raw", "BGRX")
-                self.shared_state.ocr_queue.put(img)
+                self.shared_state.ocr_queue.put((img, geometry))
                 self.last_ocr_put_time = time.perf_counter()
             except:
                 logger.exception("An unexpected error occurred in the screenshot loop. Continuing...")
@@ -113,13 +124,43 @@ class ScreenManager(threading.Thread):
             else:
                 logger.error(f"Cannot set scan screen: index {screen_index} is out of bounds.")
 
-    def get_scan_geometry(self):
-        if not self.monitor:
+    def set_scan_follow_mouse(self):
+        logger.info("Set scan area to the screen under the mouse")
+        self._refresh_monitors()
+        self.monitor = self.monitor_under_mouse() or (self._monitors[0] if self._monitors else None)
+
+    def _refresh_monitors(self):
+        with mss.mss() as sct:
+            self._monitors = list(sct.monitors[1:])  # [0] is the combined virtual screen
+
+    def _find_monitor(self, x, y):
+        for m in self._monitors:
+            if m["left"] <= x < m["left"] + m["width"] and m["top"] <= y < m["top"] + m["height"]:
+                return m
+        return None
+
+    def monitor_under_mouse(self):
+        x, y = self.input_loop.get_mouse_pos()
+        monitor = self._find_monitor(x, y)
+        if monitor is None:  # monitor layout may have changed
+            self._refresh_monitors()
+            monitor = self._find_monitor(x, y)
+        return monitor
+
+    @staticmethod
+    def get_monitor_geometry(monitor):
+        if not monitor:
             return 0, 0, 0, 0
-        return self.monitor["left"], self.monitor["top"], self.monitor["width"], self.monitor["height"]
+        return monitor["left"], monitor["top"], monitor["width"], monitor["height"]
+
+    def get_scan_geometry(self):
+        """Geometry of the area hit scans should use right now (the screen under the mouse in follow-mouse mode)."""
+        if config.scan_region == "mouse":
+            return self.get_monitor_geometry(self.monitor_under_mouse())
+        return self.get_monitor_geometry(self.monitor)
 
     def force_screenshot_trigger(self):
-        self.last_screenshot = None
+        self.last_screenshots = {}
         self.last_mouse_pos = None
 
     def _sleep_and_handle_loop_exit(self, interval):

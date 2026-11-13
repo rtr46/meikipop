@@ -1,16 +1,17 @@
 # meikipop/gui/settings_dialog.py
 from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QColor, QIcon, QFontDatabase
+from PyQt6.QtGui import QColor, QIcon, QFontDatabase, QKeySequence
 from PyQt6.QtWidgets import (QWidget, QDialog, QFormLayout, QComboBox,
                              QSpinBox, QCheckBox, QPushButton, QColorDialog, QVBoxLayout, QHBoxLayout,
                              QGroupBox, QDialogButtonBox, QLabel, QSlider, QDoubleSpinBox,
-                             QTabWidget, QSizePolicy, QFontComboBox)
+                             QTabWidget, QSizePolicy, QFontComboBox, QKeySequenceEdit)
 
 from meikipop.dictionary.lookup import Lookup
 from meikipop.config.config import config, APP_NAME, IS_WINDOWS
 from meikipop.gui.input import InputLoop
 from meikipop.gui.popup import Popup
 from meikipop.ocr.ocr import OcrProcessor
+from meikipop.gui.ocr_toggle import qt_sequence_to_hotkey
 
 THEMES = {
     "Nazeka": {
@@ -106,6 +107,43 @@ class SettingsDialog(QDialog):
 
         core_group.setLayout(core_layout)
         self.tab_general_layout.addWidget(core_group)
+
+        # --- OCR Quick Switch (Windows only) ---
+        if IS_WINDOWS:
+            switch_group = QGroupBox("OCR Quick Switch")
+            switch_layout = QFormLayout()
+            self.form_layouts.append(switch_layout)
+
+            hotkey_row = QWidget()
+            hotkey_row_layout = QHBoxLayout(hotkey_row)
+            hotkey_row_layout.setContentsMargins(0, 0, 0, 0)
+            self.ocr_toggle_hotkey_edit = QKeySequenceEdit()
+            self.ocr_toggle_hotkey_edit.setMaximumSequenceLength(1)
+            self.ocr_toggle_hotkey_edit.setKeySequence(QKeySequence(config.ocr_toggle_hotkey or ''))
+            self.ocr_toggle_hotkey_edit.setToolTip(
+                "Press a key combination to switch between the two providers below. Clear it to disable.")
+            self._set_expanding(self.ocr_toggle_hotkey_edit)
+            clear_btn = QPushButton("Clear")
+            clear_btn.clicked.connect(self.ocr_toggle_hotkey_edit.clear)
+            hotkey_row_layout.addWidget(self.ocr_toggle_hotkey_edit)
+            hotkey_row_layout.addWidget(clear_btn)
+            switch_layout.addRow("Switch Hotkey:", hotkey_row)
+
+            provider_names = list(self.ocr_processor.available_providers.keys())
+            self.ocr_toggle_a_combo = QComboBox()
+            self.ocr_toggle_a_combo.addItems(provider_names)
+            self.ocr_toggle_a_combo.setCurrentText(config.ocr_toggle_provider_a)
+            self._set_expanding(self.ocr_toggle_a_combo)
+            switch_layout.addRow("Switch Between:", self.ocr_toggle_a_combo)
+
+            self.ocr_toggle_b_combo = QComboBox()
+            self.ocr_toggle_b_combo.addItems(provider_names)
+            self.ocr_toggle_b_combo.setCurrentText(config.ocr_toggle_provider_b)
+            self._set_expanding(self.ocr_toggle_b_combo)
+            switch_layout.addRow("And:", self.ocr_toggle_b_combo)
+
+            switch_group.setLayout(switch_layout)
+            self.tab_general_layout.addWidget(switch_group)
 
         # --- Group 2: Auto Scan Mode ---
         auto_group = QGroupBox("Auto Scan Mode")
@@ -459,6 +497,10 @@ class SettingsDialog(QDialog):
 
         if IS_WINDOWS:
             config.magpie_compatibility = self.magpie_check.isChecked()
+            config.ocr_toggle_hotkey = qt_sequence_to_hotkey(
+                self.ocr_toggle_hotkey_edit.keySequence().toString(QKeySequence.SequenceFormat.PortableText))
+            config.ocr_toggle_provider_a = self.ocr_toggle_a_combo.currentText()
+            config.ocr_toggle_provider_b = self.ocr_toggle_b_combo.currentText()
         config.compact_mode = self.compact_check.isChecked()
         config.furigana_mode = self.furigana_mode_check.isChecked()
         config.furigana_show_box = self.furigana_box_check.isChecked()

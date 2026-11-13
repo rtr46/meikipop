@@ -6,6 +6,7 @@ from PyQt6.QtWidgets import QSystemTrayIcon, QMenu, QApplication
 
 from meikipop.config.config import APP_NAME, config, IS_WINDOWS
 from meikipop.gui.settings_dialog import SettingsDialog
+from meikipop.gui.ocr_toggle import OcrToggle
 from meikipop.ocr.ocr import OcrProcessor
 from meikipop.utils.paths import paths
 from meikipop.utils.console import console_manager
@@ -86,6 +87,13 @@ class TrayIcon(QSystemTrayIcon):
         self.scan_area_action_group.addAction(region_action)
         self.scan_area_actions.append(region_action)
 
+        mouse_action = scan_area_menu.addAction("Screen Under Mouse")
+        mouse_action.setCheckable(True)
+        mouse_action.setData('mouse')
+        mouse_action.setToolTip("Only scans the screen the mouse is on. Each screen keeps its last result.")
+        self.scan_area_action_group.addAction(mouse_action)
+        self.scan_area_actions.append(mouse_action)
+
         for i, res in enumerate(self.screen_manager.get_screens()):
             action = scan_area_menu.addAction(f"Screen {i} ({res['width']}x{res['height']})")
             action.setCheckable(True)
@@ -123,6 +131,8 @@ class TrayIcon(QSystemTrayIcon):
 
         self.setContextMenu(self.menu)
         self.setToolTip(APP_NAME)
+
+        self.ocr_toggle = OcrToggle(self.ocr_processor, on_switched=self.reapply_settings)
 
         self.prevent_ghost_icon_on_win()
 
@@ -174,6 +184,11 @@ class TrayIcon(QSystemTrayIcon):
                     config.save()
             else:
                 self.update_scan_area_check()
+        elif selected_id == 'mouse':
+            if config.scan_region != 'mouse':
+                config.scan_region = 'mouse'
+                self.screen_manager.set_scan_follow_mouse()
+                config.save()
         else:  # It's a screen index
             index = int(selected_id)
             if str(index) != config.scan_region:
@@ -208,6 +223,9 @@ class TrayIcon(QSystemTrayIcon):
             if action.text() == config.ocr_provider:
                 action.setChecked(True)
                 break
+
+        if hasattr(self, 'ocr_toggle'):
+            self.ocr_toggle.reapply_settings()
 
         self.furigana_action.setChecked(config.furigana_mode)
 
