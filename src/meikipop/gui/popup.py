@@ -10,7 +10,9 @@ from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel, QFrame, QApplication
 
 from meikipop.config.config import config, IS_MACOS
 from meikipop.dictionary.lookup import DictionaryEntry, KanjiEntry
+from meikipop.dictionary.pitch_accent import mark_high_morae
 from meikipop.gui.magpie_manager import magpie_manager
+
 
 # macOS-specific imports for focus management
 if IS_MACOS:
@@ -233,8 +235,10 @@ class Popup(QWidget):
 
     def _calculate_content_and_size_char_count(self, entries: Optional[List[DictionaryEntry]]) -> tuple[
         Optional[str], Optional[QSize]]:
-        if not self.is_calibrated: return None, None
-        if not entries: return None, None
+        if not self.is_calibrated:
+            return None, None
+        if not entries:
+            return None, None
 
         all_html_parts = []
         max_ratio = 0.0
@@ -244,83 +248,213 @@ class Popup(QWidget):
                 all_html_parts.append('<hr style="margin-top: 0px; margin-bottom: 0px;">')
 
             if isinstance(entry, KanjiEntry):
-                header_definition = ', '.join(
-                    entry.meanings) if config.show_examples or config.show_components else '[字]'
-                header_text_calc = f"{entry.character} {', '.join(entry.readings)} {header_definition}"
-                max_ratio = max(max_ratio, len(header_text_calc) / self.header_chars_per_line)
+                header_definition = (
+                    ', '.join(entry.meanings)
+                    if config.show_examples or config.show_components
+                    else '[字]'
+                )
+                header_text_calc = (
+                    f"{entry.character} "
+                    f"{', '.join(entry.readings)} "
+                    f"{header_definition}"
+                )
+                max_ratio = max(
+                    max_ratio,
+                    len(header_text_calc) / self.header_chars_per_line
+                )
 
                 max_ratio = max(max_ratio, 0.7)
 
                 all_html_parts.append(self._render_kanji_entry(entry))
+
+                # KanjiEntry does not have written_form, reading, senses, etc.
+                # Stop here and process the next entry.
                 continue
 
+            # From this point onward, entry is a DictionaryEntry.
+
             header_text_calc = entry.written_form
-            if entry.reading: header_text_calc += f" [{entry.reading}]"
+
+            pitch_html = ""
+            pitch_text = ""
+
+            if entry.reading:
+                if entry.pitch_accents:
+                    pitch_text = " [" + ", ".join(
+                        str(a) for a in entry.pitch_accents
+                    ) + "]"
+
+                    # For now, visually mark the first listed accent pattern.
+                    marked_reading = mark_high_morae(
+                        entry.reading,
+                        entry.pitch_accents[0],
+                    )
+
+                    pitch_html = (
+                        f' <span style="color:{config.color_highlight_reading}; '
+                        f'font-size:{config.font_size_header - 2}px;">'
+                        f'[{marked_reading}]'
+                        f'</span>'
+                        f' <span style="color:{config.color_foreground}; '
+                        f'font-size:{config.font_size_definitions - 2}px; '
+                        f'opacity:0.8;">'
+                        f'[{", ".join(str(a) for a in entry.pitch_accents)}]'
+                        f'</span>'
+                    )
+                else:
+                    pitch_html = (
+                        f' <span style="color:{config.color_highlight_reading}; '
+                        f'font-size:{config.font_size_header - 2}px;">'
+                        f'[{entry.reading}]'
+                        f'</span>'
+                    )
+
+                header_text_calc += f" [{entry.reading}]{pitch_text}"
+
             header_ratio = len(header_text_calc) / self.header_chars_per_line
             max_ratio = max(max_ratio, header_ratio)
 
             # --- HTML construction ---
-            header_html = f'<span style="color: {config.color_highlight_word}; font-size:{config.font_size_header}px;">{entry.written_form}</span>'
-            if entry.reading: header_html += f' <span style="color: {config.color_highlight_reading}; font-size:{config.font_size_header - 2}px;">[{entry.reading}]</span>'
+            header_html = (
+                f'<span style="color: {config.color_highlight_word}; '
+                f'font-size:{config.font_size_header}px;">'
+                f'{entry.written_form}'
+                f'</span>'
+            )
+
+            if entry.reading:
+                header_html += pitch_html
+
             if entry.deconjugation_process and config.show_deconjugation:
-                deconj_str = " ← ".join(p for p in entry.deconjugation_process if p)
+                deconj_str = " ← ".join(
+                    p for p in entry.deconjugation_process if p
+                )
                 if deconj_str:
-                    header_html += f' <span style="color:{config.color_foreground}; font-size:{config.font_size_definitions - 2}px; opacity:0.8;">({deconj_str})</span>'
+                    header_html += (
+                        f' <span style="color:{config.color_foreground}; '
+                        f'font-size:{config.font_size_definitions - 2}px; '
+                        f'opacity:0.8;">'
+                        f'({deconj_str})'
+                        f'</span>'
+                    )
+
             if config.show_frequency and entry.freq < 999_999:
-                header_html += f' <span style="color:{config.color_foreground}; font-size:{config.font_size_definitions - 2}px; opacity:0.6;">#{entry.freq}</span>'
+                header_html += (
+                    f' <span style="color:{config.color_foreground}; '
+                    f'font-size:{config.font_size_definitions - 2}px; '
+                    f'opacity:0.6;">'
+                    f'#{entry.freq}'
+                    f'</span>'
+                )
+
             def_text_parts_calc = []
             def_text_parts_html = []
+
             for idx, sense in enumerate(entry.senses):
                 glosses = sense.get('glosses', [])
                 glosses_str = ""
+
                 if glosses:
-                    glosses_str = ", ".join(glosses) if config.show_all_glosses else sense.get('glosses')[0]
-                pos_list  = sense.get('pos', [])
+                    glosses_str = (
+                        ", ".join(glosses)
+                        if config.show_all_glosses
+                        else sense.get('glosses')[0]
+                    )
+
+                pos_list = sense.get('pos', [])
                 tags_list = sense.get('tags', [])
+
                 sense_calc = f"({idx + 1})" if config.show_all_glosses else ""
-                sense_html = f"<b>({idx + 1})</b> " if config.show_all_glosses else ""
+                sense_html = (
+                    f"<b>({idx + 1})</b> "
+                    if config.show_all_glosses
+                    else ""
+                )
+
                 if config.show_pos and pos_list:
                     pos_str = f' ({", ".join(pos_list)})'
                     sense_calc += pos_str
-                    sense_html += f'<span style="color:{config.color_foreground}; opacity:0.7;"><i>{pos_str}</i></span> '
+                    sense_html += (
+                        f'<span style="color:{config.color_foreground}; '
+                        f'opacity:0.7;">'
+                        f'<i>{pos_str}</i>'
+                        f'</span> '
+                    )
+
                 if config.show_tags and tags_list:
                     tags_str = f' [{", ".join(tags_list)}]'
                     sense_calc += tags_str
-                    sense_html += f'<span style="color:{config.color_foreground}; font-size:{config.font_size_definitions - 2}px; opacity:0.7;">{tags_str}</span> '
+                    sense_html += (
+                        f'<span style="color:{config.color_foreground}; '
+                        f'font-size:{config.font_size_definitions - 2}px; '
+                        f'opacity:0.7;">'
+                        f'{tags_str}'
+                        f'</span> '
+                    )
+
                 sense_calc += glosses_str
                 sense_html += glosses_str
+
                 def_text_parts_calc.append(sense_calc)
                 def_text_parts_html.append(sense_html)
 
             if config.compact_mode:
                 separator = "; "
                 full_def_text_html = separator.join(def_text_parts_html)
-                def_ratio = len(separator.join(def_text_parts_calc)) / self.def_chars_per_line
+                def_ratio = (
+                    len(separator.join(def_text_parts_calc))
+                    / self.def_chars_per_line
+                )
                 max_ratio = max(max_ratio, def_ratio)
             else:
                 separator = "<br>"
                 full_def_text_html = separator.join(def_text_parts_html)
+
                 for def_text_calc in def_text_parts_calc:
                     def_ratio = len(def_text_calc) / self.def_chars_per_line
                     max_ratio = max(max_ratio, def_ratio)
 
-            definitions_html_final = f'{" " if config.compact_mode else "<br>"}<span style="font-size:{config.font_size_definitions}px;">{full_def_text_html}</span>'
-            all_html_parts.append(f"{header_html}{definitions_html_final}")
+            definitions_html_final = (
+                f'{" " if config.compact_mode else "<br>"}'
+                f'<span style="font-size:{config.font_size_definitions}px;">'
+                f'{full_def_text_html}'
+                f'</span>'
+            )
 
-        optimal_content_width = self.max_content_width * min(1.0, max_ratio)
+            all_html_parts.append(
+                f"{header_html}{definitions_html_final}"
+            )
+
+        optimal_content_width = (
+            self.max_content_width * min(1.0, max_ratio)
+        )
         optimal_content_width = max(optimal_content_width, 200)
 
         full_html = "".join(all_html_parts)
         self.probe_label.setText(full_html)
 
-        final_height = self.probe_label.heightForWidth(int(optimal_content_width))
+        final_height = self.probe_label.heightForWidth(
+            int(optimal_content_width)
+        )
 
         margins = self.content_layout.contentsMargins()
         border_width = 1
-        horizontal_padding = margins.left() + margins.right() + (border_width * 2)
-        vertical_padding = margins.top() + margins.bottom() + (border_width * 2)
+        horizontal_padding = (
+            margins.left()
+            + margins.right()
+            + (border_width * 2)
+        )
+        vertical_padding = (
+            margins.top()
+            + margins.bottom()
+            + (border_width * 2)
+        )
 
-        final_size = QSize(int(optimal_content_width) + horizontal_padding, final_height + vertical_padding)
+        final_size = QSize(
+            int(optimal_content_width) + horizontal_padding,
+            final_height + vertical_padding,
+        )
+
         return full_html, final_size
 
     def move_to(self, x, y):
