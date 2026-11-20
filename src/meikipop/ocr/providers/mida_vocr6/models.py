@@ -1,51 +1,36 @@
 # meikipop/ocr/providers/mida_vocr6/models.py
-"""One model-acquisition path for the mida + VOCR6 provider.
+"""One model-acquisition path for the mida + VOCR6 provider: every model is a sha256-checked Hugging Face
+file, served from `<meikipop data dir>/models/mida_vocr6` or $MEIKIPOP_MIDA_VOCR_DIR.
 
-Every model is described by a ModelSpec (filename, sha256, source). A spec is served either from the
-Hugging Face repo `rtr46/vocr6` (both VOCR recognizers) or from a bundled package asset (the mida detector,
-which is not in that repo). All files are sha256-checked and live in `<meikipop data dir>/models/mida_vocr6`,
-or in $MEIKIPOP_MIDA_VOCR_DIR. The VOCR weights are non-commercial only."""
+The VOCR weights are non-commercial only (see the model cards in those repos).
+"""
 import hashlib
 import logging
 import os
-import shutil
 import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
 
 logger = logging.getLogger(__name__)
 
 DIR_ENV = "MEIKIPOP_MIDA_VOCR_DIR"
-BUNDLED_DIR = Path(__file__).resolve().parent / "assets"
-HF_BASE = "https://huggingface.co/rtr46/vocr6/resolve/main/"
+MIDA_BASE = "https://huggingface.co/rtr46/mida/resolve/main/"
+VOCR_BASE = "https://huggingface.co/rtr46/vocr6/resolve/main/"
 
 
 @dataclass(frozen=True)
 class ModelSpec:
     filename: str
+    url: str
     sha256: str
-    url: Optional[str] = None
-    bundled: Optional[str] = None
 
 
-SPECS = {
-    "mida": ModelSpec(
-        filename="mida_v2.onnx",
-        sha256="7a09988b2596ef3fda2e5dfa815bfebbba6d3dcc385cc905cbb329cd8c95a4fa",
-        bundled="mida_v2.onnx",
-    ),
-    "vocr": ModelSpec(
-        filename="VOCR6.2_L_fast.onnx",
-        sha256="3084fb3bd1332832c872009d869d267d5acd1bd69d26c80f742aa2f31a80c938",
-        url=HF_BASE + "VOCR6.2_L_fast.onnx",
-    ),
-    "vocr_v": ModelSpec(
-        filename="VOCR6_V_fast.onnx",
-        sha256="080f0651fe2f23e87befea16995c21089e02da85be96b6189c26c2ab413ac5eb",
-        url=HF_BASE + "VOCR6_V_fast.onnx",
-    ),
-}
+MIDA = ModelSpec("mida_l_alpha_v0.0.2.onnx", MIDA_BASE + "mida_l_alpha_v0.0.2.onnx",
+                 "7a09988b2596ef3fda2e5dfa815bfebbba6d3dcc385cc905cbb329cd8c95a4fa")
+VOCR = ModelSpec("VOCR6.2_L_fast.onnx", VOCR_BASE + "VOCR6.2_L_fast.onnx",
+                 "3084fb3bd1332832c872009d869d267d5acd1bd69d26c80f742aa2f31a80c938")
+VOCR_V = ModelSpec("VOCR6_V_fast.onnx", VOCR_BASE + "VOCR6_V_fast.onnx",
+                   "080f0651fe2f23e87befea16995c21089e02da85be96b6189c26c2ab413ac5eb")
 
 
 def model_dir() -> Path:
@@ -58,55 +43,41 @@ def model_dir() -> Path:
     return d
 
 
-def ensure_mida() -> Path:
-    return ensure(SPECS["mida"])
-
-
-def ensure_vocr() -> Path:
-    return ensure(SPECS["vocr"])
-
-
-def ensure_vocr_v() -> Path:
-    return ensure(SPECS["vocr_v"])
-
-
 def _sha256(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-def _valid(path: Path, sha256: str) -> bool:
-    return path.is_file() and _sha256(path) == sha256
-
-
 def ensure(spec: ModelSpec) -> Path:
-    """The verified local path of a model, fetched from its source first if missing or corrupt."""
+    """The verified local path of a model, downloaded from Hugging Face if missing or corrupt."""
     path = model_dir() / spec.filename
-    if _valid(path, spec.sha256):
+    if path.is_file() and _sha256(path) == spec.sha256:
         return path
 
+    logger.info(f"downloading {spec.filename} from {spec.url} ...")
     part = path.with_name(path.name + ".part")
-    source = spec.url or str(BUNDLED_DIR / (spec.bundled or spec.filename))
     try:
-        if spec.url:
-            logger.info(f"downloading {spec.filename} from {spec.url} ...")
-            request = urllib.request.Request(spec.url, headers={"User-Agent": "meikipop-mida-vocr6"})
-            with urllib.request.urlopen(request, timeout=60) as response:
-                part.write_bytes(response.read())
-        elif spec.bundled:
-            src = BUNDLED_DIR / spec.bundled
-            if not _valid(src, spec.sha256):
-                raise RuntimeError(f"the bundled file is missing or does not match its sha256 ({src})")
-            shutil.copyfile(src, part)
-        else:
-            raise RuntimeError(f"no source configured for {spec.filename}")
-
-        if not _valid(part, spec.sha256):
+        request = urllib.request.Request(spec.url, headers={"User-Agent": "meikipop-mida-vocr6"})
+        with urllib.request.urlopen(request, timeout=60) as response:
+            part.write_bytes(response.read())
+        if _sha256(part) != spec.sha256:
             raise ValueError("sha256 does not match the expected one")
         os.replace(part, path)
     except Exception as e:
         part.unlink(missing_ok=True)
         raise RuntimeError(
-            f"could not obtain {spec.filename} from {source} ({e}). "
+            f"could not obtain {spec.filename} from {spec.url} ({e}). "
             f"Download it by hand and put it in {path.parent}"
         ) from e
     return path
+
+
+def ensure_mida() -> Path:
+    return ensure(MIDA)
+
+
+def ensure_vocr() -> Path:
+    return ensure(VOCR)
+
+
+def ensure_vocr_v() -> Path:
+    return ensure(VOCR_V)
