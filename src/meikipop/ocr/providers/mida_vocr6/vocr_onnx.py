@@ -149,15 +149,16 @@ def _div_round(a, b):
 CHARBOX_CAL = [-107, 0, 183, 4, 38, 7, -4, 44, 8]
 
 
-def cells(sp, w, h, nw, groups, stride=8):
+def cells(sp, w, h, nw, groups, stride=8, cal=None):
     """Per greedy character (centre, x0, x1) in 1/16 crop px along the line: the centre is the middle of the character's
-    frames plus CHARBOX_CAL, the cell runs halfway to its neighbours' centres (the ends by half the median pitch)."""
+    frames plus the model's cell calibration, the cell runs halfway to its neighbours' centres."""
     n = len(sp)
     if not n:
         return []
+    cal = CHARBOX_CAL if cal is None else cal
     c = []
     for cls, f0, f1 in sp:
-        r = Q * stride * (f0 + f1 + 1) // 2 + CHARBOX_CAL[0] + CHARBOX_CAL[1 + groups[cls]]
+        r = Q * stride * (f0 + f1 + 1) // 2 + cal[0] + cal[1 + groups[cls]]
         c.append(min(max(_div_round(r * w, nw), 0), w * Q))
     d = sorted(c[i + 1] - c[i] for i in range(n - 1))
     pitch = d[(len(d) - 1) // 2] if d else h * Q
@@ -185,6 +186,7 @@ class Recognizer:
         self.vocab = meta["vocr.vocab"]
         self.height, self.stride, self.max_width = meta["vocr.height"], meta["vocr.stride"], meta["vocr.max_width"]
         self.groups = [char_group(t) for t in self.vocab]
+        self.cal = meta.get("vocr.charbox_cal", CHARBOX_CAL)
         self.has_sections = "head_sections" in [i.name for i in self.sess.get_inputs()]
 
     def read(self, img: np.ndarray, invert: bool = False) -> List[Char]:
@@ -196,7 +198,8 @@ class Recognizer:
             feeds["head_sections"] = np.array(True)
         sp = spans(self.sess.run(["best"], feeds)[0])
         return [Char(self.vocab[cls], x0 / Q, x1 / Q)
-                for (cls, _, _), (_, x0, x1) in zip(sp, cells(sp, w, h, nw, self.groups, self.stride))]
+                for (cls, _, _), (_, x0, x1) in
+                zip(sp, cells(sp, w, h, nw, self.groups, self.stride, self.cal))]
 
 
 def line_dark(g: np.ndarray) -> bool:
