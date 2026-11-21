@@ -32,7 +32,7 @@ class MidaVocr6Provider(OcrProvider):
     def __init__(self):
         logger.info(f"initializing {self.NAME} provider...")
         self.detector = MidaDetector(models.ensure_mida(), threads=THREADS)
-        self.recognizer = V.Recognizer(models.ensure_vocr(), self._rec_options())
+        self.recognizer = V.Recognizer(models.ensure_vocr(), self._rec_options(), cal=V.CHARBOX_CAL)
         self.v_recognizer = V.Recognizer(models.ensure_vocr_v(), self._rec_options())
         self._pool = ThreadPoolExecutor(max_workers=THREADS, thread_name_prefix="vocr-line")
         logger.info(f"{self.NAME} initialized with {THREADS} threads")
