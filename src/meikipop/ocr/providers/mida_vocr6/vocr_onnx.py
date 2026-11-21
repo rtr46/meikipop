@@ -142,10 +142,7 @@ def _div_round(a, b):
     return (a + b // 2) // b if a >= 0 else -((-a + b // 2) // b)
 
 
-# Offsets in 1/16 resized px: [all characters, then one per char_group]. The model's own table (-36, 0, -12, 4, 38, -16,
-# -10, 0, 8) was fit on VOCR5-L and left cells ~0.45 frames (11% of a character, up to half) too far right on VOCR6.2-L.
-# Refit on 13.8k characters of synthetic text (5 fonts, 720p-4K): the bias is the same for every font, size and
-# resolution. Groups with too little data (open brackets, dots, half-width) keep the model's value.
+# vocr6 char bboxes are offset, this calibrates them better:
 CHARBOX_CAL = [-107, 0, 183, 4, 38, 7, -4, 44, 8]
 
 
@@ -178,7 +175,7 @@ class Char:
 
 
 class Recognizer:
-    def __init__(self, path, session_options):
+    def __init__(self, path, session_options, cal=None):
         self.sess = ort.InferenceSession(str(path), session_options, providers=["CPUExecutionProvider"])
         meta = _meta(self.sess)
         if meta["vocr.kind"] != "recognizer":
@@ -186,7 +183,7 @@ class Recognizer:
         self.vocab = meta["vocr.vocab"]
         self.height, self.stride, self.max_width = meta["vocr.height"], meta["vocr.stride"], meta["vocr.max_width"]
         self.groups = [char_group(t) for t in self.vocab]
-        self.cal = meta.get("vocr.charbox_cal", CHARBOX_CAL)
+        self.cal = cal if cal is not None else meta.get("vocr.charbox_cal", CHARBOX_CAL)
         self.has_sections = "head_sections" in [i.name for i in self.sess.get_inputs()]
 
     def read(self, img: np.ndarray, invert: bool = False) -> List[Char]:
